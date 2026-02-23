@@ -35,7 +35,7 @@ const PrevailLogin = ({ onBack, onLogin }) => {
       </section>
 
       {/* ── Content ── */}
-      <main className="flex-1 flex flex-col px-8 pt-10 pb-8">
+      <main className="flex-1 flex flex-col pt-10 pb-8" style={{ paddingLeft: '10%', paddingRight: '10%' }}>
 
         <div className="text-center mb-10">
           <h1 className="text-4xl font-serif mb-3">Welcome Back</h1>

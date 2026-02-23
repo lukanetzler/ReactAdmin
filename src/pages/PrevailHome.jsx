@@ -1,7 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import meditationTrack from '../assets/Day One - With Archer.mp3';
+import { getDailyVerse } from '../data/getDailyVerse';
 import {
   Compass,
+  Gamepad2,
+  ShoppingBag,
   User,
   Home,
   Play,
@@ -12,22 +15,49 @@ import {
   Wheat,
   Flame,
   ChevronRight,
-  Wind,
+  Headphones,
   ArrowRight,
   ArrowLeft,
   PenLine,
   Trash2,
   Plus,
+  Crown,
+  Lock,
+  Bell,
+  Share2,
 } from 'lucide-react';
 import prayvailLogo from '../assets/prayvail-logo-blank.png';
 
 const DAY_LABELS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+const TRACK_TITLE = 'Day One - With Archer';
 const FEELING_OPTIONS = ['Peaceful', 'Grateful', 'Anxious', 'Hopeful', 'Tired', 'Joyful', 'Unsettled', 'Calm'];
 
-const PrevailHome = () => {
+const PATH_CARD_COLORS = ['#E9DCC9', '#D9C9B5', '#D4A373', '#C4B5A0', '#8E9775', '#B0A898'];
+const PATH_SESSIONS = (() => {
+  const titles = [
+    'With Archer', 'Morning Stillness', 'Surrender', 'In His Presence', 'Letting Go',
+    'The Quiet Place', 'Gratitude', 'Breathing With God', 'Finding Peace', 'Trust & Release',
+    "The Lord's Prayer", 'Anchored', 'Light in the Dark', 'Midpoint', 'Sacred Pause',
+    'Forgiveness', 'Walking by Faith', 'Still Waters', 'Renewed Mind', 'Contentment',
+    'Three Weeks Strong', 'The Shepherd', 'Abiding', 'Abundant Life', 'Come to Me',
+    'Deep Roots', 'He Is Faithful', 'Peace That Passes', 'Dwelling Place', 'The Way Forward',
+  ];
+  const durations = [8,10,9,8,11,10,9,8,10,11,12,9,10,8,9,11,10,9,11,8,10,12,9,10,11,8,10,9,12,15];
+  return titles.map((title, i) => ({ day: i + 1, title, duration: `${durations[i]} min`, wired: i === 0 }));
+})();
+
+const PrevailHome = ({ userName = 'Friend', hasAccount = false, onUpdateName }) => {
+  const dailyVerse = getDailyVerse();
+
   const [activeTab, setActiveTab] = useState('home');
   const [view, setView] = useState('dashboard');
   const [showFlameModal, setShowFlameModal] = useState(false);
+
+  // Account state
+  const [nameInput, setNameInput] = useState(userName);
+  const [notifDailyVerse, setNotifDailyVerse] = useState(true);
+  const [notifReflection, setNotifReflection] = useState(true);
+  const [notifNewContent, setNotifNewContent] = useState(false);
 
   // Core loop state
   const [preFeelingWord, setPreFeelingWord] = useState('');
@@ -73,6 +103,132 @@ const PrevailHome = () => {
   const formatTime = (s) => {
     const m = Math.floor(s / 60);
     return `${m}:${Math.floor(s % 60).toString().padStart(2, '0')}`;
+  };
+
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [shareImageUrl, setShareImageUrl] = useState('');
+
+  const generateShareCard = (verse) => new Promise((resolve) => {
+    const SIZE = 1080;
+    const PAD = 88;
+    const canvas = document.createElement('canvas');
+    canvas.width = SIZE;
+    canvas.height = SIZE;
+    const ctx = canvas.getContext('2d');
+
+    const roundRect = (x, y, w, h, r) => {
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.lineTo(x + w - r, y);
+      ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+      ctx.lineTo(x + w, y + h - r);
+      ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+      ctx.lineTo(x + r, y + h);
+      ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+      ctx.lineTo(x, y + r);
+      ctx.quadraticCurveTo(x, y, x + r, y);
+      ctx.closePath();
+    };
+
+    const wrapText = (text, x, startY, maxW, lineH, maxLines) => {
+      const words = text.split(' ');
+      let line = '';
+      let y = startY;
+      let lines = 0;
+      for (const word of words) {
+        const test = line + word + ' ';
+        if (ctx.measureText(test).width > maxW && line) {
+          if (lines === maxLines - 1) { ctx.fillText(line.trimEnd() + '…', x, y); return y + lineH; }
+          ctx.fillText(line.trimEnd(), x, y);
+          line = word + ' ';
+          y += lineH;
+          lines++;
+        } else { line = test; }
+      }
+      if (line.trim()) ctx.fillText(line.trimEnd(), x, y);
+      return y + lineH;
+    };
+
+    // Background
+    ctx.fillStyle = '#433422';
+    roundRect(0, 0, SIZE, SIZE, 0);
+    ctx.fill();
+
+    // Decorative circles
+    ctx.fillStyle = 'rgba(255,255,255,0.04)';
+    ctx.beginPath(); ctx.arc(SIZE + 60, -60, 360, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(212,163,115,0.08)';
+    ctx.beginPath(); ctx.arc(-60, SIZE + 60, 300, 0, Math.PI * 2); ctx.fill();
+
+    // Label
+    ctx.fillStyle = 'rgba(212,163,115,0.85)';
+    ctx.font = 'bold 26px Arial, sans-serif';
+    try { ctx.letterSpacing = '0.28em'; } catch (_) {}
+    ctx.fillText('DAILY BREAD', PAD, 148);
+    try { ctx.letterSpacing = '0'; } catch (_) {}
+
+    // Verse
+    ctx.fillStyle = '#FDF9F3';
+    ctx.font = 'italic 52px Georgia, serif';
+    const verseY = wrapText(`"${verse.text}"`, PAD, 248, SIZE - PAD * 2, 74, 7);
+
+    // Reference
+    ctx.fillStyle = 'rgba(253,249,243,0.5)';
+    ctx.font = '30px Georgia, serif';
+    ctx.fillText(verse.ref, PAD, Math.min(verseY + 32, 820));
+
+    // Divider
+    ctx.strokeStyle = 'rgba(253,249,243,0.12)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(PAD, 890); ctx.lineTo(SIZE - PAD, 890); ctx.stroke();
+
+    // Logo + branding
+    const img = new Image();
+    img.onload = () => {
+      ctx.save();
+      ctx.beginPath(); ctx.arc(PAD + 30, 944, 30, 0, Math.PI * 2); ctx.clip();
+      ctx.drawImage(img, PAD, 914, 60, 60);
+      ctx.restore();
+
+      ctx.fillStyle = 'rgba(253,249,243,0.80)';
+      ctx.font = 'bold 34px Arial, sans-serif';
+      try { ctx.letterSpacing = '0.18em'; } catch (_) {}
+      ctx.fillText('PRAYVAIL', PAD + 76, 948);
+      try { ctx.letterSpacing = '0'; } catch (_) {}
+
+      ctx.fillStyle = 'rgba(253,249,243,0.38)';
+      ctx.font = 'italic 22px Georgia, serif';
+      ctx.fillText('Find your sanctuary', PAD + 76, 978);
+
+      resolve(canvas);
+    };
+    img.onerror = () => {
+      ctx.fillStyle = 'rgba(253,249,243,0.80)';
+      ctx.font = 'bold 34px Arial, sans-serif';
+      ctx.fillText('PRAYVAIL', PAD, 948);
+      resolve(canvas);
+    };
+    img.src = prayvailLogo;
+  });
+
+  const handleAmen = async () => {
+    const canvas = await generateShareCard(dailyVerse);
+    setShareImageUrl(canvas.toDataURL('image/png'));
+    setShowShareModal(true);
+  };
+
+  const handleShare = async () => {
+    try {
+      const res = await fetch(shareImageUrl);
+      const blob = await res.blob();
+      const file = new File([blob], 'prayvail-verse.png', { type: 'image/png' });
+      if (navigator.share && navigator.canShare?.({ files: [file] })) {
+        await navigator.share({ files: [file], title: `${dailyVerse.ref} — Prayvail` });
+      } else {
+        const a = document.createElement('a');
+        a.href = shareImageUrl; a.download = 'prayvail-verse.png'; a.click();
+      }
+    } catch (_) {}
   };
   const [journaledToday, setJournaledToday] = useState(false);
   const [feelingInput, setFeelingInput] = useState('');
@@ -166,7 +322,7 @@ const PrevailHome = () => {
   // ── Pre-Checkin ────────────────────────────────────────
   if (view === 'pre-checkin') {
     return (
-      <div className="flex flex-col h-screen bg-[#FDF9F3] text-[#433422] font-sans px-8 py-12">
+      <div className="flex flex-col h-screen bg-[#FDF9F3] text-[#433422] font-sans px-8 py-12 animate-view-enter">
         <button onClick={() => setView('dashboard')} className="flex items-center gap-2 text-[#433422]/40 mb-12">
           <ArrowLeft size={18} />
           <span className="text-sm">Back</span>
@@ -219,12 +375,12 @@ const PrevailHome = () => {
   // ── Meditation ─────────────────────────────────────────
   if (view === 'meditation') {
     return (
-      <div className="flex flex-col h-screen bg-[#EDE8DF] text-[#433422] font-sans">
+      <div className="flex flex-col h-screen bg-[#EDE8DF] text-[#433422] font-sans animate-view-enter">
 
         {/* Top nav */}
         <div className="flex items-center justify-between px-6 pt-14 pb-4">
           <button
-            onClick={() => setView('dashboard')}
+            onClick={() => { audioRef.current?.pause(); audioRef.current && (audioRef.current.currentTime = 0); setIsPlaying(false); setView('dashboard'); }}
             className="w-10 h-10 rounded-full bg-white/60 backdrop-blur-sm flex items-center justify-center"
           >
             <ChevronRight className="rotate-180" size={18} />
@@ -293,7 +449,7 @@ const PrevailHome = () => {
         {/* Complete */}
         <div className="px-6 mt-auto pb-12 pt-4">
           <button
-            onClick={() => { setMeditatedToday(true); setView('post-checkin'); }}
+            onClick={() => { audioRef.current?.pause(); audioRef.current && (audioRef.current.currentTime = 0); setIsPlaying(false); setMeditatedToday(true); setView('post-checkin'); }}
             className="w-full py-4 rounded-[20px] font-serif text-base border border-[#433422]/15 text-[#433422]/50 bg-white/40"
           >
             Complete Session
@@ -307,7 +463,7 @@ const PrevailHome = () => {
   // ── Post-Checkin ───────────────────────────────────────
   if (view === 'post-checkin') {
     return (
-      <div className="flex flex-col h-screen bg-[#FDF9F3] text-[#433422] font-sans px-8 py-12">
+      <div className="flex flex-col h-screen bg-[#FDF9F3] text-[#433422] font-sans px-8 py-12 animate-view-enter">
         <div className="flex-1 flex flex-col items-center justify-between">
           <div className="w-12 h-12 rounded-full overflow-hidden border border-[#D4A373]/30">
             <img src={prayvailLogo} alt="Prayvail" className="w-full h-full object-cover" />
@@ -428,7 +584,7 @@ const PrevailHome = () => {
     };
 
     return (
-      <div className="flex flex-col h-screen bg-[#FDF9F3] text-[#433422] font-sans px-8 py-12">
+      <div className="flex flex-col h-screen bg-[#FDF9F3] text-[#433422] font-sans px-8 py-12 animate-view-enter">
         <div className="flex items-center justify-between mb-10">
           <button onClick={handleBack} className="flex items-center gap-2 text-[#433422]/40">
             <ArrowLeft size={18} />
@@ -490,6 +646,7 @@ const PrevailHome = () => {
 
     return (
       <div className="bg-[#FDF9F3] text-[#433422] font-sans min-h-screen">
+        <div className="animate-view-enter">
         <header className="relative h-[26vh] bg-[#E9DCC9] flex items-end px-8 pb-14">
           <div className="absolute inset-0 overflow-hidden pointer-events-none">
             <div className="absolute top-[-10%] right-[-10%] w-64 h-64 bg-[#FFF3E0] rounded-full blur-3xl opacity-60" />
@@ -629,10 +786,11 @@ const PrevailHome = () => {
             </div>
           )}
         </main>
+        </div>
 
         <nav className="fixed bottom-8 left-1/2 -translate-x-1/2 w-[85%] max-w-sm bg-white/90 backdrop-blur-xl rounded-[32px] py-4 px-8 border border-[#E9DCC9] shadow-2xl z-50">
           <div className="flex items-center justify-between">
-            <NavIcon icon={<User />} active={false} onClick={() => {}} />
+            <NavIcon icon={<User />} active={false} onClick={() => { setActiveTab('user'); setView('account'); }} />
             <NavIcon icon={<Calendar />} active={true} onClick={() => {}} />
             <button
               onClick={() => { setActiveTab('home'); setView('dashboard'); }}
@@ -640,10 +798,386 @@ const PrevailHome = () => {
             >
               <Home size={20} strokeWidth={2} />
             </button>
-            <NavIcon icon={<Wheat />} active={false} onClick={() => {}} />
-            <NavIcon icon={<Compass />} active={false} onClick={() => {}} />
+            <NavIcon icon={<Wheat />} active={activeTab === 'wheat'} onClick={() => { setActiveTab('wheat'); setView('resources'); }} />
+            <NavIcon icon={<Compass />} active={false} onClick={() => { setActiveTab('compass'); setView('explore'); }} />
           </div>
         </nav>
+      </div>
+    );
+  }
+
+  // ── Account ────────────────────────────────────────────
+  if (view === 'account') {
+    const notifRows = [
+      { label: 'Daily Verse', desc: 'Morning verse to start your day', state: notifDailyVerse, set: setNotifDailyVerse },
+      { label: 'Reflection Reminder', desc: 'Gentle nudge to journal each evening', state: notifReflection, set: setNotifReflection },
+      { label: 'New Sessions', desc: 'When new guided sessions are added', state: notifNewContent, set: setNotifNewContent },
+    ];
+
+    return (
+      <div className="bg-[#FDF9F3] text-[#433422] font-sans min-h-screen">
+        <div className="animate-view-enter">
+
+        <header className="relative h-[22vh] bg-[#E9DCC9] flex items-end px-8 pb-14">
+          <div className="absolute inset-0 overflow-hidden pointer-events-none">
+            <div className="absolute top-[-10%] right-[-10%] w-64 h-64 bg-[#FFF3E0] rounded-full blur-3xl opacity-60" />
+          </div>
+
+          <div className="relative z-10">
+            <p className="text-[10px] tracking-[0.3em] font-bold text-[#433422]/50 mb-1">ACCOUNT</p>
+            <h1 className="text-3xl font-serif">Your Profile</h1>
+          </div>
+          <div className="absolute bottom-0 left-0 right-0 z-20 pointer-events-none">
+            <svg viewBox="0 0 400 50" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-10">
+              <path d="M0,50 L0,28 C80,8 160,42 240,22 C300,6 360,38 400,26 L400,50 Z" fill="#FDF9F3" />
+            </svg>
+          </div>
+        </header>
+
+        <main className="px-6 pt-4 pb-32 space-y-4">
+
+          {/* Name */}
+          <div className="bg-white rounded-[28px] p-6">
+            <p className="text-[10px] tracking-[0.3em] font-bold text-[#433422]/40 mb-4">YOUR NAME</p>
+            <input
+              value={nameInput}
+              onChange={e => setNameInput(e.target.value)}
+              className="w-full text-2xl font-serif bg-transparent border-b border-[#E9DCC9] pb-2 focus:outline-none focus:border-[#D4A373] transition-colors caret-[#D4A373]"
+              placeholder="Your name..."
+            />
+            {nameInput.trim().length > 0 && nameInput.trim() !== userName && (
+              <button
+                onClick={() => onUpdateName?.(nameInput.trim())}
+                className="mt-4 px-6 py-2.5 bg-[#433422] text-[#FDF9F3] rounded-[20px] text-sm font-bold tracking-wide"
+              >
+                Save
+              </button>
+            )}
+          </div>
+
+          {/* No-account explanation */}
+          {!hasAccount && (
+            <div className="bg-[#433422] text-[#FDF9F3] rounded-[28px] p-6">
+              <p className="text-[10px] tracking-[0.3em] font-bold opacity-40 mb-3">NO ACCOUNT</p>
+              <h3 className="text-xl font-serif mb-3">Save your journey.</h3>
+              <p className="text-sm opacity-60 leading-relaxed mb-5">
+                A free account syncs your reflections across devices, protects your streak if you lose your phone, and unlocks future features as they arrive.
+              </p>
+              <button className="w-full py-3.5 bg-[#D4A373] text-white rounded-[20px] font-bold text-sm tracking-[0.15em]">
+                Create Account
+              </button>
+            </div>
+          )}
+
+          {/* Supporter */}
+          <div className="bg-[#F9F4EE] rounded-[28px] p-6 relative overflow-hidden">
+            <div className="absolute top-[-20px] right-[-20px] w-36 h-36 bg-[#D4A373]/10 rounded-full pointer-events-none" />
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 rounded-xl bg-[#D4A373]/20 flex items-center justify-center flex-shrink-0">
+                <Crown size={17} className="text-[#D4A373]" />
+              </div>
+              <div>
+                <p className="text-[10px] tracking-[0.3em] font-bold text-[#433422]/40">SUPPORTER</p>
+                <p className="font-serif text-[#433422] text-base">Become a Supporter</p>
+              </div>
+            </div>
+            <p className="text-sm text-[#433422]/55 leading-relaxed mb-4">
+              Support the mission and unlock premium sessions, deeper reflection tools, and exclusive content as the sanctuary grows.
+            </p>
+            <div className="flex items-center gap-2.5 py-3 px-4 bg-[#433422]/6 rounded-[16px]">
+              <Lock size={13} className="text-[#433422]/30" />
+              <span className="text-[11px] font-bold text-[#433422]/30 tracking-widest">COMING SOON</span>
+            </div>
+          </div>
+
+          {/* Notifications */}
+          <div className="bg-white rounded-[28px] p-6">
+            <div className="flex items-center gap-2.5 mb-5">
+              <Bell size={14} className="text-[#433422]/40" />
+              <p className="text-[10px] tracking-[0.3em] font-bold text-[#433422]/40">NOTIFICATIONS</p>
+            </div>
+            <div className="space-y-5">
+              {notifRows.map(({ label, desc, state, set }) => (
+                <div key={label} className="flex items-center justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-bold text-[#433422]">{label}</p>
+                    <p className="text-xs text-[#433422]/40 mt-0.5">{desc}</p>
+                  </div>
+                  <button
+                    onClick={() => set(s => !s)}
+                    className={`w-12 h-7 rounded-full transition-colors relative flex-shrink-0 ${state ? 'bg-[#D4A373]' : 'bg-[#433422]/15'}`}
+                  >
+                    <div className={`absolute top-1 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-200 ${state ? 'left-6' : 'left-1'}`} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Sign out — only if has account */}
+          {hasAccount && (
+            <button className="w-full py-4 text-sm font-bold text-[#433422]/30 tracking-widest">
+              SIGN OUT
+            </button>
+          )}
+
+        </main>
+        </div>
+
+        <nav className="fixed bottom-8 left-1/2 -translate-x-1/2 w-[85%] max-w-sm bg-white/90 backdrop-blur-xl rounded-[32px] py-4 px-8 border border-[#E9DCC9] shadow-2xl z-50">
+          <div className="flex items-center justify-between">
+            <NavIcon icon={<User />} active={true} onClick={() => {}} />
+            <NavIcon icon={<Calendar />} active={false} onClick={() => { setActiveTab('calendar'); setView('calendar-log'); }} />
+            <button
+              onClick={() => { setActiveTab('home'); setView('dashboard'); }}
+              className="w-14 h-14 bg-[#D4A373] rounded-full -mt-10 border-[6px] border-[#FDF9F3] flex items-center justify-center text-white shadow-lg"
+            >
+              <Home size={20} strokeWidth={2} />
+            </button>
+            <NavIcon icon={<Wheat />} active={activeTab === 'wheat'} onClick={() => { setActiveTab('wheat'); setView('resources'); }} />
+            <NavIcon icon={<Compass />} active={false} onClick={() => { setActiveTab('compass'); setView('explore'); }} />
+          </div>
+        </nav>
+
+      </div>
+    );
+  }
+
+  // ── Resources ───────────────────────────────────────────
+  if (view === 'resources') {
+    const gospelSessions = [
+      { title: 'The Beatitudes', label: 'GOSPEL', duration: '12 min', color: '#D4C5B2', coming: true },
+      { title: 'Walking on Water', label: 'GOSPEL', duration: '10 min', color: '#C4B5A0', coming: true },
+      { title: 'The Prodigal Son', label: 'GOSPEL', duration: '14 min', color: '#D9C9B5', coming: true },
+      { blank: true },
+    ];
+    const mindSessions = [
+      { title: 'Anxiety & Faith', label: 'PSYCHOEDUCATION', duration: '11 min', color: '#8E9775', coming: true },
+      { title: 'Grief and Grace', label: 'PSYCHOEDUCATION', duration: '13 min', color: '#B0A898', coming: true },
+      { blank: true },
+      { blank: true },
+    ];
+    const extendedSessions = [
+      { title: 'The Desert Fathers', label: 'EXTENDED', duration: '25 min', color: '#D4A373', coming: true },
+      { title: 'Night Prayer', label: 'EXTENDED', duration: '20 min', color: '#C4A882', coming: true },
+      { blank: true },
+      { blank: true },
+    ];
+
+    return (
+      <div className="bg-[#FDF9F3] text-[#433422] font-sans min-h-screen">
+        <div className="animate-view-enter">
+
+        <header className="relative h-[26vh] bg-[#E9DCC9] flex items-end px-8 pb-14">
+          <div className="absolute inset-0 overflow-hidden pointer-events-none">
+            <div className="absolute top-[-10%] right-[-10%] w-64 h-64 bg-[#FFF3E0] rounded-full blur-3xl opacity-60" />
+          </div>
+          <div className="relative z-10">
+            <p className="text-[10px] tracking-[0.3em] font-bold text-[#433422]/50 mb-1">SANCTUARY</p>
+            <h1 className="text-3xl font-serif">Resources</h1>
+          </div>
+          <div className="absolute bottom-0 left-0 right-0 z-20 pointer-events-none">
+            <svg viewBox="0 0 400 50" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-10">
+              <path d="M0,50 L0,28 C80,8 160,42 240,22 C300,6 360,38 400,26 L400,50 Z" fill="#FDF9F3" />
+            </svg>
+          </div>
+        </header>
+
+        <main className="pt-4 pb-32 space-y-10">
+
+          {/* 30-Day Path */}
+          <section>
+            <div className="px-8 flex items-center justify-between mb-4">
+              <div>
+                <p className="text-[10px] tracking-[0.3em] font-bold text-[#433422]/40">FEATURED</p>
+                <h2 className="text-xl font-serif">The 30-Day Path</h2>
+              </div>
+              <span className="text-[10px] font-bold text-[#433422]/30">1 / 30</span>
+            </div>
+            <div className="flex gap-3 overflow-x-auto no-scrollbar pl-8 pr-6 pb-1">
+              {PATH_SESSIONS.map((session) => {
+                const color = PATH_CARD_COLORS[(session.day - 1) % PATH_CARD_COLORS.length];
+                return (
+                  <button
+                    key={session.day}
+                    onClick={() => session.wired && setView('pre-checkin')}
+                    className={`flex-shrink-0 w-[130px] rounded-[22px] overflow-hidden text-left shadow-sm ${session.wired ? 'active:scale-95 transition-transform' : ''}`}
+                  >
+                    <div className="h-[96px] relative flex flex-col justify-between p-3.5" style={{ backgroundColor: color }}>
+                      <span className="text-[8px] font-bold tracking-widest text-[#433422]/50">DAY {session.day}</span>
+                      {session.wired ? (
+                        <div className="self-end w-6 h-6 rounded-full bg-[#433422] flex items-center justify-center">
+                          <Play size={9} fill="currentColor" className="text-[#FDF9F3] ml-0.5" />
+                        </div>
+                      ) : (
+                        <div className="self-end w-5 h-5 rounded-full bg-black/10 flex items-center justify-center">
+                          <Lock size={9} className="text-[#433422]/40" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="bg-white px-3.5 pt-2.5 pb-3">
+                      <p className="text-[11px] font-serif text-[#433422] leading-tight">{session.title}</p>
+                      <p className="text-[9px] text-[#433422]/40 font-bold mt-0.5">{session.duration}</p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+
+          {/* Gospel Themes */}
+          <section className="px-8">
+            <div className="mb-4">
+              <p className="text-[10px] tracking-[0.3em] font-bold text-[#433422]/40">SERIES</p>
+              <h2 className="text-xl font-serif">Gospel Themes</h2>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              {gospelSessions.map((s, i) => <ResourceCard key={i} {...s} />)}
+            </div>
+          </section>
+
+          {/* Mind & Faith */}
+          <section className="px-8">
+            <div className="mb-4">
+              <p className="text-[10px] tracking-[0.3em] font-bold text-[#433422]/40">WELLBEING</p>
+              <h2 className="text-xl font-serif">Mind & Faith</h2>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              {mindSessions.map((s, i) => <ResourceCard key={i} {...s} />)}
+            </div>
+          </section>
+
+          {/* Extended Sessions */}
+          <section className="px-8">
+            <div className="mb-4">
+              <p className="text-[10px] tracking-[0.3em] font-bold text-[#433422]/40">DEEP DIVE</p>
+              <h2 className="text-xl font-serif">Extended Sessions</h2>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              {extendedSessions.map((s, i) => <ResourceCard key={i} {...s} />)}
+            </div>
+          </section>
+
+        </main>
+        </div>
+
+        <nav className="fixed bottom-8 left-1/2 -translate-x-1/2 w-[85%] max-w-sm bg-white/90 backdrop-blur-xl rounded-[32px] py-4 px-8 border border-[#E9DCC9] shadow-2xl z-50">
+          <div className="flex items-center justify-between">
+            <NavIcon icon={<User />} active={false} onClick={() => { setActiveTab('user'); setView('account'); }} />
+            <NavIcon icon={<Calendar />} active={false} onClick={() => { setActiveTab('calendar'); setView('calendar-log'); }} />
+            <button
+              onClick={() => { setActiveTab('home'); setView('dashboard'); }}
+              className="w-14 h-14 bg-[#D4A373] rounded-full -mt-10 border-[6px] border-[#FDF9F3] flex items-center justify-center text-white shadow-lg"
+            >
+              <Home size={20} strokeWidth={2} />
+            </button>
+            <NavIcon icon={<Wheat />} active={true} onClick={() => {}} />
+            <NavIcon icon={<Compass />} active={false} onClick={() => { setActiveTab('compass'); setView('explore'); }} />
+          </div>
+        </nav>
+
+      </div>
+    );
+  }
+
+  // ── Explore ─────────────────────────────────────────────
+  if (view === 'explore') {
+    const games = [
+      { title: 'Bible Trivia', label: 'KNOWLEDGE', desc: 'Test your scripture knowledge', color: '#D4C5B2' },
+      { title: 'Verse Memory', label: 'MEMORY', desc: 'Commit the Word to heart', color: '#C4B5A0' },
+      { title: 'Faith Quiz', label: 'DAILY', desc: 'One question, every day', color: '#8E9775' },
+      { title: 'Word of Life', label: 'WORD GAME', desc: 'Scripture word puzzles', color: '#D9C9B5' },
+    ];
+    const storeItems = [
+      { title: 'Prayvail Journal', label: 'STATIONERY', duration: '90-day guided journal', color: '#E9DCC9', coming: true },
+      { title: 'Supporter Tee', label: 'APPAREL', duration: 'Wear the mission', color: '#D4A373', coming: true },
+      { title: 'Support the Mission', label: 'DONATION', duration: 'Help us grow', color: '#B0A898', coming: true },
+      { blank: true },
+    ];
+
+    return (
+      <div className="bg-[#FDF9F3] text-[#433422] font-sans min-h-screen">
+        <div className="animate-view-enter">
+
+          <header className="relative h-[26vh] bg-[#E9DCC9] flex items-end px-8 pb-14">
+            <div className="absolute inset-0 overflow-hidden pointer-events-none">
+              <div className="absolute top-[-10%] right-[-10%] w-64 h-64 bg-[#FFF3E0] rounded-full blur-3xl opacity-60" />
+            </div>
+            <div className="relative z-10">
+              <p className="text-[10px] tracking-[0.3em] font-bold text-[#433422]/50 mb-1">DISCOVER</p>
+              <h1 className="text-3xl font-serif">Explore</h1>
+            </div>
+            <div className="absolute bottom-0 left-0 right-0 z-20 pointer-events-none">
+              <svg viewBox="0 0 400 50" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-10">
+                <path d="M0,50 L0,28 C80,8 160,42 240,22 C300,6 360,38 400,26 L400,50 Z" fill="#FDF9F3" />
+              </svg>
+            </div>
+          </header>
+
+          <main className="pt-4 pb-32 space-y-10">
+
+            {/* Minigames */}
+            <section className="px-8">
+              <div className="flex items-center justify-between mb-5">
+                <div>
+                  <p className="text-[10px] tracking-[0.3em] font-bold text-[#433422]/40">COMING SOON</p>
+                  <h2 className="text-xl font-serif">Minigames</h2>
+                </div>
+                <div className="w-9 h-9 rounded-xl bg-[#F4EFE6] flex items-center justify-center">
+                  <Gamepad2 size={17} className="text-[#D4A373]" />
+                </div>
+              </div>
+              <div className="space-y-3">
+                {games.map((game, i) => (
+                  <div key={i} className="bg-white rounded-[24px] p-5 border border-[#E9DCC9] flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-[16px] flex-shrink-0 flex items-center justify-center" style={{ backgroundColor: game.color }}>
+                      <Lock size={14} className="text-[#433422]/30" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[9px] font-bold tracking-widest text-[#433422]/35 mb-0.5">{game.label}</p>
+                      <p className="text-sm font-serif text-[#433422]">{game.title}</p>
+                      <p className="text-[10px] text-[#433422]/40 mt-0.5">{game.desc}</p>
+                    </div>
+                    <span className="text-[8px] font-bold tracking-widest text-[#433422]/30 bg-[#F4EFE6] px-2.5 py-1.5 rounded-full flex-shrink-0">SOON</span>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            {/* Support Store */}
+            <section className="px-8">
+              <div className="flex items-center justify-between mb-5">
+                <div>
+                  <p className="text-[10px] tracking-[0.3em] font-bold text-[#433422]/40">SUPPORT</p>
+                  <h2 className="text-xl font-serif">Store</h2>
+                </div>
+                <div className="w-9 h-9 rounded-xl bg-[#F4EFE6] flex items-center justify-center">
+                  <ShoppingBag size={17} className="text-[#D4A373]" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                {storeItems.map((s, i) => <ResourceCard key={i} {...s} />)}
+              </div>
+            </section>
+
+          </main>
+        </div>
+
+        <nav className="fixed bottom-8 left-1/2 -translate-x-1/2 w-[85%] max-w-sm bg-white/90 backdrop-blur-xl rounded-[32px] py-4 px-8 border border-[#E9DCC9] shadow-2xl z-50">
+          <div className="flex items-center justify-between">
+            <NavIcon icon={<User />} active={false} onClick={() => { setActiveTab('user'); setView('account'); }} />
+            <NavIcon icon={<Calendar />} active={false} onClick={() => { setActiveTab('calendar'); setView('calendar-log'); }} />
+            <button
+              onClick={() => { setActiveTab('home'); setView('dashboard'); }}
+              className="w-14 h-14 bg-[#D4A373] rounded-full -mt-10 border-[6px] border-[#FDF9F3] flex items-center justify-center text-white shadow-lg"
+            >
+              <Home size={20} strokeWidth={2} />
+            </button>
+            <NavIcon icon={<Wheat />} active={false} onClick={() => { setActiveTab('wheat'); setView('resources'); }} />
+            <NavIcon icon={<Compass />} active={true} onClick={() => {}} />
+          </div>
+        </nav>
+
       </div>
     );
   }
@@ -651,6 +1185,7 @@ const PrevailHome = () => {
   // ── Dashboard ──────────────────────────────────────────
   return (
     <div className="bg-[#FDF9F3] text-[#433422] font-sans">
+      <div className="animate-view-enter">
 
       <header className="relative h-[35vh]">
         <div className="absolute inset-0 bg-[#E9DCC9] overflow-hidden">
@@ -663,31 +1198,9 @@ const PrevailHome = () => {
               <img src={prayvailLogo} alt="Prayvail" className="w-full h-full object-cover" />
             </div>
 
-            <div className="flex items-end gap-2">
-              {days.map((d, i) => {
-                const isToday = i === days.length - 1;
-                return (
-                  <div key={i} className="flex flex-col items-center gap-1">
-                    <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold ${
-                      isToday ? 'bg-[#D4A373] text-white' : 'bg-white/40 text-[#433422]/60'
-                    }`}>
-                      {d.getDate()}
-                    </div>
-                    <span className="text-[8px] font-bold text-[#433422]/40">
-                      {DAY_LABELS[d.getDay()]}
-                    </span>
-                  </div>
-                );
-              })}
-
-              <div className="w-px h-8 bg-[#433422]/20 mx-1 self-center" />
-
-              <button onClick={() => setShowFlameModal(true)} className="flex flex-col items-center gap-1">
-                <div className="w-7 h-7 rounded-full bg-[#D4A373]/20 flex items-center justify-center">
-                  <Flame size={13} className="text-[#D4A373]" />
-                </div>
-                <span className="text-[8px] font-bold text-[#433422]/40">{streak}</span>
-              </button>
+            <div className="text-right">
+              <p className="text-[10px] tracking-[0.2em] font-bold text-[#433422]/40 uppercase">{userName}'s</p>
+              <p className="text-base font-serif text-[#433422]/70">Sanctuary</p>
             </div>
           </div>
 
@@ -704,24 +1217,39 @@ const PrevailHome = () => {
 
       <main className="px-8 pt-10 relative z-20 space-y-8 pb-32">
 
-        {/* Verse Card */}
-        <section>
-          <div className="bg-[#433422] text-[#FDF9F3] p-10 rounded-[40px] relative overflow-hidden group">
+        {/* Verse + Streak row */}
+        <section className="flex gap-3 items-stretch">
+          {/* Verse Card */}
+          <div className="flex-[3] bg-[#433422] text-[#FDF9F3] p-7 rounded-[32px] relative overflow-hidden flex flex-col justify-between">
             <div className="absolute top-[-20px] right-[-20px] w-40 h-40 bg-white/5 rounded-full" />
-            <p className="text-[10px] tracking-[0.3em] font-bold opacity-50 mb-6">WISDOM</p>
-            <h3 className="text-2xl font-serif italic leading-relaxed mb-6">
-              "He leads me beside quiet waters, he refreshes my soul."
-            </h3>
+            <div>
+              <p className="text-[10px] tracking-[0.3em] font-bold opacity-50 mb-4">DAILY BREAD</p>
+              <h3 className="text-lg font-serif italic leading-relaxed mb-4">
+                "{dailyVerse.text}"
+              </h3>
+            </div>
             <div className="flex justify-between items-center">
-              <span className="text-sm font-medium opacity-70">Psalm 23:2-3</span>
+              <span className="text-xs font-medium opacity-60">{dailyVerse.ref}</span>
               <button
-                onClick={() => setView('pre-checkin')}
-                className="flex items-center gap-2 text-sm font-medium text-[#D4A373]/80 hover:text-[#D4A373] transition-colors"
+                onClick={handleAmen}
+                className="flex items-center gap-1.5 text-xs font-medium text-[#D4A373]/80"
               >
-                Amen <ArrowRight size={16} />
+                Amen <ArrowRight size={14} />
               </button>
             </div>
           </div>
+
+          {/* Streak Card */}
+          <button
+            onClick={() => setShowFlameModal(true)}
+            className="flex-[2] bg-[#F4EFE6] rounded-[32px] flex flex-col items-center justify-center gap-2 py-6"
+          >
+            <div className="w-11 h-11 rounded-full bg-[#D4A373]/20 flex items-center justify-center">
+              <Flame size={20} className="text-[#D4A373]" />
+            </div>
+            <span className="text-3xl font-serif text-[#433422]">{streak}</span>
+            <span className="text-[9px] font-bold tracking-widest text-[#433422]/40 uppercase">Day Streak</span>
+          </button>
         </section>
 
         {/* Your Path Today */}
@@ -750,12 +1278,12 @@ const PrevailHome = () => {
                 >
                   <div className="flex items-center gap-4">
                     <div className="w-10 h-10 rounded-xl bg-[#F9F4EE] flex items-center justify-center">
-                      <Wind size={18} className="text-[#D4A373]" />
+                      <Headphones size={18} className="text-[#D4A373]" />
                     </div>
                     <div>
-                      <span className="text-[10px] font-bold tracking-widest text-[#8E9775] block">STILLNESS</span>
-                      <h4 className="text-sm font-serif">Deep Breath Prayer</h4>
-                      <p className="text-[10px] text-gray-400">8 mins</p>
+                      <span className="text-[10px] font-bold tracking-widest text-[#8E9775] block">MEDITATION</span>
+                      <h4 className="text-sm font-serif">{TRACK_TITLE}</h4>
+                      <p className="text-[10px] text-gray-400">{trackDuration ? `${Math.ceil(trackDuration / 60)} mins` : '...'}</p>
                     </div>
                   </div>
                   {meditatedToday ? (
@@ -805,11 +1333,12 @@ const PrevailHome = () => {
         </section>
 
       </main>
+      </div>
 
       {/* Floating Nav */}
       <nav className="fixed bottom-8 left-1/2 -translate-x-1/2 w-[85%] max-w-sm bg-white/90 backdrop-blur-xl rounded-[32px] py-4 px-8 border border-[#E9DCC9] shadow-2xl z-50">
         <div className="flex items-center justify-between">
-          <NavIcon icon={<User />} active={activeTab === 'user'} onClick={() => setActiveTab('user')} />
+          <NavIcon icon={<User />} active={activeTab === 'user'} onClick={() => { setActiveTab('user'); setView('account'); }} />
           <NavIcon icon={<Calendar />} active={activeTab === 'calendar'} onClick={() => { setActiveTab('calendar'); setView('calendar-log'); }} />
           <button
             onClick={() => { setActiveTab('home'); setView('dashboard'); }}
@@ -817,10 +1346,39 @@ const PrevailHome = () => {
           >
             <Home size={20} strokeWidth={2} />
           </button>
-          <NavIcon icon={<Wheat />} active={activeTab === 'wheat'} onClick={() => setActiveTab('wheat')} />
-          <NavIcon icon={<Compass />} active={activeTab === 'compass'} onClick={() => setActiveTab('compass')} />
+          <NavIcon icon={<Wheat />} active={activeTab === 'wheat'} onClick={() => { setActiveTab('wheat'); setView('resources'); }} />
+          <NavIcon icon={<Compass />} active={activeTab === 'compass'} onClick={() => { setActiveTab('compass'); setView('explore'); }} />
         </div>
       </nav>
+
+      {/* Share modal */}
+      {showShareModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex flex-col justify-end">
+          <div className="bg-[#FDF9F3] rounded-t-[40px] px-6 pt-7 pb-12">
+            <div className="w-10 h-1 bg-[#433422]/15 rounded-full mx-auto mb-6" />
+            <p className="text-[10px] tracking-[0.3em] font-bold text-[#433422]/40 text-center mb-5">SHARE VERSE</p>
+
+            <div className="w-[70%] mx-auto aspect-square rounded-[24px] overflow-hidden mb-6 shadow-lg shadow-[#433422]/15">
+              <img src={shareImageUrl} alt="Verse card" className="w-full h-full object-cover" />
+            </div>
+
+            <div className="w-[70%] mx-auto space-y-3">
+              <button
+                onClick={handleShare}
+                className="w-full py-4 bg-[#433422] text-[#FDF9F3] rounded-[20px] font-serif text-base flex items-center justify-center gap-2.5"
+              >
+                <Share2 size={18} /> Share
+              </button>
+              <button
+                onClick={() => { setShowShareModal(false); setView('dashboard'); setActiveTab('home'); }}
+                className="w-full py-4 text-[#433422]/40 text-sm font-medium tracking-wide"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Daily Flame modal */}
       {showFlameModal && (
@@ -857,6 +1415,34 @@ const PrevailHome = () => {
         </div>
       )}
 
+    </div>
+  );
+};
+
+const ResourceCard = ({ title, label, duration, color = '#E9DCC9', blank = false, coming = false }) => {
+  if (blank) {
+    return (
+      <div className="rounded-[20px] border-2 border-dashed border-[#E9DCC9] flex items-center justify-center" style={{ minHeight: 148 }}>
+        <div className="w-8 h-8 rounded-full border-2 border-dashed border-[#E9DCC9] flex items-center justify-center">
+          <span className="text-[#433422]/20 text-xl leading-none font-light">+</span>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="rounded-[20px] overflow-hidden bg-white border border-[#E9DCC9]/80">
+      <div className="h-[88px] relative p-3.5" style={{ backgroundColor: color }}>
+        {coming && (
+          <div className="absolute bottom-3 left-3.5">
+            <span className="text-[8px] font-bold tracking-widest text-[#433422]/60 bg-white/50 backdrop-blur-sm px-2 py-1 rounded-full">SOON</span>
+          </div>
+        )}
+      </div>
+      <div className="px-3.5 py-3">
+        {label && <p className="text-[8px] font-bold tracking-widest text-[#433422]/35 mb-1">{label}</p>}
+        <p className="text-[11px] font-serif text-[#433422] leading-snug">{title}</p>
+        <p className="text-[9px] text-[#433422]/40 mt-0.5 font-bold">{duration}</p>
+      </div>
     </div>
   );
 };

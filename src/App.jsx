@@ -7,6 +7,8 @@ import PrevailHome from './pages/PrevailHome';
 function App() {
   const [page, setPage] = useState('gateway');
   const [fading, setFading] = useState(false);
+  const [userName, setUserName] = useState('');
+  const [hasAccount, setHasAccount] = useState(false);
 
   const navigate = (to) => {
     setFading(true);
@@ -25,15 +27,21 @@ function App() {
         />
       )}
       {page === 'onboarding' && (
-        <PrevailOnboarding onComplete={() => navigate('home')} />
+        <PrevailOnboarding onComplete={(name) => { setUserName(name); navigate('home'); }} />
       )}
       {page === 'login' && (
         <PrevailLogin
           onBack={() => navigate('gateway')}
-          onLogin={() => navigate('home')}
+          onLogin={() => { setHasAccount(true); navigate('home'); }}
         />
       )}
-      {page === 'home' && <PrevailHome />}
+      {page === 'home' && (
+        <PrevailHome
+          userName={userName}
+          hasAccount={hasAccount}
+          onUpdateName={(name) => setUserName(name)}
+        />
+      )}
     </div>
   );
 }

@@ -213,11 +213,11 @@ const PrevailOnboarding = ({ onComplete }) => {
               />
             </div>
 
-            <div className="flex flex-col items-center gap-4">
-              <PrimaryButton onClick={nextStep} label="CREATE ACCOUNT" />
+            <div className="flex flex-col gap-4">
+              <PrimaryButton onClick={nextStep} label="CREATE ACCOUNT" fullWidth />
               <button
                 onClick={nextStep}
-                className="w-full text-[11px] font-bold tracking-widest text-gray-400 border border-[#E9DCC9] rounded-[32px] px-14 py-6 whitespace-nowrap hover:border-gray-300 hover:text-[#433422] transition-all ease-out"
+                className="w-full text-sm font-bold tracking-[0.2em] text-gray-400 border border-[#E9DCC9] rounded-[32px] px-10 py-4 hover:border-gray-300 hover:text-[#433422] transition-all ease-out"
               >
                 CONTINUE WITHOUT AN ACCOUNT
               </button>
@@ -238,7 +238,7 @@ const PrevailOnboarding = ({ onComplete }) => {
             <p className="text-gray-400 mb-12 text-sm leading-relaxed max-w-[65%]">
               "Peace I leave with you; my peace I give you." — John 14:27
             </p>
-            <PrimaryButton onClick={onComplete} label="ENTER PRAYVAIL" color="terracotta" />
+            <PrimaryButton onClick={() => onComplete(name.trim().split(' ')[0])} label="ENTER PRAYVAIL" color="terracotta" />
           </div>
         )}
 
@@ -248,13 +248,13 @@ const PrevailOnboarding = ({ onComplete }) => {
 };
 
 // ── Shared CTA button ──────────────────────────────────────
-const PrimaryButton = ({ onClick, label, color = 'earth' }) => {
+const PrimaryButton = ({ onClick, label, color = 'earth', fullWidth = false }) => {
   const isEarth = color === 'earth';
   return (
     <button
       onClick={onClick}
       className={`
-        inline-flex items-center justify-center gap-4
+        ${fullWidth ? 'flex w-full' : 'inline-flex'} items-center justify-center gap-4
         px-10 py-4 rounded-[32px]
         font-bold text-sm tracking-[0.2em] whitespace-nowrap
         transition-all ease-out duration-300
