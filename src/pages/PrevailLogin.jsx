@@ -1,10 +1,48 @@
 import { useState } from 'react';
 import { ArrowLeft, Mail, Lock } from 'lucide-react';
+import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
+import { auth } from '../firebase';
 import prayvailLogo from '../assets/prayvail-logo-blank.png';
 
 const PrevailLogin = ({ onBack, onLogin }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
+
+  const handleLogin = async () => {
+    setError('');
+    setIsSubmitting(true);
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+      onLogin();
+    } catch (err) {
+      const msg = err.code === 'auth/invalid-credential' ? 'Incorrect email or password.'
+        : err.code === 'auth/user-not-found' ? 'No account found with this email.'
+        : err.code === 'auth/wrong-password' ? 'Incorrect password.'
+        : err.code === 'auth/invalid-email' ? 'Please enter a valid email address.'
+        : err.code === 'auth/too-many-requests' ? 'Too many attempts. Please try again later.'
+        : 'Something went wrong. Please try again.';
+      setError(msg);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    if (!email) {
+      setError('Enter your email above, then tap Forgot Password.');
+      return;
+    }
+    try {
+      await sendPasswordResetEmail(auth, email);
+      setResetSent(true);
+      setError('');
+    } catch {
+      setError('Could not send reset email. Check your email address.');
+    }
+  };
 
   return (
     <div className="flex flex-col h-screen bg-[#FDF9F3] text-[#433422] font-sans overflow-hidden relative">
@@ -44,7 +82,7 @@ const PrevailLogin = ({ onBack, onLogin }) => {
           </p>
         </div>
 
-        <div className="space-y-4 mb-8">
+        <div className="space-y-4 mb-4">
           <div className="flex items-center gap-4 bg-[#F4EFE6] rounded-2xl px-5 py-4">
             <Mail className="text-[#D4A373]/60 flex-shrink-0" size={18} strokeWidth={1.5} />
             <input
@@ -68,14 +106,25 @@ const PrevailLogin = ({ onBack, onLogin }) => {
           </div>
         </div>
 
+        {error && (
+          <p className="text-red-400 text-xs mb-4 text-center">{error}</p>
+        )}
+        {resetSent && (
+          <p className="text-[#8E9775] text-xs mb-4 text-center">Password reset email sent. Check your inbox.</p>
+        )}
+
         <button
-          onClick={onLogin}
-          className="w-full bg-[#433422] text-[#FDF9F3] font-bold text-sm tracking-[0.2em] py-5 rounded-[32px] shadow-[0_10px_36px_-6px_rgba(67,52,34,0.4)] hover:shadow-[0_14px_44px_-6px_rgba(67,52,34,0.5)] hover:-translate-y-0.5 transition-all ease-out duration-300"
+          onClick={handleLogin}
+          disabled={isSubmitting}
+          className="w-full bg-[#433422] text-[#FDF9F3] font-bold text-sm tracking-[0.2em] py-5 rounded-[32px] shadow-[0_10px_36px_-6px_rgba(67,52,34,0.4)] hover:shadow-[0_14px_44px_-6px_rgba(67,52,34,0.5)] hover:-translate-y-0.5 transition-all ease-out duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          ENTER SANCTUARY
+          {isSubmitting ? 'SIGNING IN...' : 'ENTER SANCTUARY'}
         </button>
 
-        <button className="mt-5 text-[10px] font-bold tracking-widest text-[#433422]/30 hover:text-[#433422]/60 transition-colors ease-out text-center">
+        <button
+          onClick={handleForgotPassword}
+          className="mt-5 text-[10px] font-bold tracking-widest text-[#433422]/30 hover:text-[#433422]/60 transition-colors ease-out text-center"
+        >
           FORGOT PASSWORD
         </button>
 

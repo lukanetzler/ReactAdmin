@@ -4,6 +4,9 @@ import {
   ArrowLeft,
   Check,
 } from 'lucide-react';
+import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { auth } from '../firebase';
+import { createUserProfile } from '../services/userProfile';
 import prayvailLogo from '../assets/prayvail-logo-blank.png';
 import malePathImg from '../assets/male-path.png';
 import femalePathImg from '../assets/female-path.png';
@@ -16,9 +19,29 @@ const PrevailOnboarding = ({ onComplete }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [activeImg, setActiveImg] = useState(0);
+  const [authError, setAuthError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const nextStep = () => setStep(s => Math.min(s + 1, 5));
   const prevStep = () => setStep(s => Math.max(s - 1, 1));
+
+  const handleCreateAccount = async () => {
+    setAuthError('');
+    setIsSubmitting(true);
+    try {
+      const cred = await createUserWithEmailAndPassword(auth, email, password);
+      await createUserProfile(cred.user.uid, { name: name.trim().split(' ')[0], email });
+      nextStep();
+    } catch (err) {
+      const msg = err.code === 'auth/email-already-in-use' ? 'This email is already in use.'
+        : err.code === 'auth/weak-password' ? 'Password must be at least 6 characters.'
+        : err.code === 'auth/invalid-email' ? 'Please enter a valid email address.'
+        : 'Something went wrong. Please try again.';
+      setAuthError(msg);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   useEffect(() => {
     if (step === 0) {
@@ -196,7 +219,7 @@ const PrevailOnboarding = ({ onComplete }) => {
               A free account keeps your sanctuary safe across devices.
             </p>
 
-            <div className="space-y-3 mb-10">
+            <div className="space-y-3 mb-6">
               <input
                 type="email"
                 value={email}
@@ -213,10 +236,19 @@ const PrevailOnboarding = ({ onComplete }) => {
               />
             </div>
 
+            {authError && (
+              <p className="text-red-400 text-xs mb-4 text-center">{authError}</p>
+            )}
+
             <div className="flex flex-col gap-4">
-              <PrimaryButton onClick={nextStep} label="CREATE ACCOUNT" fullWidth />
+              <PrimaryButton
+                onClick={handleCreateAccount}
+                label={isSubmitting ? 'CREATING...' : 'CREATE ACCOUNT'}
+                fullWidth
+                disabled={isSubmitting}
+              />
               <button
-                onClick={nextStep}
+                onClick={() => { nextStep(); }}
                 className="w-full text-sm font-bold tracking-[0.2em] text-gray-400 border border-[#E9DCC9] rounded-[32px] px-10 py-4 hover:border-gray-300 hover:text-[#433422] transition-all ease-out"
               >
                 CONTINUE WITHOUT AN ACCOUNT
@@ -238,7 +270,7 @@ const PrevailOnboarding = ({ onComplete }) => {
             <p className="text-gray-400 mb-12 text-sm leading-relaxed max-w-[65%]">
               "Peace I leave with you; my peace I give you." — John 14:27
             </p>
-            <PrimaryButton onClick={() => onComplete(name.trim().split(' ')[0])} label="ENTER PRAYVAIL" color="terracotta" />
+            <PrimaryButton onClick={() => onComplete()} label="ENTER PRAYVAIL" color="terracotta" />
           </div>
         )}
 
@@ -248,17 +280,19 @@ const PrevailOnboarding = ({ onComplete }) => {
 };
 
 // ── Shared CTA button ──────────────────────────────────────
-const PrimaryButton = ({ onClick, label, color = 'earth', fullWidth = false }) => {
+const PrimaryButton = ({ onClick, label, color = 'earth', fullWidth = false, disabled = false }) => {
   const isEarth = color === 'earth';
   return (
     <button
       onClick={onClick}
+      disabled={disabled}
       className={`
         ${fullWidth ? 'flex w-full' : 'inline-flex'} items-center justify-center gap-4
         px-10 py-4 rounded-[32px]
         font-bold text-sm tracking-[0.2em] whitespace-nowrap
         transition-all ease-out duration-300
         hover:-translate-y-0.5
+        disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0
         ${isEarth
           ? 'bg-[#433422] text-[#FDF9F3] shadow-[0_10px_36px_-6px_rgba(67,52,34,0.4)] hover:shadow-[0_14px_44px_-6px_rgba(67,52,34,0.5)]'
           : 'bg-[#D4A373] text-white shadow-[0_10px_36px_-6px_rgba(212,163,115,0.45)] hover:shadow-[0_14px_44px_-6px_rgba(212,163,115,0.6)]'

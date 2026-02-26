@@ -1,4 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { signOut, verifyBeforeUpdateEmail, updatePassword, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
+import { auth } from '../firebase';
+import { useJournalEntries } from '../hooks/useJournalEntries';
+import { addJournalEntry, updateJournalEntry, deleteJournalEntry } from '../services/journal';
+import { getUserProfile, updateUserProfile } from '../services/userProfile';
 import meditationTrack from '../assets/Day One - With Archer.mp3';
 import { getDailyVerse } from '../data/getDailyVerse';
 import {
@@ -46,24 +51,97 @@ const PATH_SESSIONS = (() => {
   return titles.map((title, i) => ({ day: i + 1, title, duration: `${durations[i]} min`, wired: i === 0 }));
 })();
 
-const PrevailHome = ({ userName = 'Friend', hasAccount = false, onUpdateName }) => {
+const PrevailHome = ({ user }) => {
   const dailyVerse = getDailyVerse();
 
   const [activeTab, setActiveTab] = useState('home');
   const [view, setView] = useState('dashboard');
   const [showFlameModal, setShowFlameModal] = useState(false);
 
-  // Account state
-  const [nameInput, setNameInput] = useState(userName);
-  const [notifDailyVerse, setNotifDailyVerse] = useState(true);
-  const [notifReflection, setNotifReflection] = useState(true);
-  const [notifNewContent, setNotifNewContent] = useState(false);
+  // Profile from Firestore
+  const [profile, setProfile] = useState(null);
+  useEffect(() => {
+    if (!user) return;
+    getUserProfile(user.uid).then(setProfile);
+  }, [user]);
+
+  const userName = profile?.name || 'Friend';
+
+  // Account state (derived from profile)
+  const [nameInput, setNameInput] = useState('');
+  useEffect(() => { if (profile?.name) setNameInput(profile.name); }, [profile]);
+  const notifDailyVerse = profile?.notifDailyVerse ?? true;
+  const notifReflection = profile?.notifReflection ?? true;
+  const notifNewContent = profile?.notifNewContent ?? false;
+
+  // Email/password change state
+  const [showEmailForm, setShowEmailForm] = useState(false);
+  const [newEmail, setNewEmail] = useState('');
+  const [emailMsg, setEmailMsg] = useState({ text: '', isError: false });
+  const [emailChanging, setEmailChanging] = useState(false);
+  const [showPasswordForm, setShowPasswordForm] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordMsg, setPasswordMsg] = useState({ text: '', isError: false });
+  const [passwordChanging, setPasswordChanging] = useState(false);
+
+  const handleEmailChange = async () => {
+    setEmailMsg({ text: '', isError: false });
+    setEmailChanging(true);
+    try {
+      await verifyBeforeUpdateEmail(user, newEmail);
+      setEmailMsg({ text: `Verification sent to ${newEmail}. Click the link in your inbox to confirm.`, isError: false });
+      setNewEmail('');
+      setShowEmailForm(false);
+    } catch (err) {
+      const msg = err.code === 'auth/requires-recent-login' ? 'Please sign out and sign back in before changing your email.'
+        : err.code === 'auth/email-already-in-use' ? 'This email is already in use.'
+        : err.code === 'auth/invalid-email' ? 'Please enter a valid email address.'
+        : 'Something went wrong. Please try again.';
+      setEmailMsg({ text: msg, isError: true });
+    } finally {
+      setEmailChanging(false);
+    }
+  };
+
+  const handlePasswordChange = async () => {
+    setPasswordMsg({ text: '', isError: false });
+    if (newPassword !== confirmPassword) {
+      setPasswordMsg({ text: 'New passwords do not match.', isError: true });
+      return;
+    }
+    if (newPassword.length < 6) {
+      setPasswordMsg({ text: 'Password must be at least 6 characters.', isError: true });
+      return;
+    }
+    setPasswordChanging(true);
+    try {
+      const credential = EmailAuthProvider.credential(user.email, currentPassword);
+      await reauthenticateWithCredential(user, credential);
+      await updatePassword(user, newPassword);
+      setPasswordMsg({ text: 'Password updated successfully.', isError: false });
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      setShowPasswordForm(false);
+    } catch (err) {
+      const msg = err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential' ? 'Current password is incorrect.'
+        : err.code === 'auth/weak-password' ? 'New password must be at least 6 characters.'
+        : 'Something went wrong. Please try again.';
+      setPasswordMsg({ text: msg, isError: true });
+    } finally {
+      setPasswordChanging(false);
+    }
+  };
+
+  // Journal entries from Firestore
+  const { entries: journalEntries } = useJournalEntries(user?.uid);
 
   // Core loop state
   const [preFeelingWord, setPreFeelingWord] = useState('');
   const [postFeelingWord, setPostFeelingWord] = useState('');
   const [journalText, setJournalText] = useState('');
-  const [journalEntries, setJournalEntries] = useState([]);
   const [meditatedToday, setMeditatedToday] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [trackTime, setTrackTime] = useState(0);
@@ -230,7 +308,7 @@ const PrevailHome = ({ userName = 'Friend', hasAccount = false, onUpdateName }) 
       }
     } catch (_) {}
   };
-  const [journaledToday, setJournaledToday] = useState(false);
+  const journaledToday = journalEntries.some(e => e.dateISO === new Date().toISOString().split('T')[0]);
   const [feelingInput, setFeelingInput] = useState('');
 
   // Calendar state
@@ -247,7 +325,15 @@ const PrevailHome = ({ userName = 'Friend', hasAccount = false, onUpdateName }) 
   const dateString = today.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' });
 
   const streak = (() => {
-    const datesWithEntries = new Set(journalEntries.map(e => e.dateISO));
+    // Use createdAt (actual creation date) for streak integrity — not dateISO (user-selected date)
+    const datesWithEntries = new Set(
+      journalEntries
+        .filter(e => e.createdAt)
+        .map(e => {
+          const d = e.createdAt.toDate ? e.createdAt.toDate() : new Date(e.createdAt);
+          return d.toISOString().split('T')[0];
+        })
+    );
     let count = 0;
     const d = new Date(today);
     if (!datesWithEntries.has(todayISO)) d.setDate(d.getDate() - 1);
@@ -278,7 +364,11 @@ const PrevailHome = ({ userName = 'Friend', hasAccount = false, onUpdateName }) 
   const selectedDateISO = selectedDate.toISOString().split('T')[0];
   const dayEntries = journalEntries
     .filter(e => e.dateISO === selectedDateISO)
-    .sort((a, b) => a.id - b.id);
+    .sort((a, b) => {
+      const aTime = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : 0;
+      const bTime = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : 0;
+      return aTime - bTime;
+    });
 
   const shiftWeek = (direction) => {
     const next = weekOffset + direction;
@@ -554,24 +644,21 @@ const PrevailHome = ({ userName = 'Friend', hasAccount = false, onUpdateName }) 
       }
     };
 
-    const handleSave = () => {
+    const handleSave = async () => {
       if (isEditMode) {
-        setJournalEntries(prev => prev.map(e =>
-          e.id === editingEntryId
-            ? { ...e, feelingBefore: preFeelingWord, feelingAfter: postFeelingWord, reflection: journalText }
-            : e
-        ));
+        await updateJournalEntry(user.uid, editingEntryId, {
+          feelingBefore: preFeelingWord,
+          feelingAfter: postFeelingWord,
+          reflection: journalText,
+        });
       } else {
-        const newEntry = {
-          id: Date.now(),
+        await addJournalEntry(user.uid, {
           dateISO: entryDateISO,
           dateDisplay: entryDateDisplay,
           feelingBefore: preFeelingWord,
           feelingAfter: postFeelingWord,
           reflection: journalText,
-        };
-        setJournalEntries(prev => [newEntry, ...prev]);
-        if (entryDateISO === todayISO) setJournaledToday(true);
+        });
       }
       setJournalMode('new');
       setEditingEntryId(null);
@@ -753,7 +840,7 @@ const PrevailHome = ({ userName = 'Friend', hasAccount = false, onUpdateName }) 
                         <PenLine size={14} />
                       </button>
                       <button
-                        onClick={() => setJournalEntries(prev => prev.filter(e => e.id !== entry.id))}
+                        onClick={() => deleteJournalEntry(user.uid, entry.id)}
                         className="w-8 h-8 rounded-full bg-[#F9F4EE] flex items-center justify-center text-[#433422]/40 hover:text-red-400 transition-colors"
                       >
                         <Trash2 size={14} />
@@ -809,9 +896,9 @@ const PrevailHome = ({ userName = 'Friend', hasAccount = false, onUpdateName }) 
   // ── Account ────────────────────────────────────────────
   if (view === 'account') {
     const notifRows = [
-      { label: 'Daily Verse', desc: 'Morning verse to start your day', state: notifDailyVerse, set: setNotifDailyVerse },
-      { label: 'Reflection Reminder', desc: 'Gentle nudge to journal each evening', state: notifReflection, set: setNotifReflection },
-      { label: 'New Sessions', desc: 'When new guided sessions are added', state: notifNewContent, set: setNotifNewContent },
+      { label: 'Daily Verse', desc: 'Morning verse to start your day', state: notifDailyVerse, key: 'notifDailyVerse' },
+      { label: 'Reflection Reminder', desc: 'Gentle nudge to journal each evening', state: notifReflection, key: 'notifReflection' },
+      { label: 'New Sessions', desc: 'When new guided sessions are added', state: notifNewContent, key: 'notifNewContent' },
     ];
 
     return (
@@ -836,39 +923,6 @@ const PrevailHome = ({ userName = 'Friend', hasAccount = false, onUpdateName }) 
 
         <main className="px-6 pt-4 pb-32 space-y-4">
 
-          {/* Name */}
-          <div className="bg-white rounded-[28px] p-6">
-            <p className="text-[10px] tracking-[0.3em] font-bold text-[#433422]/40 mb-4">YOUR NAME</p>
-            <input
-              value={nameInput}
-              onChange={e => setNameInput(e.target.value)}
-              className="w-full text-2xl font-serif bg-transparent border-b border-[#E9DCC9] pb-2 focus:outline-none focus:border-[#D4A373] transition-colors caret-[#D4A373]"
-              placeholder="Your name..."
-            />
-            {nameInput.trim().length > 0 && nameInput.trim() !== userName && (
-              <button
-                onClick={() => onUpdateName?.(nameInput.trim())}
-                className="mt-4 px-6 py-2.5 bg-[#433422] text-[#FDF9F3] rounded-[20px] text-sm font-bold tracking-wide"
-              >
-                Save
-              </button>
-            )}
-          </div>
-
-          {/* No-account explanation */}
-          {!hasAccount && (
-            <div className="bg-[#433422] text-[#FDF9F3] rounded-[28px] p-6">
-              <p className="text-[10px] tracking-[0.3em] font-bold opacity-40 mb-3">NO ACCOUNT</p>
-              <h3 className="text-xl font-serif mb-3">Save your journey.</h3>
-              <p className="text-sm opacity-60 leading-relaxed mb-5">
-                A free account syncs your reflections across devices, protects your streak if you lose your phone, and unlocks future features as they arrive.
-              </p>
-              <button className="w-full py-3.5 bg-[#D4A373] text-white rounded-[20px] font-bold text-sm tracking-[0.15em]">
-                Create Account
-              </button>
-            </div>
-          )}
-
           {/* Supporter */}
           <div className="bg-[#F9F4EE] rounded-[28px] p-6 relative overflow-hidden">
             <div className="absolute top-[-20px] right-[-20px] w-36 h-36 bg-[#D4A373]/10 rounded-full pointer-events-none" />
@@ -890,6 +944,120 @@ const PrevailHome = ({ userName = 'Friend', hasAccount = false, onUpdateName }) 
             </div>
           </div>
 
+          {/* Name */}
+          <div className="bg-white rounded-[28px] p-6">
+            <p className="text-[10px] tracking-[0.3em] font-bold text-[#433422]/40 mb-4">YOUR NAME</p>
+            <input
+              value={nameInput}
+              onChange={e => setNameInput(e.target.value)}
+              className="w-full text-2xl font-serif bg-transparent border-b border-[#E9DCC9] pb-2 focus:outline-none focus:border-[#D4A373] transition-colors caret-[#D4A373]"
+              placeholder="Your name..."
+            />
+            {nameInput.trim().length > 0 && nameInput.trim() !== userName && (
+              <button
+                onClick={async () => {
+                  await updateUserProfile(user.uid, { name: nameInput.trim() });
+                  setProfile(prev => ({ ...prev, name: nameInput.trim() }));
+                }}
+                className="mt-4 px-6 py-2.5 bg-[#433422] text-[#FDF9F3] rounded-[20px] text-sm font-bold tracking-wide"
+              >
+                Save
+              </button>
+            )}
+          </div>
+
+          {/* Email + Password side by side */}
+          <div className="flex gap-3 items-start">
+            {/* Email */}
+            <div className="flex-1 bg-white rounded-[28px] p-5">
+              <div className="flex items-center justify-between mb-1">
+                <p className="text-[10px] tracking-[0.3em] font-bold text-[#433422]/40">EMAIL</p>
+                <button
+                  onClick={() => { setShowEmailForm(f => !f); setEmailMsg({ text: '', isError: false }); setNewEmail(''); }}
+                  className="text-[10px] font-bold tracking-widest text-[#D4A373]"
+                >
+                  {showEmailForm ? 'CANCEL' : 'CHANGE'}
+                </button>
+              </div>
+              <p className="text-xs text-[#433422]/60 truncate mb-1">{user.email}</p>
+              {showEmailForm && (
+                <div className="space-y-2 mt-3">
+                  <input
+                    type="email"
+                    value={newEmail}
+                    onChange={e => setNewEmail(e.target.value)}
+                    placeholder="New email"
+                    className="w-full bg-[#F4EFE6] rounded-[14px] px-3 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-[#D4A373]/30 transition-all placeholder:text-[#433422]/30"
+                  />
+                  {emailMsg.text && (
+                    <p className={`text-[10px] leading-relaxed ${emailMsg.isError ? 'text-red-400' : 'text-[#8E9775]'}`}>{emailMsg.text}</p>
+                  )}
+                  <button
+                    onClick={handleEmailChange}
+                    disabled={emailChanging || !newEmail.trim()}
+                    className="w-full py-2.5 bg-[#433422] text-[#FDF9F3] rounded-[16px] text-[10px] font-bold tracking-wide disabled:opacity-40"
+                  >
+                    {emailChanging ? 'Sending...' : 'Send Link'}
+                  </button>
+                </div>
+              )}
+              {!showEmailForm && emailMsg.text && (
+                <p className={`text-[10px] mt-1 leading-relaxed ${emailMsg.isError ? 'text-red-400' : 'text-[#8E9775]'}`}>{emailMsg.text}</p>
+              )}
+            </div>
+
+            {/* Password */}
+            <div className="flex-1 bg-white rounded-[28px] p-5">
+              <div className="flex items-center justify-between">
+                <p className="text-[10px] tracking-[0.3em] font-bold text-[#433422]/40">PASSWORD</p>
+                <button
+                  onClick={() => { setShowPasswordForm(f => !f); setPasswordMsg({ text: '', isError: false }); setCurrentPassword(''); setNewPassword(''); setConfirmPassword(''); }}
+                  className="text-[10px] font-bold tracking-widest text-[#D4A373]"
+                >
+                  {showPasswordForm ? 'CANCEL' : 'CHANGE'}
+                </button>
+              </div>
+              {!showPasswordForm && (
+                <p className="text-xs text-[#433422]/40 mt-1">••••••••</p>
+              )}
+              {showPasswordForm && (
+                <div className="space-y-2 mt-3">
+                  <input
+                    type="password"
+                    value={currentPassword}
+                    onChange={e => setCurrentPassword(e.target.value)}
+                    placeholder="Current"
+                    className="w-full bg-[#F4EFE6] rounded-[14px] px-3 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-[#D4A373]/30 transition-all placeholder:text-[#433422]/30"
+                  />
+                  <input
+                    type="password"
+                    value={newPassword}
+                    onChange={e => setNewPassword(e.target.value)}
+                    placeholder="New"
+                    className="w-full bg-[#F4EFE6] rounded-[14px] px-3 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-[#D4A373]/30 transition-all placeholder:text-[#433422]/30"
+                  />
+                  <input
+                    type="password"
+                    value={confirmPassword}
+                    onChange={e => setConfirmPassword(e.target.value)}
+                    placeholder="Confirm"
+                    className="w-full bg-[#F4EFE6] rounded-[14px] px-3 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-[#D4A373]/30 transition-all placeholder:text-[#433422]/30"
+                  />
+                  {passwordMsg.text && (
+                    <p className={`text-[10px] leading-relaxed ${passwordMsg.isError ? 'text-red-400' : 'text-[#8E9775]'}`}>{passwordMsg.text}</p>
+                  )}
+                  <button
+                    onClick={handlePasswordChange}
+                    disabled={passwordChanging || !currentPassword || !newPassword || !confirmPassword}
+                    className="w-full py-2.5 bg-[#433422] text-[#FDF9F3] rounded-[16px] text-[10px] font-bold tracking-wide disabled:opacity-40"
+                  >
+                    {passwordChanging ? 'Updating...' : 'Update'}
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* Notifications */}
           <div className="bg-white rounded-[28px] p-6">
             <div className="flex items-center gap-2.5 mb-5">
@@ -897,14 +1065,18 @@ const PrevailHome = ({ userName = 'Friend', hasAccount = false, onUpdateName }) 
               <p className="text-[10px] tracking-[0.3em] font-bold text-[#433422]/40">NOTIFICATIONS</p>
             </div>
             <div className="space-y-5">
-              {notifRows.map(({ label, desc, state, set }) => (
+              {notifRows.map(({ label, desc, state, key }) => (
                 <div key={label} className="flex items-center justify-between gap-4">
                   <div>
                     <p className="text-sm font-bold text-[#433422]">{label}</p>
                     <p className="text-xs text-[#433422]/40 mt-0.5">{desc}</p>
                   </div>
                   <button
-                    onClick={() => set(s => !s)}
+                    onClick={async () => {
+                      const newVal = !state;
+                      await updateUserProfile(user.uid, { [key]: newVal });
+                      setProfile(prev => ({ ...prev, [key]: newVal }));
+                    }}
                     className={`w-12 h-7 rounded-full transition-colors relative flex-shrink-0 ${state ? 'bg-[#D4A373]' : 'bg-[#433422]/15'}`}
                   >
                     <div className={`absolute top-1 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-200 ${state ? 'left-6' : 'left-1'}`} />
@@ -914,12 +1086,13 @@ const PrevailHome = ({ userName = 'Friend', hasAccount = false, onUpdateName }) 
             </div>
           </div>
 
-          {/* Sign out — only if has account */}
-          {hasAccount && (
-            <button className="w-full py-4 text-sm font-bold text-[#433422]/30 tracking-widest">
-              SIGN OUT
-            </button>
-          )}
+          {/* Sign out */}
+          <button
+            onClick={() => signOut(auth)}
+            className="w-full py-4 text-sm font-bold text-[#433422]/30 tracking-widests"
+          >
+            SIGN OUT
+          </button>
 
         </main>
         </div>
