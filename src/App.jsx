@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from './hooks/useAuth';
 import PrevailGateway from './pages/PrevailGateway';
 import PrevailOnboarding from './pages/PrevailOnboarding';
@@ -8,6 +8,14 @@ import PrevailHome from './pages/PrevailHome';
 function App() {
   const { user, loading } = useAuth();
   const [page, setPage] = useState('gateway');
+  const [onboardingComplete, setOnboardingComplete] = useState(false);
+
+  useEffect(() => {
+    if (!loading && !user) {
+      setPage('gateway');
+      setOnboardingComplete(false);
+    }
+  }, [user, loading]);
   const [fading, setFading] = useState(false);
 
   const navigate = (to) => {
@@ -26,7 +34,8 @@ function App() {
     );
   }
 
-  if (user) {
+  // Only go to home if user is logged in AND not mid-onboarding
+  if (user && (page !== 'onboarding' || onboardingComplete)) {
     return <PrevailHome user={user} />;
   }
 
@@ -39,7 +48,7 @@ function App() {
         />
       )}
       {page === 'onboarding' && (
-        <PrevailOnboarding onComplete={() => { /* auth state change routes to home automatically */ }} />
+        <PrevailOnboarding onComplete={() => setOnboardingComplete(true)} />
       )}
       {page === 'login' && (
         <PrevailLogin

@@ -1,9 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { signOut, verifyBeforeUpdateEmail, updatePassword, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
+import { signOut, verifyBeforeUpdateEmail, updatePassword, updateProfile, deleteUser, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
 import { auth } from '../firebase';
 import { useJournalEntries } from '../hooks/useJournalEntries';
 import { addJournalEntry, updateJournalEntry, deleteJournalEntry } from '../services/journal';
-import { getUserProfile, updateUserProfile } from '../services/userProfile';
+import { updateUserProfile } from '../services/userProfile';
+import { doc, deleteDoc, onSnapshot } from 'firebase/firestore';
+import { db } from '../firebase';
 import meditationTrack from '../assets/Day One - With Archer.mp3';
 import { getDailyVerse } from '../data/getDailyVerse';
 import {
@@ -58,17 +60,24 @@ const PrevailHome = ({ user }) => {
   const [view, setView] = useState('dashboard');
   const [showFlameModal, setShowFlameModal] = useState(false);
 
-  // Profile from Firestore
+  // Profile from Firestore — real-time listener so it updates as soon as the doc is written
   const [profile, setProfile] = useState(null);
+  const profileUnsubRef = useRef(null);
   useEffect(() => {
     if (!user) return;
-    getUserProfile(user.uid).then(setProfile);
+    const unsub = onSnapshot(doc(db, 'users', user.uid), (snap) => {
+      setProfile(snap.exists() ? snap.data() : null);
+    });
+    profileUnsubRef.current = unsub;
+    return unsub;
   }, [user]);
 
-  const userName = profile?.name || 'Friend';
+  const userName = profile?.name || user?.displayName || 'Friend';
 
   // Account state (derived from profile)
   const [nameInput, setNameInput] = useState('');
+  const [nameSaving, setNameSaving] = useState(false);
+  const [nameError, setNameError] = useState('');
   useEffect(() => { if (profile?.name) setNameInput(profile.name); }, [profile]);
   const notifDailyVerse = profile?.notifDailyVerse ?? true;
   const notifReflection = profile?.notifReflection ?? true;
@@ -85,6 +94,12 @@ const PrevailHome = ({ user }) => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordMsg, setPasswordMsg] = useState({ text: '', isError: false });
   const [passwordChanging, setPasswordChanging] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleteError, setDeleteError] = useState('');
+  const [deleting, setDeleting] = useState(false);
+  const [journalSaving, setJournalSaving] = useState(false);
+  const [journalError, setJournalError] = useState('');
 
   const handleEmailChange = async () => {
     setEmailMsg({ text: '', isError: false });
@@ -645,28 +660,36 @@ const PrevailHome = ({ user }) => {
     };
 
     const handleSave = async () => {
-      if (isEditMode) {
-        await updateJournalEntry(user.uid, editingEntryId, {
-          feelingBefore: preFeelingWord,
-          feelingAfter: postFeelingWord,
-          reflection: journalText,
-        });
-      } else {
-        await addJournalEntry(user.uid, {
-          dateISO: entryDateISO,
-          dateDisplay: entryDateDisplay,
-          feelingBefore: preFeelingWord,
-          feelingAfter: postFeelingWord,
-          reflection: journalText,
-        });
-      }
-      setJournalMode('new');
-      setEditingEntryId(null);
-      setJournalText('');
-      if (isNewMode) {
-        setView('dashboard');
-      } else {
-        setView('calendar-log');
+      setJournalSaving(true);
+      setJournalError('');
+      try {
+        if (isEditMode) {
+          await updateJournalEntry(user.uid, editingEntryId, {
+            feelingBefore: preFeelingWord,
+            feelingAfter: postFeelingWord,
+            reflection: journalText,
+          });
+        } else {
+          await addJournalEntry(user.uid, {
+            dateISO: entryDateISO,
+            dateDisplay: entryDateDisplay,
+            feelingBefore: preFeelingWord,
+            feelingAfter: postFeelingWord,
+            reflection: journalText,
+          });
+        }
+        setJournalMode('new');
+        setEditingEntryId(null);
+        setJournalText('');
+        if (isNewMode) {
+          setView('dashboard');
+        } else {
+          setView('calendar-log');
+        }
+      } catch {
+        setJournalError('Could not save. Please try again.');
+      } finally {
+        setJournalSaving(false);
       }
     };
 
@@ -713,11 +736,13 @@ const PrevailHome = ({ user }) => {
           className="flex-1 w-full bg-white rounded-[24px] p-6 border border-[#E9DCC9] text-[#433422] font-sans text-base leading-relaxed resize-none focus:outline-none focus:border-[#D4A373] transition-colors placeholder:text-[#433422]/20 mb-6"
         />
 
+        {journalError && <p className="text-[#D4A373] text-xs font-bold text-center mb-2">{journalError}</p>}
         <button
           onClick={handleSave}
-          className="w-full py-5 bg-[#433422] text-[#FDF9F3] rounded-[24px] font-serif text-lg flex items-center justify-center gap-3"
+          disabled={journalSaving}
+          className="w-full py-5 bg-[#433422] text-[#FDF9F3] rounded-[24px] font-serif text-lg flex items-center justify-center gap-3 disabled:opacity-50"
         >
-          {saveLabel} <ArrowRight size={18} />
+          {journalSaving ? 'Saving...' : saveLabel} {!journalSaving && <ArrowRight size={18} />}
         </button>
       </div>
     );
@@ -956,14 +981,25 @@ const PrevailHome = ({ user }) => {
             {nameInput.trim().length > 0 && nameInput.trim() !== userName && (
               <button
                 onClick={async () => {
-                  await updateUserProfile(user.uid, { name: nameInput.trim() });
-                  setProfile(prev => ({ ...prev, name: nameInput.trim() }));
+                  setNameSaving(true);
+                  setNameError('');
+                  try {
+                    const trimmed = nameInput.trim();
+                    await updateUserProfile(user.uid, { name: trimmed });
+                    await updateProfile(user, { displayName: trimmed });
+                  } catch {
+                    setNameError('Could not save. Please try again.');
+                  } finally {
+                    setNameSaving(false);
+                  }
                 }}
-                className="mt-4 px-6 py-2.5 bg-[#433422] text-[#FDF9F3] rounded-[20px] text-sm font-bold tracking-wide"
+                disabled={nameSaving}
+                className="mt-4 px-6 py-2.5 bg-[#433422] text-[#FDF9F3] rounded-[20px] text-sm font-bold tracking-wide disabled:opacity-50"
               >
-                Save
+                {nameSaving ? 'Saving...' : 'Save'}
               </button>
             )}
+            {nameError && <p className="text-red-400 text-xs mt-2">{nameError}</p>}
           </div>
 
           {/* Email + Password side by side */}
@@ -1075,7 +1111,6 @@ const PrevailHome = ({ user }) => {
                     onClick={async () => {
                       const newVal = !state;
                       await updateUserProfile(user.uid, { [key]: newVal });
-                      setProfile(prev => ({ ...prev, [key]: newVal }));
                     }}
                     className={`w-12 h-7 rounded-full transition-colors relative flex-shrink-0 ${state ? 'bg-[#D4A373]' : 'bg-[#433422]/15'}`}
                   >
@@ -1093,6 +1128,80 @@ const PrevailHome = ({ user }) => {
           >
             SIGN OUT
           </button>
+
+          {/* Danger Zone */}
+          <div className="bg-[#433422]/[0.04] rounded-[28px] p-6 border border-[#433422]/10">
+            <p className="text-[10px] tracking-[0.3em] font-bold text-[#433422]/30 mb-2">DANGER ZONE</p>
+            <p className="text-xs text-[#433422]/40 mb-4">This action is permanent and cannot be undone.</p>
+            {!showDeleteConfirm ? (
+              <button
+                onClick={() => setShowDeleteConfirm(true)}
+                className="w-full py-3 bg-[#433422] text-[#FDF9F3] rounded-[20px] text-sm font-bold tracking-wide hover:opacity-80 transition-opacity"
+              >
+                Delete Account
+              </button>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-xs text-[#433422] font-bold">Enter your password to confirm deletion:</p>
+                <input
+                  type="password"
+                  value={deletePassword}
+                  onChange={e => setDeletePassword(e.target.value)}
+                  placeholder="Your password"
+                  className="w-full bg-white rounded-[16px] px-4 py-3 text-sm border border-[#E9DCC9] focus:border-[#D4A373] focus:outline-none transition-colors"
+                />
+                {deleteError && <p className="text-[#D4A373] text-xs font-bold">{deleteError}</p>}
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => { setShowDeleteConfirm(false); setDeletePassword(''); setDeleteError(''); }}
+                    className="flex-1 py-2.5 bg-[#E9DCC9]/50 text-[#433422]/50 rounded-[16px] text-[10px] font-bold tracking-wide"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={async () => {
+                      if (!deletePassword) { setDeleteError('Password is required.'); return; }
+                      setDeleting(true);
+                      setDeleteError('');
+                      try {
+                        // Re-authenticate
+                        const credential = EmailAuthProvider.credential(user.email, deletePassword);
+                        await reauthenticateWithCredential(auth.currentUser, credential);
+
+                        // Unsubscribe Firestore listener before any deletes
+                        if (profileUnsubRef.current) {
+                          profileUnsubRef.current();
+                          profileUnsubRef.current = null;
+                        }
+
+                        // Delete auth account first (this is what matters)
+                        const uid = auth.currentUser.uid;
+                        await deleteUser(auth.currentUser);
+
+                        // Best-effort Firestore cleanup after auth deletion
+                        try { await deleteDoc(doc(db, 'users', uid)); } catch {}
+                      } catch (err) {
+                        console.error('Delete account error:', err);
+                        setDeleting(false);
+                        const code = err?.code || '';
+                        if (code === 'auth/wrong-password' || code === 'auth/invalid-credential') {
+                          setDeleteError('Incorrect password.');
+                        } else if (code === 'auth/too-many-requests') {
+                          setDeleteError('Too many attempts. Please try again later.');
+                        } else {
+                          setDeleteError('Could not delete account. Please sign out, sign back in, and try again.');
+                        }
+                      }
+                    }}
+                    disabled={deleting}
+                    className="flex-1 py-2.5 bg-[#433422] text-[#FDF9F3] rounded-[16px] text-[10px] font-bold tracking-wide disabled:opacity-50"
+                  >
+                    {deleting ? 'Deleting...' : 'Delete Forever'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
 
         </main>
         </div>

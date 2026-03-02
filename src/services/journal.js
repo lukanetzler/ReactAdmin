@@ -1,27 +1,38 @@
-import { collection, addDoc, updateDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, setDoc, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '../firebase';
+
+// Firestore writes can hang indefinitely if security rules reject them.
+// This helper races the write against a timeout so the UI never freezes.
+function withTimeout(promise, ms = 5000) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Firestore write timed out')), ms)
+    ),
+  ]);
+}
 
 const entriesRef = (uid) => collection(db, 'users', uid, 'journalEntries');
 
 export async function addJournalEntry(uid, { dateISO, dateDisplay, feelingBefore, feelingAfter, reflection }) {
-  return addDoc(entriesRef(uid), {
+  return withTimeout(addDoc(entriesRef(uid), {
     dateISO,
     dateDisplay,
     feelingBefore,
     feelingAfter,
     reflection,
-    createdAt: serverTimestamp(),
-  });
+    createdAt: new Date().toISOString(),
+  }));
 }
 
 export async function updateJournalEntry(uid, entryId, { feelingBefore, feelingAfter, reflection }) {
-  return updateDoc(doc(db, 'users', uid, 'journalEntries', entryId), {
+  return withTimeout(setDoc(doc(db, 'users', uid, 'journalEntries', entryId), {
     feelingBefore,
     feelingAfter,
     reflection,
-  });
+  }, { merge: true }));
 }
 
 export async function deleteJournalEntry(uid, entryId) {
-  return deleteDoc(doc(db, 'users', uid, 'journalEntries', entryId));
+  return withTimeout(deleteDoc(doc(db, 'users', uid, 'journalEntries', entryId)));
 }

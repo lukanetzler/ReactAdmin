@@ -4,7 +4,7 @@ import {
   ArrowLeft,
   Check,
 } from 'lucide-react';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { auth } from '../firebase';
 import { createUserProfile } from '../services/userProfile';
 import prayvailLogo from '../assets/prayvail-logo-blank.png';
@@ -30,7 +30,13 @@ const PrevailOnboarding = ({ onComplete }) => {
     setIsSubmitting(true);
     try {
       const cred = await createUserWithEmailAndPassword(auth, email, password);
-      await createUserProfile(cred.user.uid, { name: name.trim().split(' ')[0], email });
+      const firstName = name.trim().split(' ')[0];
+      // Set displayName on Auth first (instant, never hangs)
+      await updateProfile(cred.user, { displayName: firstName });
+      // Firestore write may hang if rules reject — don't block the UI
+      createUserProfile(cred.user.uid, { name: firstName, email }).catch(err =>
+        console.error('Failed to create Firestore profile:', err)
+      );
       nextStep();
     } catch (err) {
       const msg = err.code === 'auth/email-already-in-use' ? 'This email is already in use.'
