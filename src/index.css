@@ -60,6 +60,15 @@
   animation: view-enter 0.35s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
+@keyframes sheet-enter {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+
+@utility animate-sheet-enter {
+  animation: sheet-enter 0.4s cubic-bezier(0.32, 0.72, 0, 1) forwards;
+}
+
 @keyframes spin-slow {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }

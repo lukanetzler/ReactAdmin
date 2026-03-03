@@ -7,6 +7,7 @@ import {
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { auth } from '../firebase';
 import { createUserProfile } from '../services/userProfile';
+import { enrollSignupCards } from '../services/dailyPath';
 import prayvailLogo from '../assets/prayvail-logo-blank.png';
 import malePathImg from '../assets/male-path.png';
 import femalePathImg from '../assets/female-path.png';
@@ -33,9 +34,12 @@ const PrevailOnboarding = ({ onComplete }) => {
       const firstName = name.trim().split(' ')[0];
       // Set displayName on Auth first (instant, never hangs)
       await updateProfile(cred.user, { displayName: firstName });
-      // Firestore write may hang if rules reject — don't block the UI
+      // Firestore writes may hang if rules reject — don't block the UI
       createUserProfile(cred.user.uid, { name: firstName, email }).catch(err =>
         console.error('Failed to create Firestore profile:', err)
+      );
+      enrollSignupCards(cred.user.uid).catch(err =>
+        console.error('Failed to enroll signup cards:', err)
       );
       nextStep();
     } catch (err) {

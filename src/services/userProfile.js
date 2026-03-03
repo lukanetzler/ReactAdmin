@@ -16,6 +16,7 @@ export async function createUserProfile(uid, { name, email }) {
   return withTimeout(setDoc(doc(db, 'users', uid), {
     name,
     email,
+    role: 'user',
     notifDailyVerse: true,
     notifReflection: true,
     notifNewContent: false,
