@@ -327,6 +327,7 @@ function CategoryManager() {
 
 const EMPTY_CARD = { title: '', label: '', category: '', duration: '', description: '', color: '#E9DCC9', audioUrl: '', imageUrl: '', published: false, coming: false, order: '', type: 'single', tier: 'free', tracks: [], addOnSignup: false, broadcastToAll: false };
 const EMPTY_TRACK = { title: '', audioUrl: '', imageUrl: '', duration: '' };
+const EMPTY_READING = { title: '', content: '' };
 
 function LibraryCardForm({ initial, categories, onSave, onCancel }) {
   const [form, setForm] = useState(() => ({
@@ -359,6 +360,10 @@ function LibraryCardForm({ initial, categories, onSave, onCancel }) {
   const removeTrack = (i) => set('tracks', form.tracks.filter((_, idx) => idx !== i));
   const setTrack = (i, k, v) => set('tracks', form.tracks.map((t, idx) => idx === i ? { ...t, [k]: v } : t));
 
+  const addReading = () => set('tracks', [...form.tracks, { ...EMPTY_READING }]);
+  const removeReading = (i) => set('tracks', form.tracks.filter((_, idx) => idx !== i));
+  const setReading = (i, k, v) => set('tracks', form.tracks.map((t, idx) => idx === i ? { ...t, [k]: v } : t));
+
   const handleSave = async () => {
     if (!form.title.trim()) { setError('Title is required.'); return; }
     setSaving(true);
@@ -389,9 +394,9 @@ function LibraryCardForm({ initial, categories, onSave, onCancel }) {
         payload.audioUrl = '';
         payload.tracks = form.tracks.map((t, i) => ({ title: t.title, audioUrl: t.audioUrl || '', imageUrl: t.imageUrl || '', duration: t.duration, order: i }));
       } else {
-        // article — no audio
+        // article — readings stored in tracks with content field (no audio)
         payload.audioUrl = '';
-        payload.tracks = [];
+        payload.tracks = form.tracks.map((t, i) => ({ title: t.title || '', content: t.content || '', order: i }));
       }
       await saveLibraryCard(payload, initial?.id);
       onSave();
@@ -489,10 +494,46 @@ function LibraryCardForm({ initial, categories, onSave, onCancel }) {
       <ColorPicker value={form.color} onChange={v => set('color', v)} />
       <UploadField label="Cover Image" accept="image/*" value={form.imageUrl} storagePath="library/images" onUploaded={url => set('imageUrl', url)} disabled={saving} />
 
-      {/* Single audio or Playlist tracks — hidden for articles */}
+      {/* Single audio / Playlist tracks / Article readings */}
       {form.type === 'single' ? (
         <UploadField label="Audio (MP3)" accept="audio/*" value={form.audioUrl} storagePath="library/audio" onUploaded={url => set('audioUrl', url)} disabled={saving} />
-      ) : form.type === 'article' ? null : (
+      ) : form.type === 'article' ? (
+        <div>
+          <p className="text-[10px] tracking-widest font-bold text-[#433422]/50 mb-1">READINGS</p>
+          <p className="text-[9px] text-[#433422]/30 mb-3 px-0.5">Leave empty for a single article. Add readings to create a day-by-day series.</p>
+          <div className="space-y-3">
+            {form.tracks.map((reading, i) => (
+              <div key={i} className="bg-white rounded-[16px] p-3 border border-[#E9DCC9] space-y-2">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[10px] font-bold text-[#433422]/40">READING {i + 1}</span>
+                  <button onClick={() => removeReading(i)} className="text-[#433422]/30 hover:text-[#433422]/60 transition-colors">
+                    <X size={14} />
+                  </button>
+                </div>
+                <input
+                  value={reading.title}
+                  onChange={e => setReading(i, 'title', e.target.value)}
+                  placeholder="Day 1: Title"
+                  className="w-full bg-[#FDF9F3] rounded-xl px-3 py-2 text-sm border border-[#E9DCC9] focus:border-[#D4A373] focus:outline-none"
+                />
+                <textarea
+                  value={reading.content}
+                  onChange={e => setReading(i, 'content', e.target.value)}
+                  placeholder="Reading text…"
+                  rows={4}
+                  className="w-full bg-[#FDF9F3] rounded-xl px-3 py-2 text-sm border border-[#E9DCC9] focus:border-[#D4A373] focus:outline-none resize-none"
+                />
+              </div>
+            ))}
+            <button
+              onClick={addReading}
+              className="w-full py-2.5 flex items-center justify-center gap-1.5 bg-[#F4EFE6] text-[#433422]/60 rounded-[14px] text-xs font-bold hover:text-[#433422] transition-colors"
+            >
+              <Plus size={13} /> Add Reading
+            </button>
+          </div>
+        </div>
+      ) : (
         <div>
           <p className="text-[10px] tracking-widest font-bold text-[#433422]/50 mb-2">TRACKS</p>
           <div className="space-y-3">

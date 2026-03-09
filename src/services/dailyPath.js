@@ -34,6 +34,16 @@ export async function advancePlaylistTrack(uid, itemId, nextIndex, isLast) {
   return withTimeout(setDoc(doc(db, 'users', uid, 'dailyPath', itemId), update, { merge: true }));
 }
 
+// Persist completion on a path item (singles and article readings)
+export async function completePathItem(uid, itemId) {
+  return withTimeout(setDoc(doc(db, 'users', uid, 'dailyPath', itemId), { completed: true, completedAt: new Date().toISOString() }, { merge: true }));
+}
+
+// Write a permanent completion record that survives path item deletion
+export async function recordCompletion(uid, cardId, title, type) {
+  return withTimeout(addDoc(collection(db, 'users', uid, 'completionHistory'), { cardId, title, type, completedAt: new Date().toISOString() }));
+}
+
 // Reset a completed playlist back to track 0
 export async function resetPlaylist(uid, itemId) {
   return withTimeout(setDoc(doc(db, 'users', uid, 'dailyPath', itemId), { trackIndex: 0, completed: false }, { merge: true }));
