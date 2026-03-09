@@ -6,7 +6,8 @@ import { usePathSessions, useLibraryCards, useCategories } from '../hooks/useCon
 import { useDailyPath } from '../hooks/useDailyPath';
 import { addJournalEntry, updateJournalEntry, deleteJournalEntry } from '../services/journal';
 import { updateUserProfile } from '../services/userProfile';
-import { addToPath, removeFromPath, advancePlaylistTrack, resetPlaylist, swapPathOrder, dismissBroadcast, completePathItem, recordCompletion } from '../services/dailyPath';
+import { addToPath, removeFromPath, advancePlaylistTrack, completeTrackForDay, resetPlaylist, swapPathOrder, dismissBroadcast, completePathItem, recordCompletion } from '../services/dailyPath';
+import { useTrackCompletions } from '../hooks/useTrackCompletions';
 import { useCompletionHistory } from '../hooks/useCompletionHistory';
 import { doc, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -42,6 +43,16 @@ import {
   X,
 } from 'lucide-react';
 import prayvailLogo from '../assets/prayvail-logo-blank.png';
+import { motion, AnimatePresence } from 'framer-motion';
+
+const pathContainerVariants = {
+  hidden: {},
+  visible: { transition: { staggerChildren: 0.07, delayChildren: 0.05 } },
+};
+const pathItemVariants = {
+  hidden: { opacity: 0, y: 14 },
+  visible: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 280, damping: 22 } },
+};
 
 const DAY_LABELS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
 const TRACK_TITLE = 'Day One - With Archer';
@@ -97,6 +108,7 @@ const PrevailHome = ({ user, profile, profileUnsubRef, onOpenAdmin }) => {
   const [activeSession, setActiveSession] = useState(null); // { title, audioUrl, imageUrl?, cardId?, pathItemId?, isPlaylistTrack?, trackIndex?, totalTracks?, skipCheckin? }
   const [activePlaylist, setActivePlaylist] = useState(null);
   const [activeDetailCard, setActiveDetailCard] = useState(null);
+  const trackCompletions = useTrackCompletions(user?.uid, activeDetailCard?.id);
   const [detailPathItem, setDetailPathItem] = useState(null); // path item context when popup opened from daily path
   const [activeReadingSession, setActiveReadingSession] = useState(null); // { card, reading, trackIndex, totalReadings, pathItemId }
   const [actionSheetCard, setActionSheetCard] = useState(null);
@@ -230,9 +242,17 @@ const PrevailHome = ({ user, profile, profileUnsubRef, onOpenAdmin }) => {
 
     if (activeSession?.isPlaylistTrack && activeSession?.pathItemId) {
       const isLast = activeSession.trackIndex >= activeSession.totalTracks - 1;
-      advancePlaylistTrack(user.uid, activeSession.pathItemId, activeSession.trackIndex + 1, isLast);
+      const nextIndex = activeSession.trackIndex + 1;
+      completeTrackForDay(user.uid, {
+        itemId: activeSession.pathItemId,
+        cardId: activeSession.cardId,
+        cardTitle: activeSession.cardTitle || activeSession.title,
+        trackIndex: activeSession.trackIndex,
+        trackTitle: activeSession.title,
+        nextIndex: isLast ? activeSession.trackIndex : nextIndex,
+        isLast,
+      }).catch(() => {});
       if (isLast) {
-        recordCompletion(user.uid, activeSession.cardId, activeSession.cardTitle || activeSession.title, 'playlist').catch(() => {});
         setView('completion-celebration');
         return;
       }
@@ -387,6 +407,8 @@ const PrevailHome = ({ user, profile, profileUnsubRef, onOpenAdmin }) => {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [journalMode, setJournalMode] = useState('new'); // 'new' | 'add' | 'edit'
   const [editingEntryId, setEditingEntryId] = useState(null);
+  const [journalStep, setJournalStep] = useState(0); // 0 = word card, 1 = reflection card
+  const [journalSlideDir, setJournalSlideDir] = useState(1); // 1 = forward, -1 = backward
   const [touchStartX, setTouchStartX] = useState(null);
 
   const today = new Date();
@@ -468,6 +490,7 @@ const PrevailHome = ({ user, profile, profileUnsubRef, onOpenAdmin }) => {
     setJournalText(entry.reflection || '');
     setEditingEntryId(entry.id);
     setJournalMode('edit');
+    setJournalStep(0);
     setView('journal');
   };
 
@@ -477,6 +500,7 @@ const PrevailHome = ({ user, profile, profileUnsubRef, onOpenAdmin }) => {
     setJournalText('');
     setEditingEntryId(null);
     setJournalMode('add');
+    setJournalStep(0);
     setView('journal');
   };
 
@@ -529,8 +553,12 @@ const PrevailHome = ({ user, profile, profileUnsubRef, onOpenAdmin }) => {
                     {(activeDetailCard.tracks || []).map((track, i) => {
                       const pathIdx = detailPathItem?.trackIndex ?? 0;
                       const allDone = !!detailPathItem?.completed;
-                      const isDone = detailPathItem && (allDone || i < pathIdx);
+                      const trackRecord = trackCompletions.find(tc => tc.trackIndex === i);
+                      const isDone = !!trackRecord || (detailPathItem && (allDone || i < pathIdx));
                       const isCurrent = detailPathItem && !allDone && i === pathIdx;
+                      const completedDate = trackRecord?.completedAt
+                        ? new Date(trackRecord.completedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+                        : null;
                       return (
                         <button key={i}
                           onClick={() => { setActiveSession({ title: track.title, audioUrl: track.audioUrl, imageUrl: track.imageUrl || activeDetailCard.imageUrl || '', ...(isCurrent ? { cardId: activeDetailCard.id, cardTitle: activeDetailCard.title, pathItemId: detailPathItem.id, isPlaylistTrack: true, trackIndex: i, totalTracks: activeDetailCard.tracks.length } : {}), skipCheckin: true }); setActiveDetailCard(null); setDetailPathItem(null); setView('meditation'); }}
@@ -541,6 +569,7 @@ const PrevailHome = ({ user, profile, profileUnsubRef, onOpenAdmin }) => {
                           <div className="flex-1 min-w-0">
                             <p className={`text-[9px] font-bold tracking-widest mb-0.5 ${isDone ? 'text-[#8E9775]' : isCurrent ? 'text-[#D4A373]' : 'text-[#433422]/40'}`}>{isDone ? 'DONE' : isCurrent ? 'TODAY' : `TRACK ${i + 1}`}</p>
                             <p className={`text-sm font-serif truncate ${isDone ? 'text-[#433422]/40' : 'text-[#433422]'}`}>{track.title}</p>
+                            {completedDate && <p className="text-[9px] text-[#8E9775]/70">{completedDate}</p>}
                           </div>
                           {isDone ? <span className="text-[9px] font-bold text-[#8E9775] bg-[#8E9775]/10 px-2 py-0.5 rounded-full flex-shrink-0">Done</span> : isCurrent ? <span className="text-[9px] font-bold text-[#D4A373] bg-[#D4A373]/10 px-2 py-0.5 rounded-full flex-shrink-0">Play</span> : <p className="text-[10px] text-[#433422]/40 flex-shrink-0">{track.duration}</p>}
                         </button>
@@ -554,8 +583,12 @@ const PrevailHome = ({ user, profile, profileUnsubRef, onOpenAdmin }) => {
                     {activeDetailCard.tracks.map((reading, i) => {
                       const pathIdx = detailPathItem?.trackIndex ?? 0;
                       const allDone = !!detailPathItem?.completed;
-                      const isDone = detailPathItem && (allDone || i < pathIdx);
+                      const trackRecord = trackCompletions.find(tc => tc.trackIndex === i);
+                      const isDone = !!trackRecord || (detailPathItem && (allDone || i < pathIdx));
                       const isCurrent = detailPathItem && !allDone && i === pathIdx;
+                      const completedDate = trackRecord?.completedAt
+                        ? new Date(trackRecord.completedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+                        : null;
                       return (
                         <button key={i}
                           onClick={() => setActiveReadingSession({ card: activeDetailCard, reading, trackIndex: i, totalReadings: activeDetailCard.tracks.length, pathItemId: isCurrent ? detailPathItem.id : null })}
@@ -566,6 +599,7 @@ const PrevailHome = ({ user, profile, profileUnsubRef, onOpenAdmin }) => {
                           <div className="flex-1 min-w-0">
                             <p className={`text-[9px] font-bold tracking-widest mb-0.5 ${isDone ? 'text-[#8E9775]' : isCurrent ? 'text-[#D4A373]' : 'text-[#433422]/40'}`}>{isDone ? 'READ' : isCurrent ? 'TODAY' : `READING ${i + 1}`}</p>
                             <p className={`text-sm font-serif truncate ${isDone ? 'text-[#433422]/40' : 'text-[#433422]'}`}>{reading.title}</p>
+                            {completedDate && <p className="text-[9px] text-[#8E9775]/70">{completedDate}</p>}
                           </div>
                           {isDone ? <span className="text-[9px] font-bold text-[#8E9775] bg-[#8E9775]/10 px-2 py-0.5 rounded-full flex-shrink-0">Done</span> : <ChevronRight size={14} className={`flex-shrink-0 ${isCurrent ? 'text-[#D4A373]' : 'text-[#433422]/30'}`} />}
                         </button>
@@ -609,7 +643,26 @@ const PrevailHome = ({ user, profile, profileUnsubRef, onOpenAdmin }) => {
               </div>
               <div className="px-5 pb-5 pt-3 border-t border-[#E9DCC9] flex-shrink-0">
                 {activeReadingSession.pathItemId ? (
-                  <button onClick={() => { const nextIndex = activeReadingSession.trackIndex + 1; const isLast = nextIndex >= activeReadingSession.totalReadings; advancePlaylistTrack(user.uid, activeReadingSession.pathItemId, nextIndex, isLast).catch(() => {}); if (isLast) { recordCompletion(user.uid, activeReadingSession.card.id, activeReadingSession.card.title, 'article-series').catch(() => {}); setActiveSession({ title: activeReadingSession.card.title, cardId: activeReadingSession.card.id, pathItemId: activeReadingSession.pathItemId, skipCheckin: true }); setActiveReadingSession(null); setView('completion-celebration'); } else { setActiveReadingSession(null); } }} className="w-full py-3 bg-[#433422] text-[#FDF9F3] rounded-[16px] text-sm font-bold">Mark as Read</button>
+                  <button onClick={() => {
+                    const isLast = activeReadingSession.trackIndex + 1 >= activeReadingSession.totalReadings;
+                    const nextIndex = activeReadingSession.trackIndex + 1;
+                    completeTrackForDay(user.uid, {
+                      itemId: activeReadingSession.pathItemId,
+                      cardId: activeReadingSession.card.id,
+                      cardTitle: activeReadingSession.card.title,
+                      trackIndex: activeReadingSession.trackIndex,
+                      trackTitle: activeReadingSession.reading.title,
+                      nextIndex: isLast ? activeReadingSession.trackIndex : nextIndex,
+                      isLast,
+                    }).catch(() => {});
+                    if (isLast) {
+                      setActiveSession({ title: activeReadingSession.card.title, cardId: activeReadingSession.card.id, pathItemId: activeReadingSession.pathItemId, skipCheckin: true });
+                      setActiveReadingSession(null);
+                      setView('completion-celebration');
+                    } else {
+                      setActiveReadingSession(null);
+                    }
+                  }} className="w-full py-3 bg-[#433422] text-[#FDF9F3] rounded-[16px] text-sm font-bold">Mark as Read</button>
                 ) : (
                   <button onClick={() => setActiveReadingSession(null)} className="w-full py-3 bg-[#E9DCC9] text-[#433422] rounded-[16px] text-sm font-bold">Close</button>
                 )}
@@ -906,6 +959,7 @@ const PrevailHome = ({ user, profile, profileUnsubRef, onOpenAdmin }) => {
                 setPostFeelingWord(feelingInput);
                 setFeelingInput('');
                 setJournalMode('new');
+                setJournalStep(0);
                 setView('journal');
               }}
               disabled={!feelingInput.trim()}
@@ -931,13 +985,9 @@ const PrevailHome = ({ user, profile, profileUnsubRef, onOpenAdmin }) => {
     const isAddMode = journalMode === 'add';
     const isNewMode = journalMode === 'new';
 
-    const journalTitle = isEditMode ? 'Edit Reflection' : isAddMode ? 'New Reflection' : "Today's Reflection";
-    const saveLabel = isEditMode ? 'Save Changes' : 'Save Entry';
-
     const entryDateISO = isEditMode
       ? (journalEntries.find(e => e.id === editingEntryId)?.dateISO || todayISO)
-      : isAddMode
-      ? selectedDate.toISOString().split('T')[0]
+      : isAddMode ? selectedDate.toISOString().split('T')[0]
       : todayISO;
 
     const entryDateDisplay = isEditMode
@@ -946,17 +996,22 @@ const PrevailHome = ({ user, profile, profileUnsubRef, onOpenAdmin }) => {
       ? selectedDate.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' })
       : dateString;
 
-    const handleBack = () => {
+    const goBack = () => {
+      if (journalStep === 1) {
+        setJournalSlideDir(-1);
+        setJournalStep(0);
+        return;
+      }
       setJournalText('');
       setJournalError('');
-      if (isNewMode) {
-        setJournalMode('new');
-        setView('dashboard');
-      } else {
-        setJournalMode('new');
-        setEditingEntryId(null);
-        setView('calendar-log');
-      }
+      setJournalStep(0);
+      if (isNewMode) { setJournalMode('new'); setView('dashboard'); }
+      else { setJournalMode('new'); setEditingEntryId(null); setView('calendar-log'); }
+    };
+
+    const goToReflection = () => {
+      setJournalSlideDir(1);
+      setJournalStep(1);
     };
 
     const handleSave = async () => {
@@ -981,11 +1036,8 @@ const PrevailHome = ({ user, profile, profileUnsubRef, onOpenAdmin }) => {
         setJournalMode('new');
         setEditingEntryId(null);
         setJournalText('');
-        if (isNewMode) {
-          setView('dashboard');
-        } else {
-          setView('calendar-log');
-        }
+        setJournalStep(0);
+        if (isNewMode) { setView('dashboard'); } else { setView('calendar-log'); }
       } catch {
         setJournalError('Could not save. Please try again.');
       } finally {
@@ -993,57 +1045,127 @@ const PrevailHome = ({ user, profile, profileUnsubRef, onOpenAdmin }) => {
       }
     };
 
+    const WORD_SUGGESTIONS = [
+      'Grateful', 'Peaceful', 'Hopeful', 'Joyful', 'Blessed',
+      'Tired', 'Heavy', 'Anxious', 'Restless', 'Overwhelmed',
+      'Grounded', 'Clear', 'Uncertain', 'Renewed',
+    ];
+
+    const slideVariants = {
+      enter: (dir) => ({ x: dir > 0 ? '100%' : '-100%', opacity: 0 }),
+      center: { x: 0, opacity: 1 },
+      exit: (dir) => ({ x: dir > 0 ? '-100%' : '100%', opacity: 0 }),
+    };
+
     return (
-      <div className="flex flex-col h-screen bg-[#FDF9F3] text-[#433422] font-sans px-8 py-12 animate-view-enter">
-        <div className="flex items-center justify-between mb-10">
-          <button onClick={handleBack} className="flex items-center gap-2 text-[#433422]/40">
-            <ArrowLeft size={18} />
+      <div className="flex flex-col h-screen bg-[#FDF9F3] text-[#433422] font-sans overflow-hidden animate-view-enter">
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-8 pt-12 pb-4 flex-shrink-0">
+          <button onClick={goBack} className="w-9 h-9 rounded-full bg-[#F4EFE6] flex items-center justify-center">
+            <ArrowLeft size={16} className="text-[#433422]/60" />
           </button>
           <div className="text-right">
-            <p className="text-xs font-bold tracking-widest text-[#433422]/40 uppercase">{journalTitle}</p>
-            <p className="text-sm text-[#433422]/60 mt-0.5">{entryDateDisplay}</p>
+            <p className="text-[10px] font-bold tracking-widest text-[#433422]/40 uppercase">
+              {isEditMode ? 'Edit Reflection' : isAddMode ? 'New Reflection' : "Today's Reflection"}
+            </p>
+            <p className="text-xs text-[#433422]/50 mt-0.5">{entryDateDisplay}</p>
           </div>
         </div>
 
-        <div className="flex gap-4 mb-8">
-          <div className="flex-1">
-            <p className="text-[10px] tracking-widest font-bold text-[#433422]/40 uppercase mb-2">Feeling before</p>
-            <input
-              type="text"
-              value={preFeelingWord}
-              onChange={e => setPreFeelingWord(e.target.value)}
-              placeholder="a word..."
-              className="w-full bg-white rounded-[16px] p-3 border border-[#E9DCC9] text-[#433422] font-serif text-sm focus:outline-none focus:border-[#D4A373] transition-colors placeholder:text-[#433422]/20"
-            />
-          </div>
-          <div className="flex-1">
-            <p className="text-[10px] tracking-widest font-bold text-[#433422]/40 uppercase mb-2">Feeling after</p>
-            <input
-              type="text"
-              value={postFeelingWord}
-              onChange={e => setPostFeelingWord(e.target.value)}
-              placeholder="a word..."
-              className="w-full bg-white rounded-[16px] p-3 border border-[#E9DCC9] text-[#433422] font-serif text-sm focus:outline-none focus:border-[#D4A373] transition-colors placeholder:text-[#433422]/20"
-            />
-          </div>
+        {/* Step dots */}
+        <div className="flex items-center justify-center gap-2 pb-6 flex-shrink-0">
+          <motion.div animate={{ width: journalStep === 0 ? 28 : 10, backgroundColor: journalStep === 0 ? '#D4A373' : '#E9DCC9' }} transition={{ duration: 0.3 }} className="h-1.5 rounded-full" />
+          <motion.div animate={{ width: journalStep === 1 ? 28 : 10, backgroundColor: journalStep === 1 ? '#D4A373' : '#E9DCC9' }} transition={{ duration: 0.3 }} className="h-1.5 rounded-full" />
         </div>
 
-        <p className="text-[10px] tracking-widest font-bold text-[#433422]/40 uppercase mb-3">Reflected</p>
-        <textarea
-          value={journalText}
-          onChange={e => setJournalText(e.target.value)}
-          placeholder="Write what's on your heart..."
-          className="flex-1 w-full bg-white rounded-[24px] p-6 border border-[#E9DCC9] text-[#433422] font-sans text-base leading-relaxed resize-none focus:outline-none focus:border-[#D4A373] transition-colors placeholder:text-[#433422]/20 mb-6"
-        />
+        {/* Sliding cards */}
+        <div className="flex-1 relative overflow-hidden">
+          <AnimatePresence initial={false} custom={journalSlideDir} mode="wait">
 
-        {journalError && <p className="text-[#D4A373] text-xs font-bold text-center mb-2">{journalError}</p>}
-        <button
-          onClick={handleSave}
-          disabled={journalSaving}
-          className="w-full py-5 bg-[#433422] text-[#FDF9F3] rounded-[24px] font-serif text-lg flex items-center justify-center gap-3 disabled:opacity-50"
-        >
-          {journalSaving ? 'Saving...' : saveLabel} {!journalSaving && <ArrowRight size={18} />}
-        </button>
+            {journalStep === 0 ? (
+              <motion.div
+                key="journal-step-0"
+                custom={journalSlideDir}
+                variants={slideVariants}
+                initial="enter"
+                animate="center"
+                exit="exit"
+                transition={{ type: 'spring', stiffness: 320, damping: 32 }}
+                className="absolute inset-0 flex flex-col px-8 pb-8"
+              >
+                <h2 className="text-2xl font-serif text-[#433422] mb-1">How would you summarise today?</h2>
+                <p className="text-sm text-[#433422]/40 mb-7">Choose a word or write your own</p>
+
+                <input
+                  type="text"
+                  value={preFeelingWord}
+                  onChange={e => setPreFeelingWord(e.target.value)}
+                  placeholder="one word…"
+                  maxLength={32}
+                  className="w-full bg-white rounded-[20px] px-5 py-4 border border-[#E9DCC9] text-[#433422] font-serif text-2xl text-center focus:outline-none focus:border-[#D4A373] transition-colors placeholder:text-[#433422]/20 mb-6"
+                />
+
+                <div className="flex flex-wrap gap-2 mb-auto">
+                  {WORD_SUGGESTIONS.map(word => (
+                    <motion.button
+                      key={word}
+                      onClick={() => setPreFeelingWord(word)}
+                      whileTap={{ scale: 0.94 }}
+                      className={`px-4 py-2 rounded-full text-sm font-bold border transition-colors ${preFeelingWord === word ? 'bg-[#D4A373] border-[#D4A373] text-white' : 'bg-white border-[#E9DCC9] text-[#433422]/60 hover:border-[#D4A373]/50'}`}
+                    >{word}</motion.button>
+                  ))}
+                </div>
+
+                <motion.button
+                  onClick={goToReflection}
+                  disabled={!preFeelingWord.trim()}
+                  whileTap={{ scale: 0.97 }}
+                  className="w-full py-5 bg-[#433422] text-[#FDF9F3] rounded-[24px] font-serif text-lg flex items-center justify-center gap-3 disabled:opacity-25 mt-8"
+                >
+                  Continue <ArrowRight size={18} />
+                </motion.button>
+              </motion.div>
+
+            ) : (
+              <motion.div
+                key="journal-step-1"
+                custom={journalSlideDir}
+                variants={slideVariants}
+                initial="enter"
+                animate="center"
+                exit="exit"
+                transition={{ type: 'spring', stiffness: 320, damping: 32 }}
+                className="absolute inset-0 flex flex-col px-8 pb-8"
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <h2 className="text-2xl font-serif text-[#433422]">What's on your heart?</h2>
+                </div>
+                <p className="text-sm text-[#433422]/40 mb-5">Write freely</p>
+
+                <textarea
+                  value={journalText}
+                  onChange={e => setJournalText(e.target.value)}
+                  placeholder="Write what's on your heart..."
+                  className="flex-1 w-full bg-white rounded-[24px] p-6 border border-[#E9DCC9] text-[#433422] font-sans text-base leading-relaxed resize-none focus:outline-none focus:border-[#D4A373] transition-colors placeholder:text-[#433422]/20 mb-4"
+                  style={{ fontFamily: 'inherit' }}
+                />
+
+                {journalError && <p className="text-[#D4A373] text-xs font-bold text-center mb-2">{journalError}</p>}
+
+                <motion.button
+                  onClick={handleSave}
+                  disabled={journalSaving}
+                  whileTap={{ scale: 0.97 }}
+                  className="w-full py-5 bg-[#433422] text-[#FDF9F3] rounded-[24px] font-serif text-lg flex items-center justify-center gap-3 disabled:opacity-50"
+                >
+                  {journalSaving ? 'Saving…' : isEditMode ? 'Save Changes' : 'Complete'} {!journalSaving && <ArrowRight size={18} />}
+                </motion.button>
+              </motion.div>
+            )}
+
+          </AnimatePresence>
+        </div>
       </div>
     );
   }
@@ -1886,20 +2008,38 @@ const PrevailHome = ({ user, profile, profileUnsubRef, onOpenAdmin }) => {
           const pathCards = pathItems
             .map(item => { const card = allCards.find(c => c.id === item.cardId); return card ? { card, item } : null; })
             .filter(Boolean);
-          const completedSteps = pathCards.filter(({ card, item }) =>
-            card.type === 'playlist' ? item.completed : completedCardIds.has(card.id)
-          ).length + (journaledToday ? 1 : 0);
+          const completedSteps = pathCards.filter(({ card, item }) => {
+            const isSeq = card.type === 'playlist' || (card.type === 'article' && (card.tracks?.length ?? 0) > 0);
+            if (isSeq) return item.completedToday === todayISO || !!item.completed;
+            return completedCardIds.has(card.id) || completedHistory.has(card.id);
+          }).length + (journaledToday ? 1 : 0);
           const totalSteps = pathCards.length + 1;
           return (
             <section>
               <div className="flex items-center justify-between mb-5">
                 <h3 className="text-xl font-serif">Your Path Today</h3>
-                <span className="text-xs font-bold text-[#433422]/30">{completedSteps} / {totalSteps}</span>
+                <div className="flex items-center gap-2 flex-1 ml-4">
+                  <div className="flex-1 h-1 bg-[#E9DCC9] rounded-full overflow-hidden">
+                    <motion.div
+                      className="h-full bg-[#D4A373] rounded-full"
+                      initial={{ scaleX: 0 }}
+                      animate={{ scaleX: totalSteps > 0 ? completedSteps / totalSteps : 0 }}
+                      transition={{ duration: 0.6, ease: 'easeOut' }}
+                      style={{ transformOrigin: 'left' }}
+                    />
+                  </div>
+                  <span className="text-xs font-bold text-[#433422]/30 tabular-nums">{completedSteps}/{totalSteps}</span>
+                </div>
               </div>
 
               <div className="relative pl-6">
                 <div className="absolute left-[9px] top-5 bottom-5 border-l-2 border-dashed border-[#E9DCC9]" />
-                <div className="space-y-4">
+                <motion.div
+                  className="space-y-4"
+                  variants={pathContainerVariants}
+                  initial="hidden"
+                  animate="visible"
+                >
 
                   {/* Curated path items */}
                   {pathCards.length === 0 && (
@@ -1920,7 +2060,9 @@ const PrevailHome = ({ user, profile, profileUnsubRef, onOpenAdmin }) => {
                     const isArticle = card.type === 'article';
                     const isArticleSeries = isArticle && (card.tracks?.length ?? 0) > 0;
                     const isSequential = isPlaylist || isArticleSeries;
-                    const isCompleted = isSequential ? !!item.completed : (completedCardIds.has(card.id) || completedHistory.has(card.id));
+                    const doneToday = isSequential && item.completedToday === todayISO;
+                    const allTracksComplete = isSequential && !!item.completed;
+                    const isCompleted = doneToday || allTracksComplete || (!isSequential && (completedCardIds.has(card.id) || completedHistory.has(card.id)));
                     const isSupporter = card.tier === 'supporter' && !isUserSupporter;
                     const trackIndex = item.trackIndex ?? 0;
                     const nonBroadcast = !item._broadcast;
@@ -1943,13 +2085,39 @@ const PrevailHome = ({ user, profile, profileUnsubRef, onOpenAdmin }) => {
                     };
 
                     return (
-                      <div key={item.id} className="flex items-center gap-2">
-                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 z-10 ${isCompleted ? 'bg-[#D4A373] border-[#D4A373]' : 'bg-[#FDF9F3] border-[#D4A373]/40'}`}>
-                          {isCompleted && <div className="w-2 h-2 bg-white rounded-full" />}
-                        </div>
-                        <div
+                      <motion.div key={item.id} className="flex items-center gap-2" variants={pathItemVariants}>
+                        <motion.div
+                          animate={{
+                            backgroundColor: isCompleted ? '#D4A373' : '#FDF9F3',
+                            borderColor: isCompleted ? '#D4A373' : 'rgba(212, 163, 115, 0.4)',
+                            scale: isCompleted ? [1, 1.25, 1] : 1,
+                          }}
+                          transition={{ duration: 0.4, type: 'spring', stiffness: 400, damping: 20 }}
+                          className="w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 z-10"
+                        >
+                          <AnimatePresence>
+                            {isCompleted && (
+                              <motion.div
+                                initial={{ scale: 0 }}
+                                animate={{ scale: 1 }}
+                                exit={{ scale: 0 }}
+                                transition={{ type: 'spring', stiffness: 500, damping: 28 }}
+                                className="w-2 h-2 bg-white rounded-full"
+                              />
+                            )}
+                          </AnimatePresence>
+                        </motion.div>
+                        <motion.div
                           onClick={handleTapPathItem}
-                          className={`flex-1 bg-white rounded-[24px] px-5 py-4 border border-[#E9DCC9] flex items-center justify-between cursor-pointer active:scale-[0.98] transition-transform ${isSupporter ? 'opacity-60' : ''}`}
+                          animate={{
+                            backgroundColor: isCompleted ? '#F7FBF5' : '#FFFFFF',
+                            borderColor: isCompleted ? '#8E9775' : '#E9DCC9',
+                          }}
+                          transition={{ duration: 0.5 }}
+                          whileTap={{ scale: 0.98 }}
+                          whileHover={{ scale: 1.005 }}
+                          style={isSupporter ? { opacity: 0.6 } : undefined}
+                          className="flex-1 rounded-[24px] px-5 py-4 border flex items-center justify-between cursor-pointer"
                         >
                           <div className="flex items-center gap-4">
                             <div className="w-10 h-10 rounded-xl overflow-hidden flex items-center justify-center relative flex-shrink-0" style={{ backgroundColor: card.color ? `${card.color}60` : '#F9F4EE' }}>
@@ -1969,20 +2137,44 @@ const PrevailHome = ({ user, profile, profileUnsubRef, onOpenAdmin }) => {
                             </div>
                           </div>
                           <div className="flex items-center gap-2">
-                            {isCompleted ? (
-                              isPlaylist ? (
-                                <button
-                                  onClick={e => { e.stopPropagation(); resetPlaylist(user.uid, item.id); }}
+                            <AnimatePresence mode="wait">
+                              {allTracksComplete ? (
+                                <motion.span
+                                  key="all-done"
+                                  initial={{ scale: 0.7, opacity: 0 }}
+                                  animate={{ scale: 1, opacity: 1 }}
+                                  exit={{ scale: 0.7, opacity: 0 }}
+                                  transition={{ type: 'spring', stiffness: 400, damping: 25 }}
                                   className="text-[10px] font-bold text-[#8E9775] bg-[#F0F4EC] px-3 py-1 rounded-full"
-                                >Replay</button>
-                              ) : (
-                                <span className="text-[10px] font-bold text-[#8E9775] bg-[#F0F4EC] px-3 py-1 rounded-full">Done</span>
-                              )
-                            ) : isSupporter ? (
-                              <Lock size={14} className="text-[#433422]/30" />
-                            ) : null}
+                                >
+                                  <button onClick={e => { e.stopPropagation(); resetPlaylist(user.uid, item.id); }}>Replay</button>
+                                </motion.span>
+                              ) : doneToday ? (
+                                <motion.span
+                                  key="done-today"
+                                  initial={{ scale: 0.7, opacity: 0 }}
+                                  animate={{ scale: 1, opacity: 1 }}
+                                  exit={{ scale: 0.7, opacity: 0 }}
+                                  transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+                                  className="text-[10px] font-bold text-[#8E9775] bg-[#F0F4EC] px-3 py-1 rounded-full"
+                                >{isSequential ? 'Done today' : 'Done'}</motion.span>
+                              ) : isCompleted ? (
+                                <motion.span
+                                  key="done"
+                                  initial={{ scale: 0.7, opacity: 0 }}
+                                  animate={{ scale: 1, opacity: 1 }}
+                                  exit={{ scale: 0.7, opacity: 0 }}
+                                  transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+                                  className="text-[10px] font-bold text-[#8E9775] bg-[#F0F4EC] px-3 py-1 rounded-full"
+                                >Done</motion.span>
+                              ) : isSupporter ? (
+                                <motion.span key="lock" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                                  <Lock size={14} className="text-[#433422]/30" />
+                                </motion.span>
+                              ) : null}
+                            </AnimatePresence>
                           </div>
-                        </div>
+                        </motion.div>
 
                         {/* Reorder + delete controls */}
                         <div className="flex flex-col gap-0.5 flex-shrink-0">
@@ -2020,18 +2212,43 @@ const PrevailHome = ({ user, profile, profileUnsubRef, onOpenAdmin }) => {
                             <Trash2 size={12} className="text-[#D4A373]/60" />
                           </button>
                         </div>
-                      </div>
+                      </motion.div>
                     );
                   })}
 
                   {/* Always-last step: Reflect */}
-                  <div className="flex items-center gap-4">
-                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 z-10 ${journaledToday ? 'bg-[#D4A373] border-[#D4A373]' : 'bg-[#FDF9F3] border-[#D4A373]/40'}`}>
-                      {journaledToday && <div className="w-2 h-2 bg-white rounded-full" />}
-                    </div>
-                    <div
+                  <motion.div className="flex items-center gap-4" variants={pathItemVariants}>
+                    <motion.div
+                      animate={{
+                        backgroundColor: journaledToday ? '#D4A373' : '#FDF9F3',
+                        borderColor: journaledToday ? '#D4A373' : 'rgba(212, 163, 115, 0.4)',
+                        scale: journaledToday ? [1, 1.25, 1] : 1,
+                      }}
+                      transition={{ duration: 0.4, type: 'spring', stiffness: 400, damping: 20 }}
+                      className="w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 z-10"
+                    >
+                      <AnimatePresence>
+                        {journaledToday && (
+                          <motion.div
+                            initial={{ scale: 0 }}
+                            animate={{ scale: 1 }}
+                            exit={{ scale: 0 }}
+                            transition={{ type: 'spring', stiffness: 500, damping: 28 }}
+                            className="w-2 h-2 bg-white rounded-full"
+                          />
+                        )}
+                      </AnimatePresence>
+                    </motion.div>
+                    <motion.div
                       onClick={() => setView('journal')}
-                      className="flex-1 bg-white rounded-[24px] px-5 py-4 border border-[#E9DCC9] flex items-center justify-between cursor-pointer active:scale-[0.98] transition-transform"
+                      animate={{
+                        backgroundColor: journaledToday ? '#F7FBF5' : '#FFFFFF',
+                        borderColor: journaledToday ? '#8E9775' : '#E9DCC9',
+                      }}
+                      transition={{ duration: 0.5 }}
+                      whileTap={{ scale: 0.98 }}
+                      whileHover={{ scale: 1.005 }}
+                      className="flex-1 rounded-[24px] px-5 py-4 border flex items-center justify-between cursor-pointer"
                     >
                       <div className="flex items-center gap-4">
                         <div className="w-10 h-10 rounded-xl bg-[#F9F4EE] flex items-center justify-center">
@@ -2047,15 +2264,26 @@ const PrevailHome = ({ user, profile, profileUnsubRef, onOpenAdmin }) => {
                           )}
                         </div>
                       </div>
-                      {journaledToday ? (
-                        <span className="text-[10px] font-bold text-[#8E9775] bg-[#F0F4EC] px-3 py-1 rounded-full">Done</span>
-                      ) : (
-                        <ChevronRight size={16} className="text-[#433422]/20" />
-                      )}
-                    </div>
-                  </div>
+                      <AnimatePresence mode="wait">
+                        {journaledToday ? (
+                          <motion.span
+                            key="done"
+                            initial={{ scale: 0.7, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.7, opacity: 0 }}
+                            transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+                            className="text-[10px] font-bold text-[#8E9775] bg-[#F0F4EC] px-3 py-1 rounded-full"
+                          >Done</motion.span>
+                        ) : (
+                          <motion.span key="chevron" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                            <ChevronRight size={16} className="text-[#433422]/20" />
+                          </motion.span>
+                        )}
+                      </AnimatePresence>
+                    </motion.div>
+                  </motion.div>
 
-                </div>
+                </motion.div>
               </div>
             </section>
           );

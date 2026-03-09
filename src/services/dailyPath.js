@@ -1,4 +1,4 @@
-import { collection, addDoc, deleteDoc, doc, setDoc, query, where, getDocs, writeBatch } from 'firebase/firestore';
+import { collection, addDoc, deleteDoc, doc, setDoc, query, where, getDocs, writeBatch, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 
 function withTimeout(promise, ms = 5000) {
@@ -32,6 +32,33 @@ export async function advancePlaylistTrack(uid, itemId, nextIndex, isLast) {
     ? { completed: true }
     : { trackIndex: nextIndex };
   return withTimeout(setDoc(doc(db, 'users', uid, 'dailyPath', itemId), update, { merge: true }));
+}
+
+// Complete one track for today.
+// The dailyPath update is the critical write — it must succeed for the UI to update.
+// trackCompletions and completionHistory are permanent records written independently
+// so a security-rule gap on a new collection cannot silently kill the whole operation.
+export async function completeTrackForDay(uid, { itemId, cardId, cardTitle, trackIndex, trackTitle, nextIndex, isLast }) {
+  const today = new Date().toISOString().slice(0, 10);
+  const now = new Date().toISOString();
+
+  // CRITICAL: update the daily path item — awaited so callers can catch failures
+  await withTimeout(setDoc(doc(db, 'users', uid, 'dailyPath', itemId), {
+    completedToday: today,
+    trackIndex: nextIndex,
+    ...(isLast ? { completed: true, completedAt: now } : {}),
+  }, { merge: true }));
+
+  // NON-CRITICAL: permanent history records — fire-and-forget so they never block the above
+  addDoc(collection(db, 'users', uid, 'trackCompletions'), {
+    cardId, cardTitle, trackIndex, trackTitle, completedAt: now,
+  }).catch(() => {});
+
+  if (isLast) {
+    addDoc(collection(db, 'users', uid, 'completionHistory'), {
+      cardId, title: cardTitle, type: 'playlist', completedAt: now,
+    }).catch(() => {});
+  }
 }
 
 // Persist completion on a path item (singles and article readings)
