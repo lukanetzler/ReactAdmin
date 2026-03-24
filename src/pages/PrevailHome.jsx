@@ -6,9 +6,10 @@ import { usePathSessions, useLibraryCards, useCategories } from '../hooks/useCon
 import { useDailyPath } from '../hooks/useDailyPath';
 import { addJournalEntry, updateJournalEntry, deleteJournalEntry } from '../services/journal';
 import { updateUserProfile } from '../services/userProfile';
-import { addToPath, removeFromPath, advancePlaylistTrack, completeTrackForDay, resetPlaylist, swapPathOrder, dismissBroadcast, completePathItem, recordCompletion } from '../services/dailyPath';
+import { addToPath, removeFromPath, advancePlaylistTrack, completeTrackForDay, resetPlaylist, swapPathOrder, dismissBroadcast, completePathItem, recordCompletion, recordStreakDay } from '../services/dailyPath';
 import { useTrackCompletions } from '../hooks/useTrackCompletions';
 import { useCompletionHistory } from '../hooks/useCompletionHistory';
+import { useStreakDays } from '../hooks/useStreakDays';
 import { doc, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import meditationTrack from '../assets/Day One - With Archer.mp3';
@@ -103,12 +104,14 @@ const PrevailHome = ({ user, profile, profileUnsubRef, onOpenAdmin }) => {
 
   // Daily path
   const { items: pathItems } = useDailyPath(user?.uid);
-  const completedHistory = useCompletionHistory(user?.uid);
+  const { completedCardIds: completedHistory, completionDates } = useCompletionHistory(user?.uid);
+  const streakDays = useStreakDays(user?.uid);
   const [completedCardIds, setCompletedCardIds] = useState(new Set());
   const [activeSession, setActiveSession] = useState(null); // { title, audioUrl, imageUrl?, cardId?, pathItemId?, isPlaylistTrack?, trackIndex?, totalTracks?, skipCheckin? }
   const [activePlaylist, setActivePlaylist] = useState(null);
   const [activeDetailCard, setActiveDetailCard] = useState(null);
-  const trackCompletions = useTrackCompletions(user?.uid, activeDetailCard?.id);
+  const [libraryDetailCard, setLibraryDetailCard] = useState(null);
+  const trackCompletions = useTrackCompletions(user?.uid, (libraryDetailCard || activeDetailCard)?.id);
   const [detailPathItem, setDetailPathItem] = useState(null); // path item context when popup opened from daily path
   const [activeReadingSession, setActiveReadingSession] = useState(null); // { card, reading, trackIndex, totalReadings, pathItemId }
   const [actionSheetCard, setActionSheetCard] = useState(null);
@@ -232,7 +235,7 @@ const PrevailHome = ({ user, profile, profileUnsubRef, onOpenAdmin }) => {
       setView('supporter-lock');
       return;
     }
-    setActiveDetailCard(card);
+    setLibraryDetailCard(card);
   };
 
   const onCompleteSession = () => {
@@ -253,6 +256,7 @@ const PrevailHome = ({ user, profile, profileUnsubRef, onOpenAdmin }) => {
         isLast,
       }).catch(() => {});
       if (isLast) {
+        removeFromPath(user.uid, activeSession.pathItemId).catch(() => {});
         setView('completion-celebration');
         return;
       }
@@ -416,23 +420,20 @@ const PrevailHome = ({ user, profile, profileUnsubRef, onOpenAdmin }) => {
   const timeGreeting = hour < 12 ? 'Morning' : hour < 18 ? 'Afternoon' : 'Evening';
   const todayISO = today.toISOString().split('T')[0];
   const dateString = today.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' });
+  // True when every non-dismissed path item has been completed for today
+  const isPathDoneToday = pathItems.length > 0 && pathItems
+    .filter(i => !i.dismissed)
+    .every(i => !!i.completed || i.completedToday === todayISO);
 
+  // Streak = consecutive days with a permanent streakDays record.
+  // Written when the user completes their reflection, survives journal entry deletion.
   const streak = (() => {
-    // Use createdAt (actual creation date) for streak integrity — not dateISO (user-selected date)
-    const datesWithEntries = new Set(
-      journalEntries
-        .filter(e => e.createdAt)
-        .map(e => {
-          const d = e.createdAt.toDate ? e.createdAt.toDate() : new Date(e.createdAt);
-          return d.toISOString().split('T')[0];
-        })
-    );
     let count = 0;
     const d = new Date(today);
-    if (!datesWithEntries.has(todayISO)) d.setDate(d.getDate() - 1);
+    if (!streakDays.has(todayISO)) d.setDate(d.getDate() - 1);
     while (true) {
       const iso = d.toISOString().split('T')[0];
-      if (!datesWithEntries.has(iso)) break;
+      if (!streakDays.has(iso)) break;
       count++;
       d.setDate(d.getDate() - 1);
     }
@@ -656,6 +657,7 @@ const PrevailHome = ({ user, profile, profileUnsubRef, onOpenAdmin }) => {
                       isLast,
                     }).catch(() => {});
                     if (isLast) {
+                      removeFromPath(user.uid, activeReadingSession.pathItemId).catch(() => {});
                       setActiveSession({ title: activeReadingSession.card.title, cardId: activeReadingSession.card.id, pathItemId: activeReadingSession.pathItemId, skipCheckin: true });
                       setActiveReadingSession(null);
                       setView('completion-celebration');
@@ -676,6 +678,260 @@ const PrevailHome = ({ user, profile, profileUnsubRef, onOpenAdmin }) => {
           <div className="bg-[#433422] text-[#FDF9F3] text-[11px] font-bold tracking-widest px-5 py-2.5 rounded-full shadow-lg whitespace-nowrap">{pathToast.message.toUpperCase()}</div>
         </div>
       )}
+      {/* Library card snap-scroll view */}
+      {libraryDetailCard && (() => {
+        const card = libraryDetailCard;
+        const isPlaylist = card.type === 'playlist';
+        const isArticle = card.type === 'article';
+        const isArticleSeries = isArticle && (card.tracks?.length ?? 0) > 0;
+        const isSequential = isPlaylist || isArticleSeries;
+        const isSingleAudio = !isSequential && !isArticle;
+        const isSingleArticle = isArticle && !isArticleSeries;
+
+        const existingItems = pathItems.filter(i => i.cardId === card.id);
+        const isInPath = existingItems.length > 0;
+        const pathItem = pathItems.find(i => i.cardId === card.id);
+        const trackIdx = pathItem?.trackIndex ?? 0;
+        const allTracksComplete = isSequential && !!pathItem?.completed;
+        const todayStr = new Date().toISOString().slice(0, 10);
+        // User already completed their track/reading for today on this sequential card
+        const doneToday = isSequential && !!pathItem && pathItem.completedToday === todayStr && !allTracksComplete;
+
+        const TypeIcon = isPlaylist ? List : isArticle ? PenLine : Headphones;
+
+        return (
+          <div className="fixed inset-0 z-[60] flex flex-col bg-[#FDF9F3] font-sans text-[#433422] animate-view-enter">
+            {/* Colored arch tint */}
+            <div
+              className="absolute top-0 left-0 right-0 h-36 pointer-events-none overflow-hidden"
+              style={{ backgroundColor: (card.color || '#D4A373') + '18' }}
+            >
+              <div
+                className="absolute bottom-0 left-[-20%] right-[-20%] h-24 bg-[#FDF9F3]"
+                style={{ borderTopLeftRadius: '100% 100%', borderTopRightRadius: '100% 100%' }}
+              />
+            </div>
+
+            {/* Header */}
+            <div className="relative z-10 pt-14 px-8 flex items-center justify-between flex-shrink-0">
+              <button
+                onClick={() => setLibraryDetailCard(null)}
+                className="p-3 rounded-full bg-[#F4EFE6] hover:bg-[#D4A373]/10 transition-colors"
+              >
+                <ArrowLeft size={20} />
+              </button>
+              <div className="text-center max-w-[55%]">
+                <span className="text-[10px] font-bold tracking-[0.3em] uppercase text-[#433422]/50">
+                  {card.label || (isPlaylist ? 'PLAYLIST' : isArticle ? 'READING' : 'LISTEN')}
+                </span>
+                <p className="text-sm font-serif truncate">{card.title}</p>
+              </div>
+              <div className="w-12 h-12" />
+            </div>
+
+            {/* Add to Path button */}
+            <div className="h-4 flex-shrink-0" />
+            <div className="relative z-10 px-8 mb-2 flex-shrink-0">
+              <motion.button
+                whileTap={{ scale: 0.95 }}
+                onClick={async () => {
+                  if (isInPath) {
+                    await Promise.all(existingItems.map(i => removeFromPath(user.uid, i.id)));
+                    showPathToast('Removed from your path');
+                  } else {
+                    if (card.tier === 'supporter' && !isUserSupporter) {
+                      setLibraryDetailCard(null);
+                      setSupporterLockCard(card);
+                      setView('supporter-lock');
+                      return;
+                    }
+                    const extra = isPathDoneToday ? { completedToday: todayISO } : {};
+                    await addToPath(user.uid, card.id, pathItems.length, extra);
+                    showPathToast(isPathDoneToday ? 'Added — available tomorrow' : 'Added to your path');
+                  }
+                }}
+                className={`w-full flex items-center justify-center gap-2 py-3.5 rounded-[20px] text-xs font-bold tracking-[0.15em] uppercase transition-colors ${
+                  isInPath
+                    ? 'bg-[#F4EFE6] text-[#433422]/50'
+                    : card.tier === 'supporter' && !isUserSupporter
+                    ? 'bg-[#F4EFE6] text-[#433422]/40'
+                    : 'bg-[#D4A373] text-white'
+                }`}
+              >
+                {isInPath
+                  ? <><div className="w-3 h-0.5 bg-[#433422]/40 rounded-full" /><span>In Path</span></>
+                  : card.tier === 'supporter' && !isUserSupporter
+                  ? <><Crown size={13} /><span>Supporter Only</span></>
+                  : <><Plus size={13} /><span>Add to Path</span></>}
+              </motion.button>
+            </div>
+
+            {/* Horizontal snap scroll */}
+            <div className="flex-1 overflow-x-auto overflow-y-hidden mt-2 flex items-center no-scrollbar snap-x snap-mandatory">
+              <div className="min-w-[10vw] flex-shrink-0" />
+
+              {/* Cover card */}
+              <div
+                className="min-w-[80vw] h-[440px] rounded-[48px] flex flex-col justify-between p-9 relative overflow-hidden flex-shrink-0 mx-4 snap-center"
+                style={{ backgroundColor: card.color || '#D4A373' }}
+              >
+                {card.imageUrl && <img src={card.imageUrl} alt="" className="absolute inset-0 w-full h-full object-cover" />}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/10 to-transparent" />
+                <div className="absolute top-6 left-6 opacity-10 scale-[3] origin-top-left text-white pointer-events-none">
+                  <TypeIcon size={40} />
+                </div>
+
+                {/* Cover bottom info */}
+                <div className="relative z-10">
+                  <p className="text-[10px] font-bold tracking-[0.4em] text-white/60 mb-3 uppercase">{card.label || ''}</p>
+                  <h2 className="text-3xl font-serif text-white leading-tight">{card.title}</h2>
+                  {isSequential && (
+                    <p className="text-white/50 text-xs mt-2">{card.tracks?.length ?? 0} {isPlaylist ? 'tracks' : 'readings'}</p>
+                  )}
+                  <div className="mt-6 flex items-center gap-3 text-white/40">
+                    <div className="h-px w-8 bg-white/40" />
+                    <span className="text-[10px] tracking-widest uppercase">{isSequential ? 'Swipe to explore' : 'Swipe to begin'}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Single audio card */}
+              {isSingleAudio && (
+                <div
+                  className="min-w-[80vw] h-[440px] bg-[#F4EFE6] rounded-[48px] p-9 flex flex-col justify-between flex-shrink-0 mx-4 snap-center cursor-pointer active:scale-[0.98] transition-transform"
+                  onClick={() => {
+                    setActiveSession({ title: card.title, audioUrl: card.audioUrl, imageUrl: card.imageUrl || '', cardId: card.id, skipCheckin: true });
+                    setLibraryDetailCard(null);
+                    setView('meditation');
+                  }}
+                >
+                  <div>
+                    <span className="text-[10px] font-bold tracking-[0.4em] text-[#433422]/40 uppercase">LISTEN</span>
+                    <h3 className="text-3xl mt-6 font-serif leading-tight">{card.title}</h3>
+                    {card.duration && <p className="text-sm text-[#433422]/50 mt-3">{card.duration}</p>}
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs text-[#433422]/40 italic">Tap to play</p>
+                    <div className="w-16 h-16 rounded-full bg-[#433422] flex items-center justify-center">
+                      <Play size={26} fill="white" className="text-white ml-1" />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Single article (no tracks) */}
+              {isSingleArticle && (
+                <div className="min-w-[80vw] h-[440px] bg-[#F4EFE6] rounded-[48px] p-9 flex flex-col flex-shrink-0 mx-4 snap-center">
+                  <span className="text-[10px] font-bold tracking-[0.4em] text-[#433422]/40 uppercase">ARTICLE</span>
+                  <p className="mt-6 text-sm text-[#433422]/70 leading-relaxed overflow-y-auto">{card.description || ''}</p>
+                </div>
+              )}
+
+              {/* Playlist tracks */}
+              {isPlaylist && (card.tracks || []).map((track, i) => {
+                const trackRecord = trackCompletions.find(tc => tc.trackIndex === i);
+                const isDone = !!trackRecord || (pathItem && (allTracksComplete || i < trackIdx));
+                const isLockedToday = doneToday && i === trackIdx; // today's track already done
+                const isCurrent = pathItem && !allTracksComplete && i === trackIdx && !isLockedToday;
+                const isLocked = !pathItem || (!isDone && !isCurrent && !isLockedToday && i > trackIdx);
+                const canPlay = isCurrent;
+                return (
+                  <div
+                    key={i}
+                    onClick={() => {
+                      if (!canPlay) return;
+                      setActiveSession({
+                        title: track.title,
+                        audioUrl: track.audioUrl,
+                        imageUrl: track.imageUrl || card.imageUrl || '',
+                        cardId: card.id, cardTitle: card.title, pathItemId: pathItem.id, isPlaylistTrack: true, trackIndex: i, totalTracks: card.tracks.length,
+                        skipCheckin: true,
+                      });
+                      setLibraryDetailCard(null);
+                      setView('meditation');
+                    }}
+                    className={`min-w-[80vw] h-[440px] rounded-[48px] p-9 flex flex-col justify-between flex-shrink-0 mx-4 snap-center transition-transform ${canPlay ? 'cursor-pointer active:scale-[0.98]' : 'cursor-default'} ${isDone ? 'bg-[#EEF1EA]' : isLockedToday ? 'bg-[#F4EFE6]' : 'bg-[#F4EFE6]'}`}
+                  >
+                    <div>
+                      <span className={`text-[10px] font-bold tracking-[0.4em] uppercase ${isDone ? 'text-[#8E9775]' : isLockedToday ? 'text-[#D4A373]/60' : isCurrent ? 'text-[#D4A373]' : 'text-[#433422]/30'}`}>
+                        {isDone ? 'DONE' : isLockedToday ? 'COME BACK TOMORROW' : isCurrent ? 'UP NEXT' : `TRACK ${i + 1}`}
+                      </span>
+                      <h3 className={`text-3xl mt-6 font-serif leading-tight ${(isLocked || isLockedToday) && !isDone ? 'opacity-40' : ''}`}>{track.title}</h3>
+                      {track.duration && <p className="text-sm text-[#433422]/50 mt-3">{track.duration}</p>}
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs text-[#433422]/40 italic">
+                        {isDone ? 'Completed' : isLockedToday ? 'Available tomorrow' : canPlay ? 'Tap to play' : ''}
+                      </p>
+                      <div className={`w-16 h-16 rounded-full flex items-center justify-center ${isDone ? 'bg-[#8E9775]/20' : isLockedToday ? 'bg-[#F4EFE6] border-2 border-[#D4A373]/20' : isLocked ? 'bg-[#F0EBE3]' : 'bg-[#433422]'}`}>
+                        {isDone
+                          ? <span className="text-[#8E9775] text-xl">✓</span>
+                          : isLockedToday
+                          ? <Lock size={20} className="text-[#D4A373]/50" />
+                          : isLocked
+                          ? <Lock size={20} className="text-[#433422]/20" />
+                          : <Play size={26} fill="white" className="text-white ml-1" />}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* Article series readings */}
+              {isArticleSeries && card.tracks.map((reading, i) => {
+                const trackRecord = trackCompletions.find(tc => tc.trackIndex === i);
+                const isDone = !!trackRecord || (pathItem && (allTracksComplete || i < trackIdx));
+                const isLockedToday = doneToday && i === trackIdx;
+                const isCurrent = pathItem && !allTracksComplete && i === trackIdx && !isLockedToday;
+                const isLocked = !pathItem || (!isDone && !isCurrent && !isLockedToday && i > trackIdx);
+                const canRead = isCurrent;
+                return (
+                  <div
+                    key={i}
+                    onClick={() => {
+                      if (!canRead) return;
+                      setActiveReadingSession({ card, reading, trackIndex: i, totalReadings: card.tracks.length, pathItemId: pathItem.id });
+                      setLibraryDetailCard(null);
+                    }}
+                    className={`min-w-[80vw] h-[440px] rounded-[48px] p-9 flex flex-col justify-between flex-shrink-0 mx-4 snap-center transition-transform ${canRead ? 'cursor-pointer active:scale-[0.98]' : 'cursor-default'} ${isDone ? 'bg-[#EEF1EA]' : 'bg-[#F4EFE6]'}`}
+                  >
+                    <div>
+                      <span className={`text-[10px] font-bold tracking-[0.4em] uppercase ${isDone ? 'text-[#8E9775]' : isLockedToday ? 'text-[#D4A373]/60' : isCurrent ? 'text-[#D4A373]' : 'text-[#433422]/30'}`}>
+                        {isDone ? 'READ' : isLockedToday ? 'COME BACK TOMORROW' : isCurrent ? 'TODAY' : `READING ${i + 1}`}
+                      </span>
+                      <h3 className={`text-3xl mt-6 font-serif leading-tight ${(isLocked || isLockedToday) && !isDone ? 'opacity-40' : ''}`}>{reading.title}</h3>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs text-[#433422]/40 italic">
+                        {isDone ? 'Completed' : isLockedToday ? 'Available tomorrow' : canRead ? 'Tap to read' : ''}
+                      </p>
+                      <div className={`w-16 h-16 rounded-full flex items-center justify-center ${isDone ? 'bg-[#8E9775]/20' : isLockedToday ? 'bg-[#F4EFE6] border-2 border-[#D4A373]/20' : isLocked ? 'bg-[#F0EBE3]' : 'bg-[#433422]'}`}>
+                        {isDone
+                          ? <span className="text-[#8E9775] text-xl">✓</span>
+                          : isLockedToday
+                          ? <Lock size={20} className="text-[#D4A373]/50" />
+                          : isLocked
+                          ? <Lock size={20} className="text-[#433422]/20" />
+                          : <ChevronRight size={28} className="text-white" />}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+
+              <div className="min-w-[10vw] flex-shrink-0" />
+            </div>
+
+            {/* Footer description */}
+            {card.description && (
+              <div className="pb-12 px-12 text-center flex items-center justify-center flex-shrink-0" style={{ minHeight: 72 }}>
+                <p className="text-sm italic text-[#433422]/40 max-w-xs mx-auto leading-relaxed line-clamp-2">{card.description}</p>
+              </div>
+            )}
+            {!card.description && <div className="h-12 flex-shrink-0" />}
+          </div>
+        );
+      })()}
     </>
   );
 
@@ -767,41 +1023,42 @@ const PrevailHome = ({ user, profile, profileUnsubRef, onOpenAdmin }) => {
 
   // ── Completion Celebration ─────────────────────────────
   if (view === 'completion-celebration') {
+    const seriesTitle = activeSession?.cardTitle || activeSession?.title;
     return (
       <div className="flex flex-col h-screen bg-[#FDF9F3] text-[#433422] font-sans items-center justify-center px-8 animate-view-enter">
-        <div className="w-full max-w-sm flex flex-col items-center gap-6 text-center">
-          <div className="w-20 h-20 rounded-full bg-[#8E9775]/20 flex items-center justify-center">
-            <div className="w-10 h-6 border-b-[3px] border-l-[3px] border-[#8E9775] transform -rotate-45 translate-y-[-4px]" />
+        <div className="w-full max-w-sm flex flex-col items-center gap-8 text-center">
+
+          {/* Icon */}
+          <div className="relative">
+            <div className="w-24 h-24 rounded-full bg-[#D4A373]/15 flex items-center justify-center">
+              <div className="w-12 h-7 border-b-[3px] border-l-[3px] border-[#D4A373] transform -rotate-45 translate-y-[-5px]" />
+            </div>
+            <div className="absolute inset-0 rounded-full bg-[#D4A373]/10 blur-xl" />
           </div>
+
+          {/* Text */}
           <div>
-            <p className="text-[10px] tracking-[0.3em] font-bold text-[#433422]/40 mb-2">COMPLETED</p>
-            <h2 className="text-3xl font-serif mb-3">Well done.</h2>
-            <p className="text-[#433422]/60 text-sm leading-relaxed">
-              You've finished <span className="font-bold text-[#433422]">{activeSession?.cardTitle || activeSession?.title}</span>. Keep going, every step forward matters.
+            <p className="text-[10px] tracking-[0.4em] font-bold text-[#433422]/40 mb-3">SERIES COMPLETE</p>
+            <h2 className="text-4xl font-serif mb-4 leading-tight">You finished it.</h2>
+            <p className="text-[#433422]/55 text-sm leading-relaxed max-w-xs mx-auto">
+              <span className="font-semibold text-[#433422]">{seriesTitle}</span> has been completed and removed from your path.
             </p>
           </div>
-          <div className="w-full space-y-3 pt-2">
-            <button
-              onClick={() => {
-                if (activeSession?.pathItemId) resetPlaylist(user.uid, activeSession.pathItemId).catch(() => {});
-                setView('dashboard');
-                setActiveTab('home');
-              }}
-              className="w-full py-4 bg-[#433422] text-[#FDF9F3] rounded-[20px] font-serif text-base"
-            >
-              Start Again
-            </button>
-            <button
-              onClick={() => {
-                if (activeSession?.pathItemId) removeFromPath(user.uid, activeSession.pathItemId).catch(() => {});
-                setView('dashboard');
-                setActiveTab('home');
-              }}
-              className="w-full py-4 bg-[#433422]/8 text-[#433422]/60 rounded-[20px] font-serif text-base"
-            >
-              Remove from My Path
-            </button>
+
+          {/* Scripture-style flourish */}
+          <div className="flex items-center gap-3 text-[#433422]/25">
+            <div className="h-px w-10 bg-[#433422]/20" />
+            <span className="text-[9px] tracking-[0.3em] font-bold uppercase">Every step of faith counts</span>
+            <div className="h-px w-10 bg-[#433422]/20" />
           </div>
+
+          {/* Action */}
+          <button
+            onClick={() => { setActiveSession(null); setView('dashboard'); setActiveTab('home'); }}
+            className="w-full py-4 bg-[#433422] text-[#FDF9F3] rounded-[20px] font-serif text-base"
+          >
+            Return to My Path
+          </button>
         </div>
       </div>
     );
@@ -1037,7 +1294,7 @@ const PrevailHome = ({ user, profile, profileUnsubRef, onOpenAdmin }) => {
         setEditingEntryId(null);
         setJournalText('');
         setJournalStep(0);
-        if (isNewMode) { setView('dashboard'); } else { setView('calendar-log'); }
+        if (isNewMode) { recordStreakDay(user.uid).catch(() => {}); setView('dashboard'); } else { setView('calendar-log'); }
       } catch {
         setJournalError('Could not save. Please try again.');
       } finally {
@@ -1670,7 +1927,7 @@ const PrevailHome = ({ user, profile, profileUnsubRef, onOpenAdmin }) => {
           </div>
           <div className="relative z-10">
             <p className="text-[10px] tracking-[0.3em] font-bold text-[#433422]/50 mb-1">SANCTUARY</p>
-            <h1 className="text-3xl font-serif">Resources</h1>
+            <h1 className="text-3xl font-serif">Build your path</h1>
           </div>
           <div className="absolute bottom-0 left-0 right-0 z-20 pointer-events-none">
             <svg viewBox="0 0 400 50" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-10">
@@ -1726,36 +1983,42 @@ const PrevailHome = ({ user, profile, profileUnsubRef, onOpenAdmin }) => {
           )}
 
           {/* Dynamic library categories */}
-          {categories.map(cat => {
-            const catCards = allCards.filter(c => c.category === cat.value);
-            if (catCards.length === 0) return null;
-            return (
-              <section key={cat.id || cat.value} className="px-8">
-                <div className="mb-4">
-                  <p className="text-[10px] tracking-[0.3em] font-bold text-[#433422]/40">{cat.sectionTag || 'SERIES'}</p>
-                  <h2 className="text-xl font-serif">{cat.name}</h2>
-                </div>
-                <div className="grid grid-cols-3 gap-2">
-                  {catCards.map((s) => {
-                    const existingItems = pathItems.filter(i => i.cardId === s.id);
-                    const isInPath = existingItems.length > 0;
-                    const isToggling = togglingCardIds.has(s.id);
-                    return (
-                      <ResourceCard
-                        key={s.id}
-                        {...s}
-                        inPath={isInPath}
-                        completed={completedHistory.has(s.id)}
-                        onClick={() => handleCardTap(s)}
-                        onLongPress={() => setActionSheetCard(s)}
-                        onContextMenu={(e) => { e.preventDefault(); setActionSheetCard(s); }}
-                      />
-                    );
-                  })}
-                </div>
-              </section>
-            );
-          })}
+          {(() => {
+            const todayStr = new Date().toISOString().slice(0, 10);
+            return categories.map(cat => {
+              const catCards = allCards.filter(c => c.category === cat.value);
+              if (catCards.length === 0) return null;
+              return (
+                <section key={cat.id || cat.value} className="px-8">
+                  <div className="mb-4">
+                    <p className="text-[10px] tracking-[0.3em] font-bold text-[#433422]/40">{cat.sectionTag || 'SERIES'}</p>
+                    <h2 className="text-xl font-serif">{cat.name}</h2>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    {catCards.map((s) => {
+                      const existingItems = pathItems.filter(i => i.cardId === s.id);
+                      const isInPath = existingItems.length > 0;
+                      const pathItem = existingItems[0];
+                      const isSequential = s.type === 'playlist' || (s.type === 'article' && (s.tracks?.length ?? 0) > 0);
+                      const isLockedToday = isSequential && !!pathItem && pathItem.completedToday === todayStr && !pathItem.completed;
+                      return (
+                        <ResourceCard
+                          key={s.id}
+                          {...s}
+                          inPath={isInPath}
+                          completed={completedHistory.has(s.id)}
+                          lockedToday={isLockedToday}
+                          onClick={() => handleCardTap(s)}
+                          onLongPress={() => setActionSheetCard(s)}
+                          onContextMenu={(e) => { e.preventDefault(); setActionSheetCard(s); }}
+                        />
+                      );
+                    })}
+                  </div>
+                </section>
+              );
+            });
+          })()}
 
           {/* Empty state */}
           {pathSessions.length === 0 && allCards.length === 0 && (
@@ -1797,6 +2060,7 @@ const PrevailHome = ({ user, profile, profileUnsubRef, onOpenAdmin }) => {
               </div>
               {(() => {
                 const existingItems = pathItems.filter(i => i.cardId === actionSheetCard.id);
+                const isSupporter = actionSheetCard.tier === 'supporter' && !isUserSupporter;
                 return existingItems.length > 0 ? (
                   <button
                     onClick={async () => {
@@ -1808,16 +2072,27 @@ const PrevailHome = ({ user, profile, profileUnsubRef, onOpenAdmin }) => {
                   >
                     Remove from My Path
                   </button>
+                ) : isSupporter ? (
+                  <div className="w-full py-4 bg-[#F4EFE6] rounded-[24px] text-center">
+                    <p className="text-sm font-serif text-[#433422]/50">Supporter only content</p>
+                    <button
+                      onClick={() => { setActionSheetCard(null); setActiveTab('user'); setView('account'); }}
+                      className="text-[10px] font-bold tracking-widest text-[#D4A373] mt-1"
+                    >
+                      BECOME A SUPPORTER
+                    </button>
+                  </div>
                 ) : (
                   <button
                     onClick={async () => {
-                      await addToPath(user.uid, actionSheetCard.id, pathItems.length);
-                      showPathToast('Added to your path');
+                      const extra = isPathDoneToday ? { completedToday: todayISO } : {};
+                      await addToPath(user.uid, actionSheetCard.id, pathItems.length, extra);
+                      showPathToast(isPathDoneToday ? 'Added — available tomorrow' : 'Added to your path');
                       setActionSheetCard(null);
                     }}
                     className="w-full py-4 bg-[#433422] text-[#FDF9F3] rounded-[24px] font-serif text-base"
                   >
-                    Add to My Path
+                    {isPathDoneToday ? 'Add to Path (available tomorrow)' : 'Add to My Path'}
                   </button>
                 );
               })()}
@@ -2008,12 +2283,33 @@ const PrevailHome = ({ user, profile, profileUnsubRef, onOpenAdmin }) => {
           const pathCards = pathItems
             .map(item => { const card = allCards.find(c => c.id === item.cardId); return card ? { card, item } : null; })
             .filter(Boolean);
-          const completedSteps = pathCards.filter(({ card, item }) => {
+          const completedCount = pathCards.filter(({ card, item }) => {
             const isSeq = card.type === 'playlist' || (card.type === 'article' && (card.tracks?.length ?? 0) > 0);
             if (isSeq) return item.completedToday === todayISO || !!item.completed;
             return completedCardIds.has(card.id) || completedHistory.has(card.id);
           }).length + (journaledToday ? 1 : 0);
-          const totalSteps = pathCards.length + 1;
+          const totalCount = pathCards.length + 1;
+
+          const allSteps = [
+            ...pathCards.map(({ card, item }, idx) => ({ type: 'card', card, item, idx })),
+            { type: 'journal' },
+          ];
+
+          const STEP_H = 200;
+          const totalHeight = allSteps.length * STEP_H + 20;
+          const vbH = allSteps.length * 220;
+
+          const buildPathD = (n) => {
+            if (n <= 0) return 'M 50 0 L 50 220';
+            let d = `M 50 0 Q 35 110 50 220`;
+            for (let i = 1; i < n; i++) {
+              d += ` T 50 ${(i + 1) * 220}`;
+            }
+            return d;
+          };
+          const svgPathD = buildPathD(allSteps.length);
+          const approxPathLen = vbH * 1.15;
+
           return (
             <section>
               <div className="flex items-center justify-between mb-5">
@@ -2023,39 +2319,95 @@ const PrevailHome = ({ user, profile, profileUnsubRef, onOpenAdmin }) => {
                     <motion.div
                       className="h-full bg-[#D4A373] rounded-full"
                       initial={{ scaleX: 0 }}
-                      animate={{ scaleX: totalSteps > 0 ? completedSteps / totalSteps : 0 }}
+                      animate={{ scaleX: totalCount > 0 ? completedCount / totalCount : 0 }}
                       transition={{ duration: 0.6, ease: 'easeOut' }}
                       style={{ transformOrigin: 'left' }}
                     />
                   </div>
-                  <span className="text-xs font-bold text-[#433422]/30 tabular-nums">{completedSteps}/{totalSteps}</span>
+                  <span className="text-xs font-bold text-[#433422]/30 tabular-nums">{completedCount}/{totalCount}</span>
                 </div>
               </div>
 
-              <div className="relative pl-6">
-                <div className="absolute left-[9px] top-5 bottom-5 border-l-2 border-dashed border-[#E9DCC9]" />
+              {pathCards.length === 0 && (
+                <div
+                  className="flex items-center gap-4 cursor-pointer mb-2"
+                  onClick={() => { setActiveTab('wheat'); setView('resources'); }}
+                >
+                  <div className="flex-1 bg-white rounded-[24px] px-5 py-4 border border-dashed border-[#E9DCC9] flex items-center justify-between">
+                    <span className="text-sm text-[#433422]/30">Browse the Library to build your path</span>
+                    <ChevronRight size={16} className="text-[#433422]/20" />
+                  </div>
+                </div>
+              )}
+
+              <div className="relative w-full overflow-hidden" style={{ height: totalHeight }}>
+                {/* SVG Meandering Stream */}
+                <svg
+                  className="absolute top-0 left-0 w-full h-full pointer-events-none"
+                  viewBox={`0 0 100 ${vbH}`}
+                  preserveAspectRatio="none"
+                >
+                  <path d={svgPathD} fill="none" stroke="#D4A373" strokeWidth="8" strokeOpacity="0.08" strokeLinecap="round" />
+                  <path
+                    d={svgPathD}
+                    fill="none"
+                    stroke="#D4A373"
+                    strokeWidth="10"
+                    strokeDasharray={approxPathLen}
+                    strokeDashoffset={approxPathLen - approxPathLen * (completedCount / totalCount)}
+                    strokeLinecap="round"
+                    style={{ transition: 'stroke-dashoffset 1s ease-out', opacity: 0.4 }}
+                  />
+                </svg>
+
+                {/* Steps */}
                 <motion.div
-                  className="space-y-4"
+                  className="relative flex flex-col"
                   variants={pathContainerVariants}
                   initial="hidden"
                   animate="visible"
                 >
+                  {allSteps.map((step, index) => {
+                    const side = index % 2 === 0 ? 'left' : 'right';
 
-                  {/* Curated path items */}
-                  {pathCards.length === 0 && (
-                    <div
-                      className="flex items-center gap-4 cursor-pointer"
-                      onClick={() => { setActiveTab('wheat'); setView('resources'); }}
-                    >
-                      <div className="w-5 h-5 rounded-full border-2 border-dashed border-[#D4A373]/40 flex-shrink-0 z-10 bg-[#FDF9F3]" />
-                      <div className="flex-1 bg-white rounded-[24px] px-5 py-4 border border-dashed border-[#E9DCC9] flex items-center justify-between">
-                        <span className="text-sm text-[#433422]/30">Browse the Library to build your path</span>
-                        <ChevronRight size={16} className="text-[#433422]/20" />
-                      </div>
-                    </div>
-                  )}
+                    if (step.type === 'journal') {
+                      return (
+                        <motion.div
+                          key="journal"
+                          variants={pathItemVariants}
+                          className="relative w-full flex items-center justify-center"
+                          style={{ height: STEP_H }}
+                        >
+                          <div className={`relative flex flex-col items-center ${side === 'left' ? '-translate-x-14' : 'translate-x-14'}`}>
+                            <motion.button
+                              onClick={() => setView('journal')}
+                              animate={{ backgroundColor: journaledToday ? '#D4A373' : '#FDF9F3' }}
+                              transition={{ duration: 0.4 }}
+                              whileTap={{ scale: 0.88 }}
+                              className={`w-16 h-16 rounded-full flex items-center justify-center shadow-lg border flex-shrink-0 ${
+                                journaledToday ? 'text-white border-[#D4A373]' : 'text-[#8E9775] border-[#D4A373]/30'
+                              }`}
+                            >
+                              <PenLine size={22} />
+                            </motion.button>
+                            <div
+                              className={`absolute top-1/2 -translate-y-1/2 transition-opacity duration-300 ${
+                                side === 'left' ? 'left-16 text-left' : 'right-16 text-right'
+                              } ${journaledToday ? 'opacity-40' : 'opacity-100'}`}
+                              style={{ maxWidth: 130 }}
+                            >
+                              <p className="text-[9px] font-bold uppercase tracking-[0.3em] text-[#8E9775] mb-0.5">REFLECT</p>
+                              <h3 className="text-sm font-serif text-[#433422] leading-snug">Record today's reflection</h3>
+                              {journaledToday && (
+                                <span className="text-[9px] font-bold text-[#8E9775] bg-[#F0F4EC] px-2 py-0.5 rounded-full inline-block mt-1">Done</span>
+                              )}
+                            </div>
+                          </div>
+                        </motion.div>
+                      );
+                    }
 
-                  {pathCards.map(({ card, item }, pathIdx) => {
+                    const { card, item, idx } = step;
                     const isPlaylist = card.type === 'playlist';
                     const isArticle = card.type === 'article';
                     const isArticleSeries = isArticle && (card.tracks?.length ?? 0) > 0;
@@ -2066,223 +2418,110 @@ const PrevailHome = ({ user, profile, profileUnsubRef, onOpenAdmin }) => {
                     const isSupporter = card.tier === 'supporter' && !isUserSupporter;
                     const trackIndex = item.trackIndex ?? 0;
                     const nonBroadcast = !item._broadcast;
-                    const canMoveUp = nonBroadcast && pathIdx > 0 && !pathCards[pathIdx - 1]?.item._broadcast;
-                    const canMoveDown = nonBroadcast && pathIdx < pathCards.length - 1;
+                    const canMoveUp = nonBroadcast && idx > 0 && !pathCards[idx - 1]?.item._broadcast;
+                    const canMoveDown = nonBroadcast && idx < pathCards.length - 1;
 
-                    const handleTapPathItem = () => {
+                    const handleTap = () => {
                       if (isSupporter) { setSupporterLockCard(card); setView('supporter-lock'); return; }
-                      // Playlists and article series: open the popup with path context so user can pick any track
-                      if (isSequential) {
-                        setDetailPathItem(item);
-                        setActiveDetailCard(card);
-                        return;
-                      }
-                      // Single article: open detail popup
-                      if (isArticle) { setActiveDetailCard(card); return; }
-                      // Single audio track: play directly
-                      setActiveSession({ title: card.title, audioUrl: card.audioUrl, imageUrl: card.imageUrl || '', cardId: card.id, pathItemId: item.id, skipCheckin: true });
-                      setView('meditation');
+                      setLibraryDetailCard(card);
                     };
 
-                    return (
-                      <motion.div key={item.id} className="flex items-center gap-2" variants={pathItemVariants}>
-                        <motion.div
-                          animate={{
-                            backgroundColor: isCompleted ? '#D4A373' : '#FDF9F3',
-                            borderColor: isCompleted ? '#D4A373' : 'rgba(212, 163, 115, 0.4)',
-                            scale: isCompleted ? [1, 1.25, 1] : 1,
-                          }}
-                          transition={{ duration: 0.4, type: 'spring', stiffness: 400, damping: 20 }}
-                          className="w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 z-10"
-                        >
-                          <AnimatePresence>
-                            {isCompleted && (
-                              <motion.div
-                                initial={{ scale: 0 }}
-                                animate={{ scale: 1 }}
-                                exit={{ scale: 0 }}
-                                transition={{ type: 'spring', stiffness: 500, damping: 28 }}
-                                className="w-2 h-2 bg-white rounded-full"
-                              />
-                            )}
-                          </AnimatePresence>
-                        </motion.div>
-                        <motion.div
-                          onClick={handleTapPathItem}
-                          animate={{
-                            backgroundColor: isCompleted ? '#F7FBF5' : '#FFFFFF',
-                            borderColor: isCompleted ? '#8E9775' : '#E9DCC9',
-                          }}
-                          transition={{ duration: 0.5 }}
-                          whileTap={{ scale: 0.98 }}
-                          whileHover={{ scale: 1.005 }}
-                          style={isSupporter ? { opacity: 0.6 } : undefined}
-                          className="flex-1 rounded-[24px] px-5 py-4 border flex items-center justify-between cursor-pointer"
-                        >
-                          <div className="flex items-center gap-4">
-                            <div className="w-10 h-10 rounded-xl overflow-hidden flex items-center justify-center relative flex-shrink-0" style={{ backgroundColor: card.color ? `${card.color}60` : '#F9F4EE' }}>
-                              {card.imageUrl
-                                ? <img src={card.imageUrl} alt="" className="absolute inset-0 w-full h-full object-cover" />
-                                : isPlaylist ? <List size={18} className="text-[#433422]/70" /> : <Headphones size={18} className="text-[#D4A373]" />
-                              }
-                            </div>
-                            <div>
-                              <span className="text-[10px] font-bold tracking-widest text-[#8E9775] block">
-                                {isSupporter ? 'SUPPORTER' : isPlaylist ? 'PLAYLIST' : isArticleSeries ? 'DAILY READING' : isArticle ? 'ARTICLE' : 'LISTEN'}
-                              </span>
-                              <h4 className="text-sm font-serif">{card.title}</h4>
-                              <p className="text-[10px] text-gray-400">
-                                {isPlaylist ? `Track ${trackIndex + 1} of ${card.tracks?.length ?? 0}` : isArticleSeries ? `Reading ${trackIndex + 1} of ${card.tracks?.length ?? 0}` : card.duration}
-                              </p>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <AnimatePresence mode="wait">
-                              {allTracksComplete ? (
-                                <motion.span
-                                  key="all-done"
-                                  initial={{ scale: 0.7, opacity: 0 }}
-                                  animate={{ scale: 1, opacity: 1 }}
-                                  exit={{ scale: 0.7, opacity: 0 }}
-                                  transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-                                  className="text-[10px] font-bold text-[#8E9775] bg-[#F0F4EC] px-3 py-1 rounded-full"
-                                >
-                                  <button onClick={e => { e.stopPropagation(); resetPlaylist(user.uid, item.id); }}>Replay</button>
-                                </motion.span>
-                              ) : doneToday ? (
-                                <motion.span
-                                  key="done-today"
-                                  initial={{ scale: 0.7, opacity: 0 }}
-                                  animate={{ scale: 1, opacity: 1 }}
-                                  exit={{ scale: 0.7, opacity: 0 }}
-                                  transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-                                  className="text-[10px] font-bold text-[#8E9775] bg-[#F0F4EC] px-3 py-1 rounded-full"
-                                >{isSequential ? 'Done today' : 'Done'}</motion.span>
-                              ) : isCompleted ? (
-                                <motion.span
-                                  key="done"
-                                  initial={{ scale: 0.7, opacity: 0 }}
-                                  animate={{ scale: 1, opacity: 1 }}
-                                  exit={{ scale: 0.7, opacity: 0 }}
-                                  transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-                                  className="text-[10px] font-bold text-[#8E9775] bg-[#F0F4EC] px-3 py-1 rounded-full"
-                                >Done</motion.span>
-                              ) : isSupporter ? (
-                                <motion.span key="lock" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                                  <Lock size={14} className="text-[#433422]/30" />
-                                </motion.span>
-                              ) : null}
-                            </AnimatePresence>
-                          </div>
-                        </motion.div>
+                    const typeLabel = isSupporter ? 'SUPPORTER' : isPlaylist ? 'PLAYLIST' : isArticleSeries ? 'READING' : isArticle ? 'ARTICLE' : 'LISTEN';
 
-                        {/* Reorder + delete controls */}
-                        <div className="flex flex-col gap-0.5 flex-shrink-0">
-                          {nonBroadcast && (
-                            <>
-                              <button
-                                disabled={!canMoveUp}
-                                onClick={() => {
-                                  const above = pathCards[pathIdx - 1];
-                                  swapPathOrder(user.uid, item.id, item.order ?? pathIdx, above.item.id, above.item.order ?? (pathIdx - 1));
-                                }}
-                                className="p-1 rounded-lg hover:bg-[#F4EFE6] disabled:opacity-20 transition-colors"
-                              >
-                                <ArrowUp size={12} className="text-[#433422]/50" />
-                              </button>
-                              <button
-                                disabled={!canMoveDown}
-                                onClick={() => {
-                                  const below = pathCards[pathIdx + 1];
-                                  swapPathOrder(user.uid, item.id, item.order ?? pathIdx, below.item.id, below.item.order ?? (pathIdx + 1));
-                                }}
-                                className="p-1 rounded-lg hover:bg-[#F4EFE6] disabled:opacity-20 transition-colors"
-                              >
-                                <ArrowDown size={12} className="text-[#433422]/50" />
-                              </button>
-                            </>
-                          )}
-                          <button
-                            onClick={() => nonBroadcast
-                              ? removeFromPath(user.uid, item.id)
-                              : dismissBroadcast(user.uid, item.cardId)
-                            }
-                            className="p-1 rounded-lg hover:bg-[#FEF2F2] transition-colors"
+                    return (
+                      <motion.div
+                        key={item.id}
+                        variants={pathItemVariants}
+                        className="relative w-full flex items-center justify-center"
+                        style={{ height: STEP_H }}
+                      >
+                        <div className={`relative flex flex-col items-center ${side === 'left' ? '-translate-x-14' : 'translate-x-14'} transition-opacity duration-500 ${isCompleted ? 'opacity-60' : 'opacity-100'}`}>
+                          {/* Pebble */}
+                          <motion.button
+                            onClick={handleTap}
+                            disabled={isSupporter}
+                            animate={{ backgroundColor: isCompleted ? '#D4A373' : '#FDF9F3' }}
+                            transition={{ duration: 0.4 }}
+                            whileTap={!isSupporter ? { scale: 0.88 } : undefined}
+                            className={`relative w-16 h-16 rounded-full flex items-center justify-center shadow-lg border overflow-hidden flex-shrink-0 ${
+                              isSupporter
+                                ? 'border-[#433422]/10 cursor-not-allowed text-[#433422]/20'
+                                : isCompleted
+                                ? 'border-[#D4A373] text-white'
+                                : 'border-[#D4A373]/30 text-[#433422] hover:border-[#D4A373]'
+                            }`}
                           >
-                            <Trash2 size={12} className="text-[#D4A373]/60" />
-                          </button>
+                            {card.imageUrl && !isSupporter ? (
+                              <img src={card.imageUrl} alt="" className="absolute inset-0 w-full h-full object-cover" />
+                            ) : isSupporter ? (
+                              <Lock size={18} strokeWidth={1.5} />
+                            ) : isPlaylist ? (
+                              <List size={22} />
+                            ) : isArticle ? (
+                              <PenLine size={20} />
+                            ) : (
+                              <Headphones size={22} />
+                            )}
+                            {isCompleted && <div className="absolute inset-0 bg-[#D4A373]/50 pointer-events-none" />}
+                          </motion.button>
+
+                          {/* Metadata */}
+                          <div
+                            className={`absolute top-1/2 -translate-y-1/2 transition-opacity duration-300 ${
+                              side === 'left' ? 'left-16 text-left' : 'right-16 text-right'
+                            }`}
+                            style={{ maxWidth: 130, opacity: isSupporter ? 0.4 : 1 }}
+                          >
+                            <p className="text-[9px] font-bold uppercase tracking-[0.3em] text-[#8E9775] mb-0.5">
+                              {typeLabel}{isSequential ? ` • ${trackIndex + 1}/${card.tracks?.length ?? 0}` : ''}
+                            </p>
+                            <h3 className="text-sm font-serif text-[#433422] leading-snug">
+                              {isSupporter ? '• • •' : card.title}
+                            </h3>
+                            {allTracksComplete && (
+                              <div className={`flex items-center gap-1 mt-1 ${side === 'right' ? 'justify-end' : ''}`}>
+                                <span className="text-[9px] font-bold text-[#8E9775] bg-[#F0F4EC] px-2 py-0.5 rounded-full">Complete</span>
+                                <button
+                                  onClick={e => { e.stopPropagation(); resetPlaylist(user.uid, item.id); }}
+                                  className="text-[9px] font-bold text-[#D4A373]"
+                                >Replay</button>
+                              </div>
+                            )}
+                            {doneToday && !allTracksComplete && (
+                              <span className="text-[9px] font-bold text-[#8E9775] bg-[#F0F4EC] px-2 py-0.5 rounded-full inline-block mt-1">Done today</span>
+                            )}
+                            {/* Reorder + delete */}
+                            <div className={`flex gap-0.5 mt-1.5 ${side === 'right' ? 'justify-end' : ''}`}>
+                              {nonBroadcast && (
+                                <>
+                                  <button
+                                    disabled={!canMoveUp}
+                                    onClick={e => { e.stopPropagation(); const above = pathCards[idx - 1]; swapPathOrder(user.uid, item.id, item.order ?? idx, above.item.id, above.item.order ?? (idx - 1)); }}
+                                    className="p-1 rounded hover:bg-[#F4EFE6] disabled:opacity-20 transition-colors"
+                                  >
+                                    <ArrowUp size={10} className="text-[#433422]/50" />
+                                  </button>
+                                  <button
+                                    disabled={!canMoveDown}
+                                    onClick={e => { e.stopPropagation(); const below = pathCards[idx + 1]; swapPathOrder(user.uid, item.id, item.order ?? idx, below.item.id, below.item.order ?? (idx + 1)); }}
+                                    className="p-1 rounded hover:bg-[#F4EFE6] disabled:opacity-20 transition-colors"
+                                  >
+                                    <ArrowDown size={10} className="text-[#433422]/50" />
+                                  </button>
+                                </>
+                              )}
+                              <button
+                                onClick={e => { e.stopPropagation(); nonBroadcast ? removeFromPath(user.uid, item.id) : dismissBroadcast(user.uid, item.cardId); }}
+                                className="p-1 rounded hover:bg-[#FEF2F2] transition-colors"
+                              >
+                                <Trash2 size={10} className="text-[#D4A373]/60" />
+                              </button>
+                            </div>
+                          </div>
                         </div>
                       </motion.div>
                     );
                   })}
-
-                  {/* Always-last step: Reflect */}
-                  <motion.div className="flex items-center gap-4" variants={pathItemVariants}>
-                    <motion.div
-                      animate={{
-                        backgroundColor: journaledToday ? '#D4A373' : '#FDF9F3',
-                        borderColor: journaledToday ? '#D4A373' : 'rgba(212, 163, 115, 0.4)',
-                        scale: journaledToday ? [1, 1.25, 1] : 1,
-                      }}
-                      transition={{ duration: 0.4, type: 'spring', stiffness: 400, damping: 20 }}
-                      className="w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 z-10"
-                    >
-                      <AnimatePresence>
-                        {journaledToday && (
-                          <motion.div
-                            initial={{ scale: 0 }}
-                            animate={{ scale: 1 }}
-                            exit={{ scale: 0 }}
-                            transition={{ type: 'spring', stiffness: 500, damping: 28 }}
-                            className="w-2 h-2 bg-white rounded-full"
-                          />
-                        )}
-                      </AnimatePresence>
-                    </motion.div>
-                    <motion.div
-                      onClick={() => setView('journal')}
-                      animate={{
-                        backgroundColor: journaledToday ? '#F7FBF5' : '#FFFFFF',
-                        borderColor: journaledToday ? '#8E9775' : '#E9DCC9',
-                      }}
-                      transition={{ duration: 0.5 }}
-                      whileTap={{ scale: 0.98 }}
-                      whileHover={{ scale: 1.005 }}
-                      className="flex-1 rounded-[24px] px-5 py-4 border flex items-center justify-between cursor-pointer"
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 rounded-xl bg-[#F9F4EE] flex items-center justify-center">
-                          <PenLine size={18} className="text-[#8E9775]" />
-                        </div>
-                        <div>
-                          <span className="text-[10px] font-bold tracking-widest text-[#8E9775] block">REFLECT</span>
-                          <h4 className="text-sm font-serif">Record today's reflection</h4>
-                          {journaledToday && journalEntries.find(e => e.dateISO === todayISO) && (
-                            <p className="text-[10px] text-[#D4A373]">
-                              {journalEntries.find(e => e.dateISO === todayISO).feelingBefore} → {journalEntries.find(e => e.dateISO === todayISO).feelingAfter}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                      <AnimatePresence mode="wait">
-                        {journaledToday ? (
-                          <motion.span
-                            key="done"
-                            initial={{ scale: 0.7, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            exit={{ scale: 0.7, opacity: 0 }}
-                            transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-                            className="text-[10px] font-bold text-[#8E9775] bg-[#F0F4EC] px-3 py-1 rounded-full"
-                          >Done</motion.span>
-                        ) : (
-                          <motion.span key="chevron" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                            <ChevronRight size={16} className="text-[#433422]/20" />
-                          </motion.span>
-                        )}
-                      </AnimatePresence>
-                    </motion.div>
-                  </motion.div>
-
                 </motion.div>
               </div>
             </section>
@@ -2382,7 +2621,8 @@ const ResourceCard = ({
   title, label, duration, color = '#E9DCC9', imageUrl = '',
   blank = false, coming = false,
   type = 'single', tier = 'free',
-  inPath = false, completed = false, onClick, onLongPress, onContextMenu,
+  inPath = false, completed = false, lockedToday = false,
+  onClick, onLongPress, onContextMenu,
 }) => {
   const longPressTimer = useRef(null);
 
@@ -2407,12 +2647,12 @@ const ResourceCard = ({
 
   return (
     <div
-      onClick={onClick}
-      onContextMenu={onContextMenu}
-      onTouchStart={handleTouchStart}
+      onClick={lockedToday ? undefined : onClick}
+      onContextMenu={lockedToday ? undefined : onContextMenu}
+      onTouchStart={lockedToday ? undefined : handleTouchStart}
       onTouchEnd={cancelLongPress}
       onTouchMove={cancelLongPress}
-      className={`aspect-square rounded-[20px] overflow-hidden relative active:scale-[0.97] transition-transform select-none ${onClick ? 'cursor-pointer' : ''} ${inPath ? 'ring-2 ring-[#D4A373]' : ''} ${isSupporter ? 'opacity-60' : ''}`}
+      className={`aspect-square rounded-[20px] overflow-hidden relative transition-transform select-none ${!lockedToday && onClick ? 'active:scale-[0.97] cursor-pointer' : ''} ${inPath && !lockedToday ? 'ring-2 ring-[#D4A373]' : ''} ${isSupporter || lockedToday ? 'opacity-60' : ''}`}
       style={{ backgroundColor: color }}
     >
       {/* Full-bleed image */}
@@ -2420,8 +2660,11 @@ const ResourceCard = ({
       {/* Subtle gradient for image depth */}
       {imageUrl && <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent" />}
 
+      {/* Locked-today overlay */}
+      {lockedToday && <div className="absolute inset-0 bg-[#FDF9F3]/40 backdrop-blur-[2px]" />}
+
       {/* Playlist icon — top right */}
-      {isPlaylist && !isSupporter && (
+      {isPlaylist && !isSupporter && !lockedToday && (
         <div className="absolute top-2.5 right-2.5 z-10 w-5 h-5 rounded-full bg-black/20 backdrop-blur-sm flex items-center justify-center">
           <List size={10} className="text-white" />
         </div>
@@ -2432,11 +2675,17 @@ const ResourceCard = ({
           <Lock size={9} className="text-white/80" />
         </div>
       )}
-      {/* SOON / SUPPORTER / DONE badge — top left */}
-      {(coming || isSupporter || completed) && (
+      {/* Locked today — top right */}
+      {lockedToday && (
+        <div className="absolute top-2.5 right-2.5 z-10 w-5 h-5 rounded-full bg-black/20 backdrop-blur-sm flex items-center justify-center">
+          <Lock size={9} className="text-white/80" />
+        </div>
+      )}
+      {/* SOON / SUPPORTER / DONE / TOMORROW badge — top left */}
+      {(coming || isSupporter || completed || lockedToday) && (
         <div className="absolute top-2.5 left-2.5 z-10">
-          <span className={`text-[8px] font-bold tracking-widest backdrop-blur-sm px-2 py-1 rounded-full ${completed && !coming && !isSupporter ? 'bg-[#8E9775]/70 text-white' : 'bg-black/20 text-white/80'}`}>
-            {completed && !coming && !isSupporter ? '✓ DONE' : isSupporter ? 'SUPPORTER' : 'SOON'}
+          <span className={`text-[8px] font-bold tracking-widest backdrop-blur-sm px-2 py-1 rounded-full ${completed && !coming && !isSupporter && !lockedToday ? 'bg-[#8E9775]/70 text-white' : lockedToday ? 'bg-black/20 text-white/80' : 'bg-black/20 text-white/80'}`}>
+            {lockedToday ? 'TOMORROW' : completed && !coming && !isSupporter ? '✓ DONE' : isSupporter ? 'SUPPORTER' : 'SOON'}
           </span>
         </div>
       )}

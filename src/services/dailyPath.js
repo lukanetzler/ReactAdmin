@@ -12,13 +12,14 @@ function withTimeout(promise, ms = 5000) {
 
 const pathRef = (uid) => collection(db, 'users', uid, 'dailyPath');
 
-export async function addToPath(uid, cardId, currentCount) {
+export async function addToPath(uid, cardId, currentCount, extraFields = {}) {
   return withTimeout(addDoc(pathRef(uid), {
     cardId,
     order: currentCount,
     addedAt: new Date().toISOString(),
     trackIndex: 0,
     completed: false,
+    ...extraFields,
   }));
 }
 
@@ -87,6 +88,13 @@ export async function swapPathOrder(uid, idA, orderA, idB, orderB) {
   batch.set(doc(db, 'users', uid, 'dailyPath', idA), { order: orderB }, { merge: true });
   batch.set(doc(db, 'users', uid, 'dailyPath', idB), { order: orderA }, { merge: true });
   return batch.commit();
+}
+
+// Write a permanent streak day record keyed by date — safe to call multiple times (idempotent).
+// Survives journal entry deletion since it lives in a separate collection.
+export async function recordStreakDay(uid) {
+  const date = new Date().toISOString().slice(0, 10);
+  return withTimeout(setDoc(doc(db, 'users', uid, 'streakDays', date), { date, recordedAt: new Date().toISOString() }, { merge: true }));
 }
 
 // Called at signup: copies all published cards with addOnSignup:true into the new user's dailyPath

@@ -4,16 +4,22 @@ import { db } from '../firebase';
 
 export function useCompletionHistory(uid) {
   const [completedCardIds, setCompletedCardIds] = useState(new Set());
+  const [completionDates, setCompletionDates] = useState(new Set());
 
   useEffect(() => {
-    if (!uid) { setCompletedCardIds(new Set()); return; }
+    if (!uid) { setCompletedCardIds(new Set()); setCompletionDates(new Set()); return; }
     const unsub = onSnapshot(
       collection(db, 'users', uid, 'completionHistory'),
-      (snap) => setCompletedCardIds(new Set(snap.docs.map(d => d.data().cardId))),
+      (snap) => {
+        setCompletedCardIds(new Set(snap.docs.map(d => d.data().cardId)));
+        setCompletionDates(new Set(
+          snap.docs.filter(d => d.data().completedAt).map(d => d.data().completedAt.slice(0, 10))
+        ));
+      },
       () => {}
     );
     return unsub;
   }, [uid]);
 
-  return completedCardIds;
+  return { completedCardIds, completionDates };
 }
