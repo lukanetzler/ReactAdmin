@@ -621,57 +621,80 @@ const PrevailHome = ({ user, profile, profileUnsubRef, onOpenAdmin }) => {
         </>
       )}
       {activeReadingSession && (
-        <>
-          <div className="fixed inset-0 bg-black/50 z-40" onClick={() => setActiveReadingSession(null)} />
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-5 pointer-events-none">
-            <div className="w-full max-w-sm max-h-[85vh] bg-[#FDF9F3] rounded-[24px] flex flex-col overflow-hidden shadow-2xl pointer-events-auto">
-              <div className="flex flex-shrink-0" style={{ minHeight: '5rem' }}>
-                <div className="w-20 self-stretch flex-shrink-0 relative overflow-hidden rounded-tl-[24px]" style={{ backgroundColor: activeReadingSession.card.color || '#E9DCC9' }}>
-                  {activeReadingSession.card.imageUrl && <img src={activeReadingSession.card.imageUrl} alt="" className="absolute inset-0 w-full h-full object-cover" />}
-                </div>
-                <div className="flex-1 px-4 py-3 flex flex-col justify-between min-w-0">
-                  <div>
-                    <p className="text-[9px] font-bold tracking-widest text-[#433422]/40 mb-0.5">READING {activeReadingSession.trackIndex + 1} OF {activeReadingSession.totalReadings}</p>
-                    <h2 className="text-sm font-serif text-[#433422] leading-snug">{activeReadingSession.reading.title || activeReadingSession.card.title}</h2>
-                  </div>
-                  <button onClick={() => setActiveReadingSession(null)} className="self-end w-7 h-7 rounded-full bg-[#E9DCC9]/80 flex items-center justify-center mt-1">
-                    <X size={13} className="text-[#433422]/60" />
-                  </button>
-                </div>
-              </div>
-              <div className="flex-1 overflow-y-auto px-5 py-4 border-t border-[#E9DCC9]">
-                {activeReadingSession.reading.content ? <p className="text-[#433422]/80 text-sm leading-relaxed whitespace-pre-wrap">{activeReadingSession.reading.content}</p> : <p className="text-[#433422]/30 text-sm text-center py-8">No content yet.</p>}
-              </div>
-              <div className="px-5 pb-5 pt-3 border-t border-[#E9DCC9] flex-shrink-0">
-                {activeReadingSession.pathItemId ? (
-                  <button onClick={() => {
-                    const isLast = activeReadingSession.trackIndex + 1 >= activeReadingSession.totalReadings;
-                    const nextIndex = activeReadingSession.trackIndex + 1;
-                    completeTrackForDay(user.uid, {
-                      itemId: activeReadingSession.pathItemId,
-                      cardId: activeReadingSession.card.id,
-                      cardTitle: activeReadingSession.card.title,
-                      trackIndex: activeReadingSession.trackIndex,
-                      trackTitle: activeReadingSession.reading.title,
-                      nextIndex: isLast ? activeReadingSession.trackIndex : nextIndex,
-                      isLast,
-                    }).catch(() => {});
-                    if (isLast) {
-                      removeFromPath(user.uid, activeReadingSession.pathItemId).catch(() => {});
-                      setActiveSession({ title: activeReadingSession.card.title, cardId: activeReadingSession.card.id, pathItemId: activeReadingSession.pathItemId, skipCheckin: true });
-                      setActiveReadingSession(null);
-                      setView('completion-celebration');
-                    } else {
-                      setActiveReadingSession(null);
-                    }
-                  }} className="w-full py-3 bg-[#433422] text-[#FDF9F3] rounded-[16px] text-sm font-bold">Mark as Read</button>
-                ) : (
-                  <button onClick={() => setActiveReadingSession(null)} className="w-full py-3 bg-[#E9DCC9] text-[#433422] rounded-[16px] text-sm font-bold">Close</button>
-                )}
-              </div>
+        <div className="fixed inset-0 z-50 flex flex-col" style={{ backgroundColor: '#FDF9F3' }}>
+          {/* Coloured hero header */}
+          <div
+            className="relative flex-shrink-0 overflow-hidden"
+            style={{ backgroundColor: activeReadingSession.card.color || '#D4A373', minHeight: '28vh' }}
+          >
+            {activeReadingSession.card.imageUrl && (
+              <img src={activeReadingSession.card.imageUrl} alt="" className="absolute inset-0 w-full h-full object-cover opacity-40" />
+            )}
+            {/* Soft arch transition at the bottom */}
+            <div
+              className="absolute bottom-0 left-[-10%] right-[-10%] h-10"
+              style={{ backgroundColor: '#FDF9F3', borderTopLeftRadius: '100% 100%', borderTopRightRadius: '100% 100%' }}
+            />
+            {/* Close pill */}
+            <button
+              onClick={() => setActiveReadingSession(null)}
+              className="absolute top-12 right-5 w-9 h-9 rounded-full flex items-center justify-center"
+              style={{ backgroundColor: 'rgba(0,0,0,0.20)' }}
+            >
+              <X size={16} className="text-white" />
+            </button>
+            {/* Series label + reading title */}
+            <div className="absolute bottom-10 left-6 right-16">
+              <p className="text-[10px] font-bold tracking-[0.3em] text-white/60 mb-1">
+                {activeReadingSession.card.title.toUpperCase()} · READING {activeReadingSession.trackIndex + 1} OF {activeReadingSession.totalReadings}
+              </p>
+              <h2 className="text-2xl font-serif text-white leading-snug">
+                {activeReadingSession.reading.title || activeReadingSession.card.title}
+              </h2>
             </div>
           </div>
-        </>
+
+          {/* Scrollable body */}
+          <div className="flex-1 overflow-y-auto px-6 pt-4 pb-4">
+            {activeReadingSession.reading.content
+              ? <p className="text-[#433422]/80 text-base leading-[1.85] font-serif whitespace-pre-wrap">{activeReadingSession.reading.content}</p>
+              : <p className="text-[#433422]/30 text-sm text-center py-16">No content yet.</p>
+            }
+          </div>
+
+          {/* Footer CTA */}
+          <div className="flex-shrink-0 px-6 pb-10 pt-4" style={{ borderTop: '1px solid #E9DCC9' }}>
+            {activeReadingSession.pathItemId ? (
+              <button onClick={() => {
+                const isLast = activeReadingSession.trackIndex + 1 >= activeReadingSession.totalReadings;
+                const nextIndex = activeReadingSession.trackIndex + 1;
+                completeTrackForDay(user.uid, {
+                  itemId: activeReadingSession.pathItemId,
+                  cardId: activeReadingSession.card.id,
+                  cardTitle: activeReadingSession.card.title,
+                  trackIndex: activeReadingSession.trackIndex,
+                  trackTitle: activeReadingSession.reading.title,
+                  nextIndex: isLast ? activeReadingSession.trackIndex : nextIndex,
+                  isLast,
+                }).catch(() => {});
+                if (isLast) {
+                  removeFromPath(user.uid, activeReadingSession.pathItemId).catch(() => {});
+                  setActiveSession({ title: activeReadingSession.card.title, cardId: activeReadingSession.card.id, pathItemId: activeReadingSession.pathItemId, skipCheckin: true });
+                  setActiveReadingSession(null);
+                  setView('completion-celebration');
+                } else {
+                  setActiveReadingSession(null);
+                }
+              }} className="w-full py-4 rounded-[20px] text-sm font-bold tracking-widest" style={{ backgroundColor: '#433422', color: '#FDF9F3' }}>
+                MARK AS READ
+              </button>
+            ) : (
+              <button onClick={() => setActiveReadingSession(null)} className="w-full py-4 rounded-[20px] text-sm font-bold tracking-widest" style={{ backgroundColor: '#F4EFE6', color: '#433422' }}>
+                CLOSE
+              </button>
+            )}
+          </div>
+        </div>
       )}
       {pathToast && (
         <div className="fixed bottom-28 left-1/2 -translate-x-1/2 z-[200] pointer-events-none animate-fade-in-up">
