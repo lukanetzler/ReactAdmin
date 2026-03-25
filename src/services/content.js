@@ -1,6 +1,9 @@
 import { collection, doc, addDoc, setDoc, deleteDoc, getDocs } from 'firebase/firestore';
-import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
-import { db, storage } from '../firebase';
+import { ref, deleteObject } from 'firebase/storage';
+import { db, storage, auth } from '../firebase';
+
+const R2_WORKER_URL = import.meta.env.VITE_R2_WORKER_URL;
+const R2_PUBLIC_BASE = 'https://media.prayvail.org';
 
 function withTimeout(promise, ms = 8000) {
   return Promise.race([
@@ -17,34 +20,47 @@ const libraryCardsRef = () => collection(db, 'content', 'libraryCards', 'items')
 const categoriesRef = () => collection(db, 'content', 'categories', 'items');
 
 // ── File Upload ───────────────────────────────────────────
-// Uploads a file to Firebase Storage and returns the download URL.
-// onProgress(0-100) is called as the upload progresses.
+// Uploads a file to Cloudflare R2 via the authenticated worker and returns
+// the public media.prayvail.org URL. onProgress(0-100) fires as bytes transfer.
 export function uploadFile(file, storagePath, onProgress) {
-  return new Promise((resolve, reject) => {
-    const storageRef = ref(storage, storagePath);
-    const task = uploadBytesResumable(storageRef, file);
-    task.on(
-      'state_changed',
-      (snap) => {
-        if (onProgress) onProgress(Math.round((snap.bytesTransferred / snap.totalBytes) * 100));
-      },
-      reject,
-      async () => {
-        try {
-          const url = await getDownloadURL(task.snapshot.ref);
-          resolve(url);
-        } catch (e) {
-          reject(e);
+  return new Promise(async (resolve, reject) => {
+    try {
+      const idToken = await auth.currentUser.getIdToken();
+      const key = `${storagePath}/${Date.now()}_${file.name}`;
+      const workerUrl = `${R2_WORKER_URL}/upload?key=${encodeURIComponent(key)}&contentType=${encodeURIComponent(file.type || 'application/octet-stream')}`;
+
+      const xhr = new XMLHttpRequest();
+      xhr.open('PUT', workerUrl);
+      xhr.setRequestHeader('Authorization', `Bearer ${idToken}`);
+      xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable && onProgress) {
+          onProgress(Math.round((e.loaded / e.total) * 100));
         }
-      }
-    );
+      };
+
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          const { url } = JSON.parse(xhr.responseText);
+          resolve(url);
+        } else {
+          reject(new Error(`Upload failed: ${xhr.status}`));
+        }
+      };
+
+      xhr.onerror = () => reject(new Error('Upload failed'));
+      xhr.send(file);
+    } catch (e) {
+      reject(e);
+    }
   });
 }
 
-// Extracts the storage object path from a Firebase Storage download URL.
+// Extracts the storage object path from a legacy Firebase Storage download URL.
 // e.g. https://firebasestorage.googleapis.com/v0/b/BUCKET/o/library%2Fimages%2Ffile.jpg?...
 //   → library/images/file.jpg
-function storagePathFromUrl(url) {
+function firebaseStoragePathFromUrl(url) {
   try {
     const match = url.match(/\/o\/([^?#]+)/);
     return match ? decodeURIComponent(match[1]) : null;
@@ -53,11 +69,26 @@ function storagePathFromUrl(url) {
   }
 }
 
+// Deletes a file from whichever storage backend its URL points to.
+// - media.prayvail.org URLs → Cloudflare R2 via worker
+// - firebasestorage.googleapis.com URLs → Firebase Storage (legacy content)
 export async function deleteStorageFile(url) {
+  if (!url) return;
   try {
-    const path = storagePathFromUrl(url);
-    if (!path) return;
-    await deleteObject(ref(storage, path));
+    if (url.startsWith(R2_PUBLIC_BASE)) {
+      const key = url.slice(R2_PUBLIC_BASE.length + 1); // strip leading slash
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) return;
+      await fetch(`${R2_WORKER_URL}/delete?key=${encodeURIComponent(key)}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
+    } else {
+      // Legacy Firebase Storage URL
+      const path = firebaseStoragePathFromUrl(url);
+      if (!path) return;
+      await deleteObject(ref(storage, path));
+    }
   } catch {
     // File may not exist or is already deleted — ignore
   }

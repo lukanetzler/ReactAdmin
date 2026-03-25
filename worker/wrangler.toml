@@ -1,0 +1,8 @@
+name = "prayvail-r2-worker"
+main = "src/index.js"
+compatibility_date = "2024-09-23"
+account_id = "ec72bd13edf7417d3fbf141a8025467e"
+
+[[r2_buckets]]
+binding = "R2"
+bucket_name = "prayvail-media"

@@ -23,3 +23,9 @@ dist-ssr
 *.sln
 *.sw?
 .idx
+
+PrayVail-R2-Signer.md
+worker-token.md
+.env
+.env.local
+.dev.vars
