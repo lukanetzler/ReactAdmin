@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import ResourceCard from '../components/ResourceCard';
 import { signOut, verifyBeforeUpdateEmail, updatePassword, updateProfile, deleteUser, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
 import { auth } from '../firebase';
 import { useJournalEntries } from '../hooks/useJournalEntries';
@@ -17,7 +18,6 @@ import { getDailyVerse } from '../data/getDailyVerse';
 import {
   Compass,
   Gamepad2,
-  ShoppingBag,
   User,
   Home,
   Play,
@@ -2137,13 +2137,6 @@ const PrevailHome = ({ user, profile, profileUnsubRef, onOpenAdmin }) => {
       { title: 'Faith Quiz', label: 'DAILY', desc: 'One question, every day', color: '#8E9775' },
       { title: 'Word of Life', label: 'WORD GAME', desc: 'Scripture word puzzles', color: '#D9C9B5' },
     ];
-    const storeItems = [
-      { title: 'Prayvail Journal', label: 'STATIONERY', duration: '90-day guided journal', color: '#E9DCC9', coming: true },
-      { title: 'Supporter Tee', label: 'APPAREL', duration: 'Wear the mission', color: '#D4A373', coming: true },
-      { title: 'Support the Mission', label: 'DONATION', duration: 'Help us grow', color: '#B0A898', coming: true },
-      { blank: true },
-    ];
-
     return (
       <div className="bg-[#FDF9F3] text-[#433422] font-sans min-h-screen">
         <div className="animate-view-enter">
@@ -2190,22 +2183,6 @@ const PrevailHome = ({ user, profile, profileUnsubRef, onOpenAdmin }) => {
                     <span className="text-[8px] font-bold tracking-widest text-[#433422]/30 bg-[#F4EFE6] px-2.5 py-1.5 rounded-full flex-shrink-0">SOON</span>
                   </div>
                 ))}
-              </div>
-            </section>
-
-            {/* Support Store */}
-            <section className="px-8">
-              <div className="flex items-center justify-between mb-5">
-                <div>
-                  <p className="text-[10px] tracking-[0.3em] font-bold text-[#433422]/40">SUPPORT</p>
-                  <h2 className="text-xl font-serif">Store</h2>
-                </div>
-                <div className="w-9 h-9 rounded-xl bg-[#F4EFE6] flex items-center justify-center">
-                  <ShoppingBag size={17} className="text-[#D4A373]" />
-                </div>
-              </div>
-              <div className="grid grid-cols-3 gap-2">
-                {storeItems.map((s, i) => <ResourceCard key={i} {...s} />)}
               </div>
             </section>
 
@@ -2640,90 +2617,7 @@ const PrevailHome = ({ user, profile, profileUnsubRef, onOpenAdmin }) => {
   );
 };
 
-const ResourceCard = ({
-  title, label, duration, color = '#E9DCC9', imageUrl = '',
-  blank = false, coming = false,
-  type = 'single', tier = 'free',
-  inPath = false, completed = false, lockedToday = false,
-  onClick, onLongPress, onContextMenu,
-}) => {
-  const longPressTimer = useRef(null);
-
-  const handleTouchStart = () => {
-    if (!onLongPress) return;
-    longPressTimer.current = setTimeout(() => { onLongPress(); }, 500);
-  };
-  const cancelLongPress = () => clearTimeout(longPressTimer.current);
-
-  if (blank) {
-    return (
-      <div className="aspect-square rounded-[20px] border-2 border-dashed border-[#E9DCC9] flex items-center justify-center">
-        <div className="w-8 h-8 rounded-full border-2 border-dashed border-[#E9DCC9] flex items-center justify-center">
-          <span className="text-[#433422]/20 text-xl leading-none font-light">+</span>
-        </div>
-      </div>
-    );
-  }
-
-  const isSupporter = tier === 'supporter';
-  const isPlaylist = type === 'playlist';
-
-  return (
-    <div
-      onClick={lockedToday ? undefined : onClick}
-      onContextMenu={lockedToday ? undefined : onContextMenu}
-      onTouchStart={lockedToday ? undefined : handleTouchStart}
-      onTouchEnd={cancelLongPress}
-      onTouchMove={cancelLongPress}
-      className={`aspect-square rounded-[20px] overflow-hidden relative transition-transform select-none ${!lockedToday && onClick ? 'active:scale-[0.97] cursor-pointer' : ''} ${inPath && !lockedToday ? 'ring-2 ring-[#D4A373]' : ''} ${isSupporter || lockedToday ? 'opacity-60' : ''}`}
-      style={{ backgroundColor: color }}
-    >
-      {/* Full-bleed image */}
-      {imageUrl && <img src={imageUrl} alt="" className="absolute inset-0 w-full h-full object-cover" />}
-      {/* Subtle gradient for image depth */}
-      {imageUrl && <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent" />}
-
-      {/* Locked-today overlay */}
-      {lockedToday && <div className="absolute inset-0 bg-[#FDF9F3]/40 backdrop-blur-[2px]" />}
-
-      {/* Playlist icon — top right */}
-      {isPlaylist && !isSupporter && !lockedToday && (
-        <div className="absolute top-2.5 right-2.5 z-10 w-5 h-5 rounded-full bg-black/20 backdrop-blur-sm flex items-center justify-center">
-          <List size={10} className="text-white" />
-        </div>
-      )}
-      {/* Supporter lock — top right */}
-      {isSupporter && (
-        <div className="absolute top-2.5 right-2.5 z-10 w-5 h-5 rounded-full bg-black/20 backdrop-blur-sm flex items-center justify-center">
-          <Lock size={9} className="text-white/80" />
-        </div>
-      )}
-      {/* Locked today — top right */}
-      {lockedToday && (
-        <div className="absolute top-2.5 right-2.5 z-10 w-5 h-5 rounded-full bg-black/20 backdrop-blur-sm flex items-center justify-center">
-          <Lock size={9} className="text-white/80" />
-        </div>
-      )}
-      {/* SOON / SUPPORTER / DONE / TOMORROW badge — top left */}
-      {(coming || isSupporter || completed || lockedToday) && (
-        <div className="absolute top-2.5 left-2.5 z-10">
-          <span className={`text-[8px] font-bold tracking-widest backdrop-blur-sm px-2 py-1 rounded-full ${completed && !coming && !isSupporter && !lockedToday ? 'bg-[#8E9775]/70 text-white' : lockedToday ? 'bg-black/20 text-white/80' : 'bg-black/20 text-white/80'}`}>
-            {lockedToday ? 'TOMORROW' : completed && !coming && !isSupporter ? '✓ DONE' : isSupporter ? 'SUPPORTER' : 'SOON'}
-          </span>
-        </div>
-      )}
-
-      {/* Bottom text bar — frosted glass */}
-      <div className="absolute bottom-0 left-0 right-0 z-10 px-2.5 py-2 pr-9 backdrop-blur-md bg-black/30 border-t border-white/10">
-        {label && <p className="text-[7px] font-bold tracking-widest mb-0.5 text-white/60">{label}</p>}
-        <p className="text-[10px] font-serif leading-snug text-white">{title}</p>
-        {duration && <p className="text-[8px] mt-0.5 font-bold text-white/55">{duration}</p>}
-      </div>
-
-    </div>
-  );
-};
-
+// ResourceCard is imported from src/components/ResourceCard.jsx
 const NavIcon = ({ icon, active, onClick }) => (
   <button
     onClick={onClick}
