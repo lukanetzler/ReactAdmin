@@ -82,7 +82,6 @@ const PrevailHome = ({ user, profile, profileUnsubRef, onOpenAdmin }) => {
   useEffect(() => { setNameInput(profile?.name || user?.displayName || ''); }, [profile, user]);
   const notifDailyVerse = profile?.notifDailyVerse ?? true;
   const notifReflection = profile?.notifReflection ?? true;
-  const notifNewContent = profile?.notifNewContent ?? false;
 
   // Email/password change state
   const [showEmailForm, setShowEmailForm] = useState(false);
@@ -187,6 +186,7 @@ const PrevailHome = ({ user, profile, profileUnsubRef, onOpenAdmin }) => {
   const [trackDuration, setTrackDuration] = useState(0);
   const audioRef = useRef(null);
   const progressRef = useRef(null);
+  const swipeStartX = useRef(null);
 
   useEffect(() => {
     const url = activeSession?.audioUrl || meditationTrack;
@@ -562,7 +562,7 @@ const PrevailHome = ({ user, profile, profileUnsubRef, onOpenAdmin }) => {
                         : null;
                       return (
                         <button key={i}
-                          onClick={() => { setActiveSession({ title: track.title, audioUrl: track.audioUrl, imageUrl: track.imageUrl || activeDetailCard.imageUrl || '', ...(isCurrent ? { cardId: activeDetailCard.id, cardTitle: activeDetailCard.title, pathItemId: detailPathItem.id, isPlaylistTrack: true, trackIndex: i, totalTracks: activeDetailCard.tracks.length } : {}), skipCheckin: true }); setActiveDetailCard(null); setDetailPathItem(null); setView('meditation'); }}
+                          onClick={() => { setActiveSession({ title: track.title, audioUrl: track.audioUrl, ...(isCurrent ? { cardId: activeDetailCard.id, cardTitle: activeDetailCard.title, pathItemId: detailPathItem.id, isPlaylistTrack: true, trackIndex: i, totalTracks: activeDetailCard.tracks.length } : {}), skipCheckin: true }); setActiveDetailCard(null); setDetailPathItem(null); setView('meditation'); }}
                           className={`w-full flex items-center gap-3 rounded-[16px] px-4 py-3 border text-left active:scale-[0.98] transition-transform ${isCurrent ? 'bg-[#FFFBF5] border-[#D4A373]/50' : 'bg-white border-[#E9DCC9]'}`}>
                           <div className={`w-9 h-9 rounded-[10px] flex items-center justify-center flex-shrink-0 overflow-hidden relative ${isDone ? 'bg-[#8E9775]/15' : isCurrent ? 'bg-[#D4A373]/15' : 'bg-[#F4EFE6]'}`}>
                             {track.imageUrl ? <img src={track.imageUrl} alt="" className="absolute inset-0 w-full h-full object-cover" /> : isDone ? <span className="text-[#8E9775] text-base leading-none">✓</span> : <Play size={12} fill="currentColor" className="text-[#D4A373]" />}
@@ -611,7 +611,7 @@ const PrevailHome = ({ user, profile, profileUnsubRef, onOpenAdmin }) => {
               </div>
               {activeDetailCard.type === 'single' && (
                 <div className="px-5 pb-5 pt-3 border-t border-[#E9DCC9] flex-shrink-0">
-                  <button onClick={() => { setActiveSession({ title: activeDetailCard.title, audioUrl: activeDetailCard.audioUrl, imageUrl: activeDetailCard.imageUrl || '', skipCheckin: true }); setActiveDetailCard(null); setView('meditation'); }} className="w-full py-3 bg-[#433422] text-[#FDF9F3] rounded-[16px] text-sm font-bold flex items-center justify-center gap-2">
+                  <button onClick={() => { setActiveSession({ title: activeDetailCard.title, audioUrl: activeDetailCard.audioUrl, skipCheckin: true }); setActiveDetailCard(null); setView('meditation'); }} className="w-full py-3 bg-[#433422] text-[#FDF9F3] rounded-[16px] text-sm font-bold flex items-center justify-center gap-2">
                     <Play size={14} fill="currentColor" /> Play
                   </button>
                 </div>
@@ -823,7 +823,7 @@ const PrevailHome = ({ user, profile, profileUnsubRef, onOpenAdmin }) => {
                 <div
                   className="min-w-[80vw] h-[440px] bg-[#F4EFE6] rounded-[48px] p-9 flex flex-col justify-between flex-shrink-0 mx-4 snap-center cursor-pointer active:scale-[0.98] transition-transform"
                   onClick={() => {
-                    setActiveSession({ title: card.title, audioUrl: card.audioUrl, imageUrl: card.imageUrl || '', cardId: card.id, skipCheckin: true });
+                    setActiveSession({ title: card.title, audioUrl: card.audioUrl, cardId: card.id, skipCheckin: true });
                     setLibraryDetailCard(null);
                     setView('meditation');
                   }}
@@ -866,7 +866,6 @@ const PrevailHome = ({ user, profile, profileUnsubRef, onOpenAdmin }) => {
                       setActiveSession({
                         title: track.title,
                         audioUrl: track.audioUrl,
-                        imageUrl: track.imageUrl || card.imageUrl || '',
                         cardId: card.id, cardTitle: card.title, pathItemId: pathItem.id, isPlaylistTrack: true, trackIndex: i, totalTracks: card.tracks.length,
                         skipCheckin: true,
                       });
@@ -1098,7 +1097,7 @@ const PrevailHome = ({ user, profile, profileUnsubRef, onOpenAdmin }) => {
     };
 
     return (
-      <div className="flex flex-col h-screen bg-[#EDE8DF] text-[#433422] font-sans animate-view-enter">
+      <div className="flex flex-col h-screen font-sans animate-view-enter" style={{ backgroundColor: '#EDE8DF' }}>
 
         {/* Top nav */}
         <div className="flex items-center justify-between px-6 pt-14 pb-4">
@@ -1106,29 +1105,45 @@ const PrevailHome = ({ user, profile, profileUnsubRef, onOpenAdmin }) => {
             onClick={() => { audioRef.current?.pause(); audioRef.current && (audioRef.current.currentTime = 0); setIsPlaying(false); setView('dashboard'); }}
             className="w-10 h-10 rounded-full bg-white/60 backdrop-blur-sm flex items-center justify-center"
           >
-            <ChevronRight className="rotate-180" size={18} />
+            <ChevronRight className="rotate-180" size={18} color="#433422" />
           </button>
-          <span className="text-[10px] tracking-[0.3em] font-bold text-[#433422]/40">NOW PLAYING</span>
+          <span className="text-[10px] tracking-[0.3em] font-bold text-[#433422]/40">MEDITATION</span>
           <div className="w-10" />
         </div>
 
-        {/* Centered player card */}
-        <div className="flex-1 flex items-center justify-center px-10">
-          <div className="w-full max-w-[300px] bg-white rounded-[32px] px-6 pt-6 pb-7 shadow-sm flex flex-col gap-5">
+        {/* Orb */}
+        <div className="flex-1 flex items-center justify-center -mt-10">
+          <div className="relative flex items-center justify-center overflow-hidden" style={{ width: 400, height: 400 }}>
+            {isPlaying && (
+              <>
+                <div className="absolute animate-orb-ring-1" style={{ width: 170, height: 170, borderRadius: 40, backgroundColor: 'rgba(212,163,115,0.22)' }} />
+                <div className="absolute animate-orb-ring-2" style={{ width: 170, height: 170, borderRadius: 40, backgroundColor: 'rgba(212,163,115,0.15)' }} />
+                <div className="absolute animate-orb-ring-3" style={{ width: 170, height: 170, borderRadius: 40, backgroundColor: 'rgba(212,163,115,0.08)' }} />
+              </>
+            )}
+            <div
+              className={isPlaying ? 'relative animate-orb-core' : 'relative'}
+              style={{ width: 170, height: 170, borderRadius: 40, background: '#D4A373' }}
+            />
+          </div>
+        </div>
 
-            {/* Square cover art */}
-            <div className="w-full aspect-square rounded-2xl overflow-hidden" style={{ backgroundColor: '#F0EBE3' }}>
-              {activeSession?.imageUrl
-                ? <img src={activeSession.imageUrl} alt="" className="w-full h-full object-cover" />
-                : null}
+        {/* Bottom controls */}
+        <div className="px-6 pb-10">
+          <div className="bg-white rounded-[28px] px-6 pt-5 pb-6 shadow-sm space-y-4">
+
+            {/* Title */}
+            <div className="text-center">
+              <p className="text-[10px] tracking-[0.3em] font-bold text-[#433422]/35 mb-1">
+                {activeSession?.cardTitle || 'NOW PLAYING'}
+              </p>
+              <h2 className="text-2xl font-serif leading-snug text-[#433422]">
+                {activeSession?.title || TRACK_TITLE}
+              </h2>
+              <div className="mt-2 mx-auto w-10 h-px bg-[#D4A373]/60" />
             </div>
 
-            {/* Track info */}
-            <div>
-              <h2 className="text-lg font-serif leading-snug">{activeSession?.title || TRACK_TITLE}</h2>
-            </div>
-
-            {/* Interactive progress bar */}
+            {/* Progress bar */}
             <div>
               <div
                 ref={progressRef}
@@ -1137,22 +1152,22 @@ const PrevailHome = ({ user, profile, profileUnsubRef, onOpenAdmin }) => {
                 onTouchStart={e => seekTo(e.touches[0].clientX)}
                 onTouchMove={e => { e.preventDefault(); seekTo(e.touches[0].clientX); }}
               >
-                <div className="absolute w-full h-1.5 bg-[#433422]/10 rounded-full overflow-hidden">
-                  <div className="h-full bg-[#D4A373] rounded-full transition-none" style={{ width: `${progress}%` }} />
+                <div className="absolute w-full h-1 rounded-full overflow-hidden bg-[#433422]/12">
+                  <div className="h-full bg-[#D4A373] rounded-full" style={{ width: `${progress}%` }} />
                 </div>
                 <div
-                  className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-4 h-4 bg-[#D4A373] rounded-full shadow-md"
+                  className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3.5 h-3.5 bg-[#D4A373] rounded-full shadow-md"
                   style={{ left: `${progress}%` }}
                 />
               </div>
-              <div className="flex justify-between text-[10px] text-[#433422]/40 font-mono -mt-1">
+              <div className="flex justify-between text-[10px] font-mono -mt-1 text-[#433422]/40">
                 <span>{formatTime(trackTime)}</span>
                 <span>{formatTime(trackDuration)}</span>
               </div>
             </div>
 
             {/* Controls */}
-            <div className="flex items-center justify-between px-2">
+            <div className="flex items-center justify-between px-4">
               <button
                 onClick={() => skip(-15)}
                 className="flex flex-col items-center gap-1 p-2 text-[#433422]/40 active:text-[#433422] transition-colors"
@@ -1162,8 +1177,8 @@ const PrevailHome = ({ user, profile, profileUnsubRef, onOpenAdmin }) => {
               </button>
               <button
                 onClick={togglePlay}
-                className="bg-[#433422] rounded-full flex items-center justify-center text-[#FDF9F3] shadow-xl shadow-[#433422]/20 active:scale-95 transition-transform"
-                style={{ width: 72, height: 72 }}
+                className="rounded-full flex items-center justify-center text-[#FDF9F3] active:scale-95 transition-transform"
+                style={{ width: 72, height: 72, backgroundColor: '#D4A373', boxShadow: '0 8px 32px rgba(212,163,115,0.4)' }}
               >
                 {isPlaying
                   ? <Pause fill="currentColor" size={26} />
@@ -1179,13 +1194,11 @@ const PrevailHome = ({ user, profile, profileUnsubRef, onOpenAdmin }) => {
             </div>
 
           </div>
-        </div>
 
-        {/* Complete */}
-        <div className="flex justify-center px-10 pb-12 pt-4">
+          {/* Complete */}
           <button
             onClick={onCompleteSession}
-            className="w-full max-w-[300px] py-4 rounded-[20px] font-serif text-base border border-[#433422]/15 text-[#433422]/50 bg-white/40"
+            className="w-full py-4 mt-3 rounded-[20px] font-serif text-base border border-[#433422]/15 text-[#433422]/50 bg-white/40"
           >
             Complete Session
           </button>
@@ -1625,7 +1638,6 @@ const PrevailHome = ({ user, profile, profileUnsubRef, onOpenAdmin }) => {
     const notifRows = [
       { label: 'Daily Verse', desc: 'Morning verse to start your day', state: notifDailyVerse, key: 'notifDailyVerse' },
       { label: 'Reflection Reminder', desc: 'Gentle nudge to journal each evening', state: notifReflection, key: 'notifReflection' },
-      { label: 'New Sessions', desc: 'When new guided sessions are added', state: notifNewContent, key: 'notifNewContent' },
     ];
 
     return (
