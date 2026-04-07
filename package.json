@@ -9,7 +9,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "predeploy": "npm run build",
-    "deploy": "gh-pages -d dist --repo https://github.com/lukanetzler/vite-demo.git"
+    "deploy": "gh-pages -d dist --repo https://github.com/lukanetzler/ReactAdmin.git"
   },
   "dependencies": {
     "firebase": "^12.9.0",
