@@ -790,7 +790,24 @@ const PrevailHome = ({ user, profile, profileUnsubRef, onOpenAdmin }) => {
             </div>
 
             {/* Horizontal snap scroll */}
-            <div className="flex-1 overflow-x-auto overflow-y-hidden mt-2 flex items-center no-scrollbar snap-x snap-mandatory">
+            <div
+              className="flex-1 overflow-x-auto overflow-y-hidden mt-2 flex items-center no-scrollbar snap-x snap-mandatory cursor-grab active:cursor-grabbing"
+              onMouseDown={e => {
+                const el = e.currentTarget;
+                el.dataset.dragging = 'true';
+                el.dataset.startX = e.pageX - el.offsetLeft;
+                el.dataset.scrollLeft = el.scrollLeft;
+              }}
+              onMouseLeave={e => { e.currentTarget.dataset.dragging = 'false'; }}
+              onMouseUp={e => { e.currentTarget.dataset.dragging = 'false'; }}
+              onMouseMove={e => {
+                const el = e.currentTarget;
+                if (el.dataset.dragging !== 'true') return;
+                e.preventDefault();
+                const x = e.pageX - el.offsetLeft;
+                el.scrollLeft = parseInt(el.dataset.scrollLeft) + (parseInt(el.dataset.startX) - x);
+              }}
+            >
               <div className="min-w-[10vw] flex-shrink-0" />
 
               {/* Cover card */}
