@@ -1993,8 +1993,8 @@ const PrevailHome = ({ user, profile, profileUnsubRef, onOpenAdmin }) => {
                       onClick={() => isWired && setView('pre-checkin')}
                       className={`flex-shrink-0 w-[130px] rounded-[22px] overflow-hidden text-left shadow-sm ${isWired ? 'active:scale-95 transition-transform' : ''}`}
                     >
-                      <div className="h-[96px] relative flex flex-col justify-between p-3.5" style={{ backgroundColor: session.imageUrl ? undefined : color }}>
-                        {session.imageUrl && <img src={session.imageUrl} alt="" className="absolute inset-0 w-full h-full object-cover" />}
+                      <div className="h-[96px] relative flex flex-col justify-between p-3.5" style={{ backgroundColor: color }}>
+                        <Headphones size={18} className="absolute bottom-10 right-3.5 text-[#433422]/20" />
                         <span className="relative text-[8px] font-bold tracking-widest text-[#433422]/50">DAY {session.day}</span>
                         {isWired ? (
                           <div className="relative self-end w-6 h-6 rounded-full bg-[#433422] flex items-center justify-center">
@@ -2463,12 +2463,10 @@ const PrevailHome = ({ user, profile, profileUnsubRef, onOpenAdmin }) => {
                                 : 'border-[#D4A373]/30 text-[#433422] hover:border-[#D4A373]'
                             }`}
                           >
-                            {card.imageUrl && !isSupporter ? (
-                              <img src={card.imageUrl} alt="" className="absolute inset-0 w-full h-full object-cover" />
-                            ) : isSupporter ? (
+                            {isSupporter ? (
                               <Lock size={18} strokeWidth={1.5} />
                             ) : isPlaylist ? (
-                              <List size={22} />
+                              <Headphones size={22} />
                             ) : isArticle ? (
                               <PenLine size={20} />
                             ) : (
