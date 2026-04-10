@@ -14,9 +14,9 @@ import femalePathImg from '../assets/female-path.png';
 
 const TOTAL_PROGRESS_STEPS = 4;
 
-const PrevailOnboarding = ({ onComplete }) => {
-  const [step, setStep] = useState(0);
-  const [name, setName] = useState('');
+const PrevailOnboarding = ({ onComplete, initialStep = 0, initialName = '' }) => {
+  const [step, setStep] = useState(initialStep);
+  const [name, setName] = useState(initialName);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [activeImg, setActiveImg] = useState(0);
@@ -276,23 +276,32 @@ const PrevailOnboarding = ({ onComplete }) => {
                 fullWidth
                 disabled={isSubmitting}
               />
-              <button
-                onClick={async () => {
-                  try {
-                    const { user: anonUser } = await signInAnonymously(auth);
-                    const firstName = name.trim().split(' ')[0];
-                    if (firstName) {
-                      await updateProfile(anonUser, { displayName: firstName });
+              {auth.currentUser?.isAnonymous ? (
+                <button
+                  onClick={() => onComplete('')}
+                  className="w-full text-sm font-bold tracking-[0.2em] text-gray-400 border border-[#E9DCC9] rounded-[32px] px-10 py-4 hover:border-gray-300 hover:text-[#433422] transition-all ease-out"
+                >
+                  MAYBE LATER
+                </button>
+              ) : (
+                <button
+                  onClick={async () => {
+                    try {
+                      const { user: anonUser } = await signInAnonymously(auth);
+                      const firstName = name.trim().split(' ')[0];
+                      if (firstName) {
+                        await updateProfile(anonUser, { displayName: firstName });
+                      }
+                    } catch (err) {
+                      console.error('Anonymous sign-in failed:', err);
                     }
-                  } catch (err) {
-                    console.error('Anonymous sign-in failed:', err);
-                  }
-                  nextStep();
-                }}
-                className="w-full text-sm font-bold tracking-[0.2em] text-gray-400 border border-[#E9DCC9] rounded-[32px] px-10 py-4 hover:border-gray-300 hover:text-[#433422] transition-all ease-out"
-              >
-                CONTINUE WITHOUT AN ACCOUNT
-              </button>
+                    nextStep();
+                  }}
+                  className="w-full text-sm font-bold tracking-[0.2em] text-gray-400 border border-[#E9DCC9] rounded-[32px] px-10 py-4 hover:border-gray-300 hover:text-[#433422] transition-all ease-out"
+                >
+                  CONTINUE WITHOUT AN ACCOUNT
+                </button>
+              )}
             </div>
           </div>
         )}

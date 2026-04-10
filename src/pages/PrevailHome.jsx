@@ -61,7 +61,7 @@ const FEELING_OPTIONS = ['Peaceful', 'Grateful', 'Anxious', 'Hopeful', 'Tired', 
 
 const PATH_CARD_COLORS = ['#E9DCC9', '#D9C9B5', '#D4A373', '#C4B5A0', '#8E9775', '#B0A898'];
 
-const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, onGoToAuth }) => {
+const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, onGoToAuth, onGoToSignUp }) => {
   const dailyVerse = getDailyVerse();
 
   const [activeTab, setActiveTab] = useState('home');
@@ -1720,7 +1720,7 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
                 A free account keeps your sanctuary safe, synced, and with you wherever you go.
               </p>
               <button
-                onClick={onGoToAuth}
+                onClick={onGoToSignUp || onGoToAuth}
                 className="w-full py-4 bg-[#433422] text-[#FDF9F3] rounded-[24px] text-sm font-bold tracking-widest"
               >
                 CREATE FREE ACCOUNT

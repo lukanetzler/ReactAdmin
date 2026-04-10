@@ -18,6 +18,7 @@ function App() {
   const [onboardingComplete, setOnboardingComplete] = useState(false);
   const [guestName, setGuestName] = useState('');
   const [showAdmin, setShowAdmin] = useState(false);
+  const [onboardingInitialStep, setOnboardingInitialStep] = useState(0);
   const [profile, setProfile] = useState(null);
   const [profileLoading, setProfileLoading] = useState(true);
   const profileUnsubRef = useRef(null);
@@ -79,7 +80,7 @@ function App() {
     if (showAdmin) {
       return <AdminDashboard user={user} profile={profile} profileUnsubRef={profileUnsubRef} onBack={() => setShowAdmin(false)} />;
     }
-    return <PrevailHome user={user} guestName={guestName} profile={profile} profileUnsubRef={profileUnsubRef} onOpenAdmin={() => setShowAdmin(true)} onGoToAuth={async () => { if (user?.isAnonymous) await signOut(auth); setOnboardingComplete(false); setPage('gateway'); }} />;
+    return <PrevailHome user={user} guestName={guestName} profile={profile} profileUnsubRef={profileUnsubRef} onOpenAdmin={() => setShowAdmin(true)} onGoToAuth={async () => { if (user?.isAnonymous) await signOut(auth); setOnboardingComplete(false); setPage('gateway'); }} onGoToSignUp={() => { if (user?.isAnonymous) { setOnboardingInitialStep(4); setOnboardingComplete(false); setPage('onboarding'); } else { setOnboardingComplete(false); setPage('gateway'); } }} />;
   }
 
   return (
@@ -91,7 +92,7 @@ function App() {
         />
       )}
       {page === 'onboarding' && (
-        <PrevailOnboarding onComplete={(name) => { if (name) setGuestName(name); setOnboardingComplete(true); }} />
+        <PrevailOnboarding onComplete={(name) => { if (name) setGuestName(name); setOnboardingComplete(true); setOnboardingInitialStep(0); }} initialStep={onboardingInitialStep} initialName={onboardingInitialStep === 4 ? (guestName || user?.displayName || '') : ''} />
       )}
       {page === 'login' && (
         <PrevailLogin
