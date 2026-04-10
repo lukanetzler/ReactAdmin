@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { db } from '../firebase';
+import * as localStore from '../services/localStore';
 
 export function useDailyPath(uid) {
   const [personalItems, setPersonalItems] = useState([]);
@@ -8,9 +9,23 @@ export function useDailyPath(uid) {
   const [broadcastItems, setBroadcastItems] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Personal path listener — separates active items from dismiss markers
+  // Personal path listener
   useEffect(() => {
-    if (!uid) { setPersonalItems([]); setDismissedCardIds(new Set()); setLoading(false); return; }
+    if (!uid) {
+      // Guest mode: read from localStorage
+      const update = () => {
+        const data = localStore.getDailyPath();
+        const dismissed = data.filter(i => i.dismissed);
+        const active = data.filter(i => !i.dismissed);
+        active.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+        setPersonalItems(active);
+        setDismissedCardIds(new Set(dismissed.map(i => i.cardId)));
+        setLoading(false);
+      };
+      update();
+      return localStore.subscribe('pv_guest_dailyPath', update);
+    }
+
     const ref = collection(db, 'users', uid, 'dailyPath');
     const unsub = onSnapshot(ref, (snap) => {
       const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -24,7 +39,7 @@ export function useDailyPath(uid) {
     return unsub;
   }, [uid]);
 
-  // Broadcast listener — cards the admin pushed to all users
+  // Broadcast listener — user-agnostic, always from Firestore
   useEffect(() => {
     const q = query(
       collection(db, 'content', 'libraryCards', 'items'),
@@ -48,7 +63,6 @@ export function useDailyPath(uid) {
     return unsub;
   }, []);
 
-  // Broadcasts appear before personal items; dismissed ones are hidden
   const filteredBroadcasts = broadcastItems.filter(b => !dismissedCardIds.has(b.cardId));
   const items = [...filteredBroadcasts, ...personalItems];
 

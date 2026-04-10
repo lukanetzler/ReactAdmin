@@ -61,7 +61,7 @@ const FEELING_OPTIONS = ['Peaceful', 'Grateful', 'Anxious', 'Hopeful', 'Tired', 
 
 const PATH_CARD_COLORS = ['#E9DCC9', '#D9C9B5', '#D4A373', '#C4B5A0', '#8E9775', '#B0A898'];
 
-const PrevailHome = ({ user, profile, profileUnsubRef, onOpenAdmin }) => {
+const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, onGoToAuth }) => {
   const dailyVerse = getDailyVerse();
 
   const [activeTab, setActiveTab] = useState('home');
@@ -73,7 +73,8 @@ const PrevailHome = ({ user, profile, profileUnsubRef, onOpenAdmin }) => {
   const { categories } = useCategories();
   const { cards: allCards } = useLibraryCards();
 
-  const userName = profile?.name || user?.displayName || 'Friend';
+  const isGuest = !user || user.isAnonymous;
+  const userName = profile?.name || user?.displayName || guestName || 'Friend';
 
   // Account state (derived from profile)
   const [nameInput, setNameInput] = useState('');
@@ -812,7 +813,7 @@ const PrevailHome = ({ user, profile, profileUnsubRef, onOpenAdmin }) => {
 
               {/* Cover card */}
               <div
-                className="min-w-[80vw] h-[440px] rounded-[48px] flex flex-col justify-between p-9 relative overflow-hidden flex-shrink-0 mx-4 snap-center"
+                className="w-[80vw] aspect-square rounded-[48px] flex flex-col justify-between p-9 relative overflow-hidden flex-shrink-0 mx-4 snap-center snap-always"
                 style={{ backgroundColor: card.color || '#D4A373' }}
               >
                 {card.imageUrl && <img src={card.imageUrl} alt="" className="absolute inset-0 w-full h-full object-cover" />}
@@ -838,7 +839,7 @@ const PrevailHome = ({ user, profile, profileUnsubRef, onOpenAdmin }) => {
               {/* Single audio card */}
               {isSingleAudio && (
                 <div
-                  className="min-w-[80vw] h-[440px] bg-[#F4EFE6] rounded-[48px] p-9 flex flex-col justify-between flex-shrink-0 mx-4 snap-center cursor-pointer active:scale-[0.98] transition-transform"
+                  className="w-[80vw] aspect-square bg-[#F4EFE6] rounded-[48px] p-9 flex flex-col justify-between flex-shrink-0 mx-4 snap-center snap-always cursor-pointer active:scale-[0.98] transition-transform"
                   onClick={() => {
                     setActiveSession({ title: card.title, audioUrl: card.audioUrl, cardId: card.id, skipCheckin: true });
                     setLibraryDetailCard(null);
@@ -861,7 +862,7 @@ const PrevailHome = ({ user, profile, profileUnsubRef, onOpenAdmin }) => {
 
               {/* Single article (no tracks) */}
               {isSingleArticle && (
-                <div className="min-w-[80vw] h-[440px] bg-[#F4EFE6] rounded-[48px] p-9 flex flex-col flex-shrink-0 mx-4 snap-center">
+                <div className="w-[80vw] aspect-square bg-[#F4EFE6] rounded-[48px] p-9 flex flex-col flex-shrink-0 mx-4 snap-center snap-always">
                   <span className="text-[10px] font-bold tracking-[0.4em] text-[#433422]/40 uppercase">ARTICLE</span>
                   <p className="mt-6 text-sm text-[#433422]/70 leading-relaxed overflow-y-auto">{card.description || ''}</p>
                 </div>
@@ -889,7 +890,7 @@ const PrevailHome = ({ user, profile, profileUnsubRef, onOpenAdmin }) => {
                       setLibraryDetailCard(null);
                       setView('meditation');
                     }}
-                    className={`min-w-[80vw] h-[440px] rounded-[48px] p-9 flex flex-col justify-between flex-shrink-0 mx-4 snap-center transition-transform ${canPlay ? 'cursor-pointer active:scale-[0.98]' : 'cursor-default'} ${isDone ? 'bg-[#EEF1EA]' : isLockedToday ? 'bg-[#F4EFE6]' : 'bg-[#F4EFE6]'}`}
+                    className={`w-[80vw] aspect-square rounded-[48px] p-9 flex flex-col justify-between flex-shrink-0 mx-4 snap-center snap-always transition-transform ${canPlay ? 'cursor-pointer active:scale-[0.98]' : 'cursor-default'} ${isDone ? 'bg-[#EEF1EA]' : isLockedToday ? 'bg-[#F4EFE6]' : 'bg-[#F4EFE6]'}`}
                   >
                     <div>
                       <span className={`text-[10px] font-bold tracking-[0.4em] uppercase ${isDone ? 'text-[#8E9775]' : isLockedToday ? 'text-[#D4A373]/60' : isCurrent ? 'text-[#D4A373]' : 'text-[#433422]/30'}`}>
@@ -932,7 +933,7 @@ const PrevailHome = ({ user, profile, profileUnsubRef, onOpenAdmin }) => {
                       setActiveReadingSession({ card, reading, trackIndex: i, totalReadings: card.tracks.length, pathItemId: pathItem.id });
                       setLibraryDetailCard(null);
                     }}
-                    className={`min-w-[80vw] h-[440px] rounded-[48px] p-9 flex flex-col justify-between flex-shrink-0 mx-4 snap-center transition-transform ${canRead ? 'cursor-pointer active:scale-[0.98]' : 'cursor-default'} ${isDone ? 'bg-[#EEF1EA]' : 'bg-[#F4EFE6]'}`}
+                    className={`w-[80vw] aspect-square rounded-[48px] p-9 flex flex-col justify-between flex-shrink-0 mx-4 snap-center snap-always transition-transform ${canRead ? 'cursor-pointer active:scale-[0.98]' : 'cursor-default'} ${isDone ? 'bg-[#EEF1EA]' : 'bg-[#F4EFE6]'}`}
                   >
                     <div>
                       <span className={`text-[10px] font-bold tracking-[0.4em] uppercase ${isDone ? 'text-[#8E9775]' : isLockedToday ? 'text-[#D4A373]/60' : isCurrent ? 'text-[#D4A373]' : 'text-[#433422]/30'}`}>
@@ -1651,6 +1652,103 @@ const PrevailHome = ({ user, profile, profileUnsubRef, onOpenAdmin }) => {
   }
 
   // ── Account ────────────────────────────────────────────
+  if (view === 'account' && isGuest) {
+    const pathCount = pathItems.filter(i => !i._broadcast).length;
+    const completionCount = [...completedHistory].length;
+    const streakCount = streakDays.size;
+
+    return (
+      <div className="bg-[#FDF9F3] text-[#433422] font-sans min-h-screen">
+        <div className="animate-view-enter">
+
+          <header className="relative h-[22vh] bg-[#E9DCC9] flex items-end px-8 pb-14">
+            <div className="absolute inset-0 overflow-hidden pointer-events-none">
+              <div className="absolute top-[-10%] right-[-10%] w-64 h-64 bg-[#FFF3E0] rounded-full blur-3xl opacity-60" />
+            </div>
+            <div className="relative z-10">
+              <p className="text-[10px] tracking-[0.3em] font-bold text-[#433422]/50 mb-1">PROFILE</p>
+              <h1 className="text-3xl font-serif">Your Sanctuary</h1>
+            </div>
+            <div className="absolute bottom-0 left-0 right-0 z-20 pointer-events-none">
+              <svg viewBox="0 0 400 50" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-10">
+                <path d="M0,50 L0,28 C80,8 160,42 240,22 C300,6 360,38 400,26 L400,50 Z" fill="#FDF9F3" />
+              </svg>
+            </div>
+          </header>
+
+          <main className="px-6 pt-4 pb-32 space-y-4">
+
+            {/* Stats */}
+            <div className="grid grid-cols-3 gap-3">
+              {[
+                { label: 'IN PATH', value: pathCount },
+                { label: 'COMPLETED', value: completionCount },
+                { label: 'DAYS ACTIVE', value: streakCount },
+              ].map(({ label, value }) => (
+                <div key={label} className="bg-white rounded-[20px] p-4 text-center">
+                  <p className="text-2xl font-serif text-[#433422]">{value}</p>
+                  <p className="text-[8px] font-bold tracking-widest text-[#433422]/40 mt-1">{label}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* Name */}
+            <div className="bg-white rounded-[28px] p-6">
+              <p className="text-[10px] tracking-[0.3em] font-bold text-[#433422]/40 mb-4">YOUR NAME</p>
+              <p className="text-2xl font-serif text-[#433422] pb-2 border-b border-[#E9DCC9]">
+                {userName}
+              </p>
+            </div>
+
+            {/* Data safety warning */}
+            <div className="bg-[#D4A373]/10 rounded-[28px] p-5 flex gap-4 items-start border border-[#D4A373]/20">
+              <div className="w-9 h-9 rounded-xl bg-[#D4A373]/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <Bell size={15} className="text-[#D4A373]" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-[#433422] mb-1">Your data is device-only</p>
+                <p className="text-xs text-[#433422]/60 leading-relaxed">
+                  Your path, journal, and progress are saved on this device only. Create a free account to keep everything safe across all your devices.
+                </p>
+              </div>
+            </div>
+
+            {/* Sign up CTA */}
+            <div className="bg-white rounded-[28px] p-6 space-y-3">
+              <p className="text-[10px] tracking-[0.3em] font-bold text-[#433422]/40 mb-1">YOUR JOURNEY</p>
+              <p className="text-sm text-[#433422]/70 leading-relaxed">
+                A free account keeps your sanctuary safe, synced, and with you wherever you go.
+              </p>
+              <button
+                onClick={onGoToAuth}
+                className="w-full py-4 bg-[#433422] text-[#FDF9F3] rounded-[24px] text-sm font-bold tracking-widest"
+              >
+                CREATE FREE ACCOUNT
+              </button>
+              <button
+                onClick={onGoToAuth}
+                className="w-full py-3.5 text-sm font-bold text-[#433422]/50 tracking-widest border border-[#E9DCC9] rounded-[24px]"
+              >
+                SIGN IN
+              </button>
+            </div>
+
+          </main>
+        </div>
+
+        <nav className="fixed bottom-8 left-1/2 -translate-x-1/2 w-[85%] max-w-sm bg-white/90 backdrop-blur-xl rounded-[32px] py-4 px-8 border border-[#E9DCC9] shadow-2xl z-50">
+          <div className="flex items-center justify-between">
+            <NavIcon icon={<User />} active={true} onClick={() => {}} />
+            <NavIcon icon={<Calendar />} active={false} onClick={() => { setActiveTab('calendar'); setView('calendar-log'); }} />
+            <NavIcon icon={<Home />} active={false} onClick={() => { setActiveTab('home'); setView('dashboard'); }} />
+            <NavIcon icon={<Compass />} active={false} onClick={() => { setActiveTab('resources'); setView('resources'); }} />
+            <NavIcon icon={<PenLine />} active={false} onClick={() => { setActiveTab('journal'); setView('journal'); }} />
+          </div>
+        </nav>
+      </div>
+    );
+  }
+
   if (view === 'account') {
     const notifRows = [
       { label: 'Daily Verse', desc: 'Morning verse to start your day', state: notifDailyVerse, key: 'notifDailyVerse' },

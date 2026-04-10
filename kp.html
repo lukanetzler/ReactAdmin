@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calm Fishing Simulator</title>
+    <style>
+        /* Remove margins so the canvas fills the window cleanly */
+        body { margin: 0; overflow: hidden; background-color: #b0e0e6; }
+        canvas { display: block; }
+    </style>
+</head>
+<body>
+    <script src="https://unpkg.com/kaplay/dist/kaplay.js"></script>
+    
+    <script>
+        // Initialize Kaplay
+        kaplay({
+            width: 800,
+            height: 600,
+            letterbox: true, // Scales the game to fit the screen while keeping aspect ratio
+            background: [176, 224, 230], // Calming powder blue sky
+        });
+
+        // The different things you can catch (mostly fish, plus a boot!)
+        const catches = ["🐟", "🐠", "🐡", "🦑", "🦀", "🦈", "🥾"];
+
+        scene("fishing", () => {
+            // Game states: "idle", "waiting", "biting", "caught"
+            let state = "idle"; 
+            let biteTimer = null;
+            let escapeTimer = null;
+
+            // --- DRAW THE ENVIRONMENT ---
+
+            // A gentle sun
+            add([
+                circle(40),
+                pos(700, 100),
+                color(255, 235, 180),
+            ]);
+
+            // The deep calm water
+            add([
+                rect(width(), height() / 2),
+                pos(0, height() / 2),
+                color(70, 130, 180),
+            ]);
+
+            // The dock
+            add([
+                rect(250, height() / 2),
+                pos(0, height() / 2),
+                color(101, 67, 33),
+            ]);
+
+            // The fishing rod (angled line)
+            const rodBase = vec2(200, height() / 2 - 20);
+            const rodTip = vec2(350, height() / 2 - 120);
+            
+            add([
+                pos(0,0),
+                {
+                    draw() {
+                        drawLine({
+                            p1: rodBase,
+                            p2: rodTip,
+                            width: 6,
+                            color: rgb(139, 69, 19),
+                        });
+                    }
+                }
+            ]);
+
+            // --- INTERACTIVE ELEMENTS ---
+
+            // The bobber
+            const bobber = add([
+                circle(8),
+                pos(450, height() / 2),
+                color(220, 50, 50),
+                anchor("center"),
+                opacity(0), // Hidden until you cast
+            ]);
+
+            // The fishing line (drawn from rod tip to bobber)
+            add([
+                pos(0,0),
+                {
+                    draw() {
+                        if (state === "waiting" || state === "biting") {
+                            drawLine({
+                                p1: rodTip,
+                                p2: bobber.pos,
+                                width: 1,
+                                color: rgb(240, 240, 240),
+                            });
+                        }
+                    }
+                }
+            ]);
+
+            // The soothing UI instructions
+            const uiText = add([
+                text("Tap anywhere to cast your line...", { size: 24, font: "sans-serif" }),
+                pos(width() / 2, 50),
+                anchor("center"),
+                color(80, 80, 80),
+            ]);
+
+            // The display for the fish you caught
+            const catchDisplay = add([
+                text("", { size: 80 }),
+                pos(width() / 2, height() / 2 - 100),
+                anchor("center"),
+                opacity(0),
+            ]);
+
+            // --- ANIMATION LOGIC ---
+
+            onUpdate(() => {
+                if (state === "waiting") {
+                    // Gentle bobbing on the water surface
+                    bobber.pos.y = height() / 2 + Math.sin(time() * 3) * 3;
+                } else if (state === "biting") {
+                    // Frantic splashing/bobbing when a fish bites
+                    bobber.pos.y = (height() / 2 + 5) + Math.sin(time() * 25) * 6; 
+                }
+            });
+
+            // --- INTERACTION LOGIC ---
+
+            onClick(() => {
+                if (state === "idle" || state === "caught") {
+                    // Cast the line
+                    state = "waiting";
+                    uiText.text = "Waiting patiently...";
+                    bobber.opacity = 1;
+                    bobber.pos.y = height() / 2;
+                    catchDisplay.opacity = 0;
+
+                    // Wait a random amount of time (3 to 8 seconds) for a bite
+                    const waitTime = rand(3, 8);
+                    biteTimer = wait(waitTime, () => {
+                        if (state === "waiting") {
+                            state = "biting";
+                            uiText.text = "BITE! TAP TO REEL!";
+                            
+                            // Give the player 1.5 seconds to react
+                            escapeTimer = wait(1.5, () => {
+                                if (state === "biting") {
+                                    state = "idle";
+                                    uiText.text = "It slipped away... Tap to cast again.";
+                                    bobber.opacity = 0;
+                                }
+                            });
+                        }
+                    });
+                } 
+                else if (state === "waiting") {
+                    // Pulled the line up too early
+                    if (biteTimer) biteTimer.cancel();
+                    state = "idle";
+                    uiText.text = "Nothing there yet. Tap to cast again.";
+                    bobber.opacity = 0;
+                } 
+                else if (state === "biting") {
+                    // Success! You caught something
+                    if (escapeTimer) escapeTimer.cancel();
+                    state = "caught";
+                    bobber.opacity = 0;
+                    
+                    const caughtItem = choose(catches);
+                    catchDisplay.text = caughtItem;
+                    catchDisplay.opacity = 1;
+
+                    if (caughtItem === "🥾") {
+                        uiText.text = "An old boot. Nature is healing. Tap to cast again.";
+                    } else {
+                        uiText.text = "A beautiful catch! Tap to cast again.";
+                    }
+
+                    // Little pop animation for the fish
+                    catchDisplay.pos = vec2(width() / 2, height() / 2);
+                    tween(
+                        catchDisplay.pos, 
+                        vec2(width() / 2, height() / 2 - 100), 
+                        0.6, 
+                        (p) => catchDisplay.pos = p, 
+                        easings.easeOutBack
+                    );
+                }
+            });
+        });
+
+        // Start the scene
+        go("fishing");
+    </script>
+</body>
+</html>

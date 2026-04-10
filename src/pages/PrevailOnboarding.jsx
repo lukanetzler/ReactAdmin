@@ -4,7 +4,7 @@ import {
   ArrowLeft,
   Check,
 } from 'lucide-react';
-import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import { createUserWithEmailAndPassword, signInAnonymously, linkWithCredential, EmailAuthProvider, updateProfile } from 'firebase/auth';
 import { auth } from '../firebase';
 import { createUserProfile } from '../services/userProfile';
 import { enrollSignupCards } from '../services/dailyPath';
@@ -30,20 +30,35 @@ const PrevailOnboarding = ({ onComplete }) => {
     setAuthError('');
     setIsSubmitting(true);
     try {
-      const cred = await createUserWithEmailAndPassword(auth, email, password);
       const firstName = name.trim().split(' ')[0];
-      // Set displayName on Auth first (instant, never hangs)
-      await updateProfile(cred.user, { displayName: firstName });
-      // Firestore writes may hang if rules reject — don't block the UI
-      createUserProfile(cred.user.uid, { name: firstName, email }).catch(err =>
+      const isUpgrading = auth.currentUser?.isAnonymous;
+      let uid;
+
+      if (isUpgrading) {
+        // Upgrade anonymous session in-place — UID and all Firestore data are preserved
+        const credential = EmailAuthProvider.credential(email, password);
+        const result = await linkWithCredential(auth.currentUser, credential);
+        await updateProfile(result.user, { displayName: firstName });
+        uid = result.user.uid;
+      } else {
+        const cred = await createUserWithEmailAndPassword(auth, email, password);
+        await updateProfile(cred.user, { displayName: firstName });
+        uid = cred.user.uid;
+      }
+
+      createUserProfile(uid, { name: firstName, email }).catch(err =>
         console.error('Failed to create Firestore profile:', err)
       );
-      enrollSignupCards(cred.user.uid).catch(err =>
-        console.error('Failed to enroll signup cards:', err)
-      );
+      // Only enrol signup cards for brand-new accounts, not upgrades
+      if (!isUpgrading) {
+        enrollSignupCards(uid).catch(err =>
+          console.error('Failed to enrol signup cards:', err)
+        );
+      }
       nextStep();
     } catch (err) {
       const msg = err.code === 'auth/email-already-in-use' ? 'This email is already in use.'
+        : err.code === 'auth/credential-already-in-use' ? 'This email is already linked to another account.'
         : err.code === 'auth/weak-password' ? 'Password must be at least 6 characters.'
         : err.code === 'auth/invalid-email' ? 'Please enter a valid email address.'
         : 'Something went wrong. Please try again.';
@@ -116,12 +131,16 @@ const PrevailOnboarding = ({ onComplete }) => {
           ))}
         </div>
 
-        <button
-          onClick={() => setStep(5)}
-          className="text-[10px] font-bold tracking-widest text-[#433422]/30 hover:text-[#433422]/70 transition-colors ease-out"
-        >
-          SKIP
-        </button>
+        {step < 4 ? (
+          <button
+            onClick={() => setStep(5)}
+            className="text-[10px] font-bold tracking-widest text-[#433422]/30 hover:text-[#433422]/70 transition-colors ease-out"
+          >
+            SKIP
+          </button>
+        ) : (
+          <div className="w-9" />
+        )}
       </header>
 
       {/* Content */}
@@ -258,7 +277,18 @@ const PrevailOnboarding = ({ onComplete }) => {
                 disabled={isSubmitting}
               />
               <button
-                onClick={() => { nextStep(); }}
+                onClick={async () => {
+                  try {
+                    const { user: anonUser } = await signInAnonymously(auth);
+                    const firstName = name.trim().split(' ')[0];
+                    if (firstName) {
+                      await updateProfile(anonUser, { displayName: firstName });
+                    }
+                  } catch (err) {
+                    console.error('Anonymous sign-in failed:', err);
+                  }
+                  nextStep();
+                }}
                 className="w-full text-sm font-bold tracking-[0.2em] text-gray-400 border border-[#E9DCC9] rounded-[32px] px-10 py-4 hover:border-gray-300 hover:text-[#433422] transition-all ease-out"
               >
                 CONTINUE WITHOUT AN ACCOUNT
@@ -280,7 +310,7 @@ const PrevailOnboarding = ({ onComplete }) => {
             <p className="text-gray-400 mb-12 text-sm leading-relaxed max-w-[65%]">
               "Peace I leave with you; my peace I give you." — John 14:27
             </p>
-            <PrimaryButton onClick={() => onComplete()} label="ENTER PRAYVAIL" color="terracotta" />
+            <PrimaryButton onClick={() => onComplete(name.trim().split(' ')[0])} label="ENTER PRAYVAIL" color="terracotta" />
           </div>
         )}
 

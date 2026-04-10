@@ -1,5 +1,9 @@
 import { collection, addDoc, deleteDoc, doc, setDoc, query, where, getDocs, writeBatch, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
+import {
+  localAddToPath, localRemovePathItem, localUpdatePathItem,
+  localAddCompletionHistory, localAddTrackCompletion, localAddStreakDay,
+} from './localStore';
 
 function withTimeout(promise, ms = 5000) {
   return Promise.race([
@@ -13,6 +17,10 @@ function withTimeout(promise, ms = 5000) {
 const pathRef = (uid) => collection(db, 'users', uid, 'dailyPath');
 
 export async function addToPath(uid, cardId, currentCount, extraFields = {}) {
+  if (!uid) {
+    localAddToPath({ cardId, order: currentCount, addedAt: new Date().toISOString(), trackIndex: 0, completed: false, ...extraFields });
+    return;
+  }
   return withTimeout(addDoc(pathRef(uid), {
     cardId,
     order: currentCount,
@@ -24,11 +32,13 @@ export async function addToPath(uid, cardId, currentCount, extraFields = {}) {
 }
 
 export async function removeFromPath(uid, itemId) {
+  if (!uid) { localRemovePathItem(itemId); return; }
   return withTimeout(deleteDoc(doc(db, 'users', uid, 'dailyPath', itemId)));
 }
 
 // Advance a playlist to the next track, or mark as completed if on the last track
 export async function advancePlaylistTrack(uid, itemId, nextIndex, isLast) {
+  if (!uid) { localUpdatePathItem(itemId, isLast ? { completed: true } : { trackIndex: nextIndex }); return; }
   const update = isLast
     ? { completed: true }
     : { trackIndex: nextIndex };
@@ -42,6 +52,17 @@ export async function advancePlaylistTrack(uid, itemId, nextIndex, isLast) {
 export async function completeTrackForDay(uid, { itemId, cardId, cardTitle, trackIndex, trackTitle, nextIndex, isLast }) {
   const today = new Date().toISOString().slice(0, 10);
   const now = new Date().toISOString();
+
+  if (!uid) {
+    localUpdatePathItem(itemId, {
+      completedToday: today,
+      trackIndex: nextIndex,
+      ...(isLast ? { completed: true, completedAt: now } : {}),
+    });
+    localAddTrackCompletion({ cardId, cardTitle, trackIndex, trackTitle, completedAt: now });
+    if (isLast) localAddCompletionHistory({ cardId, title: cardTitle, type: 'playlist', completedAt: now });
+    return;
+  }
 
   // CRITICAL: update the daily path item — awaited so callers can catch failures
   await withTimeout(setDoc(doc(db, 'users', uid, 'dailyPath', itemId), {
@@ -64,26 +85,35 @@ export async function completeTrackForDay(uid, { itemId, cardId, cardTitle, trac
 
 // Persist completion on a path item (singles and article readings)
 export async function completePathItem(uid, itemId) {
+  if (!uid) { localUpdatePathItem(itemId, { completed: true, completedAt: new Date().toISOString() }); return; }
   return withTimeout(setDoc(doc(db, 'users', uid, 'dailyPath', itemId), { completed: true, completedAt: new Date().toISOString() }, { merge: true }));
 }
 
 // Write a permanent completion record that survives path item deletion
 export async function recordCompletion(uid, cardId, title, type) {
+  if (!uid) { localAddCompletionHistory({ cardId, title, type, completedAt: new Date().toISOString() }); return; }
   return withTimeout(addDoc(collection(db, 'users', uid, 'completionHistory'), { cardId, title, type, completedAt: new Date().toISOString() }));
 }
 
 // Reset a completed playlist back to track 0
 export async function resetPlaylist(uid, itemId) {
+  if (!uid) { localUpdatePathItem(itemId, { trackIndex: 0, completed: false }); return; }
   return withTimeout(setDoc(doc(db, 'users', uid, 'dailyPath', itemId), { trackIndex: 0, completed: false }, { merge: true }));
 }
 
 // Dismiss a broadcast card — writes a marker so the hook can filter it out
 export async function dismissBroadcast(uid, cardId) {
+  if (!uid) { localAddToPath({ cardId, dismissed: true, order: -1, addedAt: new Date().toISOString() }); return; }
   return withTimeout(addDoc(pathRef(uid), { cardId, dismissed: true, order: -1, addedAt: new Date().toISOString() }));
 }
 
 // Swap the order of two path items (for drag-to-reorder)
 export async function swapPathOrder(uid, idA, orderA, idB, orderB) {
+  if (!uid) {
+    localUpdatePathItem(idA, { order: orderB });
+    localUpdatePathItem(idB, { order: orderA });
+    return;
+  }
   const batch = writeBatch(db);
   batch.set(doc(db, 'users', uid, 'dailyPath', idA), { order: orderB }, { merge: true });
   batch.set(doc(db, 'users', uid, 'dailyPath', idB), { order: orderA }, { merge: true });
@@ -91,9 +121,9 @@ export async function swapPathOrder(uid, idA, orderA, idB, orderB) {
 }
 
 // Write a permanent streak day record keyed by date — safe to call multiple times (idempotent).
-// Survives journal entry deletion since it lives in a separate collection.
 export async function recordStreakDay(uid) {
   const date = new Date().toISOString().slice(0, 10);
+  if (!uid) { localAddStreakDay(date); return; }
   return withTimeout(setDoc(doc(db, 'users', uid, 'streakDays', date), { date, recordedAt: new Date().toISOString() }, { merge: true }));
 }
 

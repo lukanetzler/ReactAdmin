@@ -1,13 +1,26 @@
 import { useState, useEffect } from 'react';
 import { collection, onSnapshot, query, where, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
+import * as localStore from '../services/localStore';
 
-// Returns all permanently recorded track completions for a given card.
-// Works even if the card has been removed from the user's daily path.
 export function useTrackCompletions(uid, cardId) {
   const [completions, setCompletions] = useState([]);
 
   useEffect(() => {
+    if (!uid) {
+      if (!cardId) { setCompletions([]); return; }
+      const update = () => {
+        const all = localStore.getTrackCompletions();
+        setCompletions(
+          all
+            .filter(c => c.cardId === cardId)
+            .sort((a, b) => (a.completedAt || '').localeCompare(b.completedAt || ''))
+        );
+      };
+      update();
+      return localStore.subscribe('pv_guest_trackCompletions', update);
+    }
+
     if (!uid || !cardId) { setCompletions([]); return; }
     const q = query(
       collection(db, 'users', uid, 'trackCompletions'),

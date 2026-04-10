@@ -39,7 +39,7 @@ const ResourceCard = ({
       className={`aspect-square rounded-[20px] overflow-hidden relative transition-transform select-none ${!lockedToday && onClick ? 'active:scale-[0.97] cursor-pointer' : ''} ${inPath && !lockedToday ? 'ring-2 ring-[#D4A373]' : ''} ${isSupporter || lockedToday ? 'opacity-60' : ''}`}
       style={{ backgroundColor: color }}
     >
-      {imageUrl && <img src={imageUrl} alt="" className="absolute inset-0 w-full h-full object-cover" />}
+      {imageUrl && <img src={imageUrl} alt="" className="absolute inset-px w-full h-full object-cover" />}
       {imageUrl && <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent" />}
 
       {lockedToday && <div className="absolute inset-0 bg-[#FDF9F3]/40 backdrop-blur-[2px]" />}
@@ -67,7 +67,7 @@ const ResourceCard = ({
         </div>
       )}
 
-      <div className="absolute bottom-0 left-0 right-0 z-10 px-2.5 py-2 pr-9 backdrop-blur-md bg-black/30 border-t border-white/10">
+      <div className="absolute bottom-0 left-0 right-0 z-10 px-2.5 py-2 pr-9 rounded-b-[20px]" style={{ backgroundColor: color ? `${color}E6` : 'rgba(0,0,0,0.3)' }}>
         {label && <p className="text-[7px] font-bold tracking-widest mb-0.5 text-white/60">{label}</p>}
         <p className="text-[10px] font-serif leading-snug text-white">{title}</p>
         {duration && <p className="text-[8px] mt-0.5 font-bold text-white/55">{duration}</p>}

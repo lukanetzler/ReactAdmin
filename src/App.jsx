@@ -2,6 +2,9 @@ import { useState, useEffect, useRef } from 'react';
 import { onSnapshot, doc } from 'firebase/firestore';
 import { db } from './firebase';
 import { useAuth } from './hooks/useAuth';
+import { signOut } from 'firebase/auth';
+import { auth } from './firebase';
+import { migrateGuestDataIfNeeded } from './services/migrateGuest';
 import prayvailLogo from './assets/prayvail-logo-blank.png';
 import PrevailGateway from './pages/PrevailGateway';
 import PrevailOnboarding from './pages/PrevailOnboarding';
@@ -13,6 +16,7 @@ function App() {
   const { user, loading } = useAuth();
   const [page, setPage] = useState('gateway');
   const [onboardingComplete, setOnboardingComplete] = useState(false);
+  const [guestName, setGuestName] = useState('');
   const [showAdmin, setShowAdmin] = useState(false);
   const [profile, setProfile] = useState(null);
   const [profileLoading, setProfileLoading] = useState(true);
@@ -42,6 +46,9 @@ function App() {
       setPage('gateway');
       setOnboardingComplete(false);
     }
+    if (user && !user.isAnonymous) {
+      migrateGuestDataIfNeeded(user.uid).catch(() => {});
+    }
   }, [user, loading]);
 
   const [fading, setFading] = useState(false);
@@ -68,11 +75,11 @@ function App() {
     );
   }
 
-  if (user && (page !== 'onboarding' || onboardingComplete)) {
+  if (onboardingComplete || (user && page !== 'onboarding')) {
     if (showAdmin) {
       return <AdminDashboard user={user} profile={profile} profileUnsubRef={profileUnsubRef} onBack={() => setShowAdmin(false)} />;
     }
-    return <PrevailHome user={user} profile={profile} profileUnsubRef={profileUnsubRef} onOpenAdmin={() => setShowAdmin(true)} />;
+    return <PrevailHome user={user} guestName={guestName} profile={profile} profileUnsubRef={profileUnsubRef} onOpenAdmin={() => setShowAdmin(true)} onGoToAuth={async () => { if (user?.isAnonymous) await signOut(auth); setOnboardingComplete(false); setPage('gateway'); }} />;
   }
 
   return (
@@ -84,7 +91,7 @@ function App() {
         />
       )}
       {page === 'onboarding' && (
-        <PrevailOnboarding onComplete={() => setOnboardingComplete(true)} />
+        <PrevailOnboarding onComplete={(name) => { if (name) setGuestName(name); setOnboardingComplete(true); }} />
       )}
       {page === 'login' && (
         <PrevailLogin
