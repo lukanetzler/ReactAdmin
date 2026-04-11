@@ -131,16 +131,7 @@ const PrevailOnboarding = ({ onComplete, initialStep = 0, initialName = '' }) =>
           ))}
         </div>
 
-        {step < 4 ? (
-          <button
-            onClick={() => setStep(5)}
-            className="text-[10px] font-bold tracking-widest text-[#433422]/30 hover:text-[#433422]/70 transition-colors ease-out"
-          >
-            SKIP
-          </button>
-        ) : (
-          <div className="w-9" />
-        )}
+        <div className="w-9" />
       </header>
 
       {/* Content */}
@@ -276,16 +267,11 @@ const PrevailOnboarding = ({ onComplete, initialStep = 0, initialName = '' }) =>
                 fullWidth
                 disabled={isSubmitting}
               />
-              {auth.currentUser?.isAnonymous ? (
-                <button
-                  onClick={() => onComplete('')}
-                  className="w-full text-sm font-bold tracking-[0.2em] text-gray-400 border border-[#E9DCC9] rounded-[32px] px-10 py-4 hover:border-gray-300 hover:text-[#433422] transition-all ease-out"
-                >
-                  MAYBE LATER
-                </button>
-              ) : (
-                <button
-                  onClick={async () => {
+              <button
+                onClick={async () => {
+                  if (auth.currentUser?.isAnonymous) {
+                    onComplete('');
+                  } else {
                     try {
                       const { user: anonUser } = await signInAnonymously(auth);
                       const firstName = name.trim().split(' ')[0];
@@ -296,12 +282,12 @@ const PrevailOnboarding = ({ onComplete, initialStep = 0, initialName = '' }) =>
                       console.error('Anonymous sign-in failed:', err);
                     }
                     nextStep();
-                  }}
-                  className="w-full text-sm font-bold tracking-[0.2em] text-gray-400 border border-[#E9DCC9] rounded-[32px] px-10 py-4 hover:border-gray-300 hover:text-[#433422] transition-all ease-out"
-                >
-                  CONTINUE WITHOUT AN ACCOUNT
-                </button>
-              )}
+                  }
+                }}
+                className="w-full text-sm font-bold tracking-[0.2em] text-gray-400 border border-[#E9DCC9] rounded-[32px] px-10 py-4 hover:border-gray-300 hover:text-[#433422] transition-all ease-out"
+              >
+                MAYBE LATER
+              </button>
             </div>
           </div>
         )}

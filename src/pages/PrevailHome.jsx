@@ -1653,10 +1653,6 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
 
   // ── Account ────────────────────────────────────────────
   if (view === 'account' && isGuest) {
-    const pathCount = pathItems.filter(i => !i._broadcast).length;
-    const completionCount = [...completedHistory].length;
-    const streakCount = streakDays.size;
-
     return (
       <div className="bg-[#FDF9F3] text-[#433422] font-sans min-h-screen">
         <div className="animate-view-enter">
@@ -1677,20 +1673,6 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
           </header>
 
           <main className="px-6 pt-4 pb-32 space-y-4">
-
-            {/* Stats */}
-            <div className="grid grid-cols-3 gap-3">
-              {[
-                { label: 'IN PATH', value: pathCount },
-                { label: 'COMPLETED', value: completionCount },
-                { label: 'DAYS ACTIVE', value: streakCount },
-              ].map(({ label, value }) => (
-                <div key={label} className="bg-white rounded-[20px] p-4 text-center">
-                  <p className="text-2xl font-serif text-[#433422]">{value}</p>
-                  <p className="text-[8px] font-bold tracking-widest text-[#433422]/40 mt-1">{label}</p>
-                </div>
-              ))}
-            </div>
 
             {/* Name */}
             <div className="bg-white rounded-[28px] p-6">
