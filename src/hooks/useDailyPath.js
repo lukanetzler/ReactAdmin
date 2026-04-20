@@ -5,6 +5,7 @@ import * as localStore from '../services/localStore';
 
 export function useDailyPath(uid) {
   const [personalItems, setPersonalItems] = useState([]);
+  const [archivedItems, setArchivedItems] = useState([]);
   const [dismissedCardIds, setDismissedCardIds] = useState(new Set());
   const [broadcastItems, setBroadcastItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -16,9 +17,11 @@ export function useDailyPath(uid) {
       const update = () => {
         const data = localStore.getDailyPath();
         const dismissed = data.filter(i => i.dismissed);
-        const active = data.filter(i => !i.dismissed);
+        const active = data.filter(i => !i.dismissed && !i.archived);
+        const archived = data.filter(i => i.archived).sort((a, b) => (b.completedAt || '') > (a.completedAt || '') ? 1 : -1);
         active.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
         setPersonalItems(active);
+        setArchivedItems(archived);
         setDismissedCardIds(new Set(dismissed.map(i => i.cardId)));
         setLoading(false);
       };
@@ -30,9 +33,11 @@ export function useDailyPath(uid) {
     const unsub = onSnapshot(ref, (snap) => {
       const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       const dismissed = data.filter(i => i.dismissed);
-      const active = data.filter(i => !i.dismissed);
+      const active = data.filter(i => !i.dismissed && !i.archived);
+      const archived = data.filter(i => i.archived).sort((a, b) => (b.completedAt || '') > (a.completedAt || '') ? 1 : -1);
       active.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
       setPersonalItems(active);
+      setArchivedItems(archived);
       setDismissedCardIds(new Set(dismissed.map(i => i.cardId)));
       setLoading(false);
     }, () => setLoading(false));
@@ -66,5 +71,5 @@ export function useDailyPath(uid) {
   const filteredBroadcasts = broadcastItems.filter(b => !dismissedCardIds.has(b.cardId));
   const items = [...filteredBroadcasts, ...personalItems];
 
-  return { items, loading };
+  return { items, archivedItems, loading };
 }

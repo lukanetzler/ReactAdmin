@@ -39,7 +39,7 @@ const ResourceCard = ({
       className={`aspect-square rounded-[20px] overflow-hidden relative transition-transform select-none ${!lockedToday && onClick ? 'active:scale-[0.97] cursor-pointer' : ''} ${inPath && !lockedToday ? 'ring-2 ring-[#D4A373]' : ''} ${isSupporter || lockedToday ? 'opacity-60' : ''}`}
       style={{ backgroundColor: color }}
     >
-      {imageUrl && <img src={imageUrl} alt="" className="absolute inset-px w-full h-full object-cover" />}
+      {imageUrl && <img src={imageUrl} alt="" className="absolute inset-0 w-full h-full object-cover" />}
       {imageUrl && <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent" />}
 
       {lockedToday && <div className="absolute inset-0 bg-[#FDF9F3]/40 backdrop-blur-[2px]" />}

@@ -1,5 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import ResourceCard from '../components/ResourceCard';
+import BoxBreathing from '../components/BoxBreathing';
+import GroundingExercise from '../components/GroundingExercise';
+import FishingSim from '../components/FishingSim';
 import { signOut, verifyBeforeUpdateEmail, updatePassword, updateProfile, deleteUser, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
 import { auth } from '../firebase';
 import { useJournalEntries } from '../hooks/useJournalEntries';
@@ -7,7 +10,7 @@ import { usePathSessions, useLibraryCards, useCategories } from '../hooks/useCon
 import { useDailyPath } from '../hooks/useDailyPath';
 import { addJournalEntry, updateJournalEntry, deleteJournalEntry } from '../services/journal';
 import { updateUserProfile } from '../services/userProfile';
-import { addToPath, removeFromPath, advancePlaylistTrack, completeTrackForDay, resetPlaylist, swapPathOrder, dismissBroadcast, completePathItem, recordCompletion, recordStreakDay } from '../services/dailyPath';
+import { addToPath, removeFromPath, completeTrackForDay, dismissBroadcast, completePathItem, recordCompletion, recordStreakDay } from '../services/dailyPath';
 import { useTrackCompletions } from '../hooks/useTrackCompletions';
 import { useCompletionHistory } from '../hooks/useCompletionHistory';
 import { useStreakDays } from '../hooks/useStreakDays';
@@ -17,7 +20,6 @@ import meditationTrack from '../assets/Day One - With Archer.mp3';
 import { getDailyVerse } from '../data/getDailyVerse';
 import {
   Compass,
-  Gamepad2,
   User,
   Home,
   Play,
@@ -31,8 +33,6 @@ import {
   Headphones,
   ArrowRight,
   ArrowLeft,
-  ArrowUp,
-  ArrowDown,
   PenLine,
   Trash2,
   Plus,
@@ -103,7 +103,9 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
   const [journalError, setJournalError] = useState('');
 
   // Daily path
-  const { items: pathItems } = useDailyPath(user?.uid);
+  const { items: pathItems, archivedItems } = useDailyPath(user?.uid);
+  const activeModule = pathItems.find(i => !i._broadcast) ?? null;
+  const activeModuleCard = activeModule ? allCards.find(c => c.id === activeModule.cardId) ?? null : null;
   const { completedCardIds: completedHistory, completionDates } = useCompletionHistory(user?.uid);
   const streakDays = useStreakDays(user?.uid);
   const [completedCardIds, setCompletedCardIds] = useState(new Set());
@@ -118,6 +120,8 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
   const [supporterLockCard, setSupporterLockCard] = useState(null);
   const [pathToast, setPathToast] = useState(null); // { message, id }
   const [togglingCardIds, setTogglingCardIds] = useState(new Set());
+  const [viewingModuleId, setViewingModuleId] = useState(null);
+  const [pendingCelebration, setPendingCelebration] = useState(false);
 
   const showPathToast = (message) => {
     const id = Date.now();
@@ -256,13 +260,8 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
         nextIndex: isLast ? activeSession.trackIndex : nextIndex,
         isLast,
       }).catch(() => {});
-      if (isLast) {
-        removeFromPath(user.uid, activeSession.pathItemId).catch(() => {});
-        setView('completion-celebration');
-        return;
-      }
+      if (isLast) setPendingCelebration(true);
     } else if (activeSession?.cardId && activeSession?.pathItemId) {
-      // Single track from path — persist completion
       completePathItem(user.uid, activeSession.pathItemId).catch(() => {});
       recordCompletion(user.uid, activeSession.cardId, activeSession.title, 'single').catch(() => {});
     }
@@ -534,6 +533,7 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
                         <button
                           onClick={async () => {
                             if (isInPath) { await Promise.all(existingItems.map(item => removeFromPath(user.uid, item.id))); showPathToast('Removed from your path'); }
+                            else if (activeModule) { showPathToast('Finish your current module first'); }
                             else { await addToPath(user.uid, activeDetailCard.id, pathItems.length); showPathToast('Added to your path'); }
                           }}
                           className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold transition-colors ${isInPath ? 'bg-[#D4A373] text-white' : 'bg-[#E9DCC9]/80 text-[#433422]/70 hover:bg-[#E9DCC9]'}`}
@@ -678,13 +678,11 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
                   nextIndex: isLast ? activeReadingSession.trackIndex : nextIndex,
                   isLast,
                 }).catch(() => {});
+                setActiveReadingSession(null);
                 if (isLast) {
-                  removeFromPath(user.uid, activeReadingSession.pathItemId).catch(() => {});
-                  setActiveSession({ title: activeReadingSession.card.title, cardId: activeReadingSession.card.id, pathItemId: activeReadingSession.pathItemId, skipCheckin: true });
-                  setActiveReadingSession(null);
-                  setView('completion-celebration');
-                } else {
-                  setActiveReadingSession(null);
+                  setPendingCelebration(true);
+                  setMeditatedToday(true);
+                  setView('post-checkin');
                 }
               }} className="w-full py-4 rounded-[20px] text-sm font-bold tracking-widest" style={{ backgroundColor: '#433422', color: '#FDF9F3' }}>
                 MARK AS READ
@@ -769,9 +767,10 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
                       setView('supporter-lock');
                       return;
                     }
+                    if (activeModule) { showPathToast('Finish your current module first'); return; }
                     const extra = isPathDoneToday ? { completedToday: todayISO } : {};
                     await addToPath(user.uid, card.id, pathItems.length, extra);
-                    showPathToast(isPathDoneToday ? 'Added — available tomorrow' : 'Added to your path');
+                    showPathToast('Added to your path');
                   }
                 }}
                 className={`w-full flex items-center justify-center gap-2 py-3.5 rounded-[20px] text-xs font-bold tracking-[0.15em] uppercase transition-colors ${
@@ -1078,10 +1077,10 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
 
           {/* Text */}
           <div>
-            <p className="text-[10px] tracking-[0.4em] font-bold text-[#433422]/40 mb-3">SERIES COMPLETE</p>
+            <p className="text-[10px] tracking-[0.4em] font-bold text-[#433422]/40 mb-3">MODULE COMPLETE</p>
             <h2 className="text-4xl font-serif mb-4 leading-tight">You finished it.</h2>
             <p className="text-[#433422]/55 text-sm leading-relaxed max-w-xs mx-auto">
-              <span className="font-semibold text-[#433422]">{seriesTitle}</span> has been completed and removed from your path.
+              <span className="font-semibold text-[#433422]">{seriesTitle}</span> is now part of your journey. You can look back on it anytime.
             </p>
           </div>
 
@@ -1264,25 +1263,19 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
             </div>
           </div>
 
-          <div className="w-full space-y-3">
+          <div className="w-full">
             <button
               onClick={() => {
                 setPostFeelingWord(feelingInput);
                 setFeelingInput('');
                 setJournalMode('new');
-                setJournalStep(0);
+                setJournalSlideDir(1);
+                setJournalStep(1);
                 setView('journal');
               }}
-              disabled={!feelingInput.trim()}
-              className="w-full py-5 bg-[#433422] text-[#FDF9F3] rounded-[24px] font-serif text-lg flex items-center justify-center gap-3 disabled:opacity-30 transition-opacity"
+              className="w-full py-5 bg-[#433422] text-[#FDF9F3] rounded-[24px] font-serif text-lg flex items-center justify-center gap-3"
             >
-              Record a reflection <ArrowRight size={18} />
-            </button>
-            <button
-              onClick={() => { setFeelingInput(''); setView('dashboard'); }}
-              className="w-full py-4 text-[#433422]/40 text-sm"
-            >
-              Skip
+              Continue <ArrowRight size={18} />
             </button>
           </div>
         </div>
@@ -1309,6 +1302,7 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
 
     const goBack = () => {
       if (journalStep === 1) {
+        if (isNewMode) { setView('post-checkin'); return; }
         setJournalSlideDir(-1);
         setJournalStep(0);
         return;
@@ -1339,16 +1333,20 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
           await addJournalEntry(user.uid, {
             dateISO: entryDateISO,
             dateDisplay: entryDateDisplay,
-            feelingBefore: preFeelingWord,
             feelingAfter: postFeelingWord,
             reflection: journalText,
+            ...(isNewMode && activeSession?.title ? { meditationTitle: activeSession.title } : {}),
           });
         }
         setJournalMode('new');
         setEditingEntryId(null);
         setJournalText('');
         setJournalStep(0);
-        if (isNewMode) { recordStreakDay(user.uid).catch(() => {}); setView('dashboard'); } else { setView('calendar-log'); }
+        if (isNewMode) {
+          recordStreakDay(user.uid).catch(() => {});
+          if (pendingCelebration) { setPendingCelebration(false); setView('completion-celebration'); }
+          else { setView('dashboard'); }
+        } else { setView('calendar-log'); }
       } catch {
         setJournalError('Could not save. Please try again.');
       } finally {
@@ -1470,7 +1468,7 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
                   whileTap={{ scale: 0.97 }}
                   className="w-full py-5 bg-[#433422] text-[#FDF9F3] rounded-[24px] font-serif text-lg flex items-center justify-center gap-3 disabled:opacity-50"
                 >
-                  {journalSaving ? 'Saving…' : isEditMode ? 'Save Changes' : 'Complete'} {!journalSaving && <ArrowRight size={18} />}
+                  {journalSaving ? 'Saving…' : isEditMode ? 'Save Changes' : journalText.trim() ? 'Complete' : 'Continue'} {!journalSaving && <ArrowRight size={18} />}
                 </motion.button>
               </motion.div>
             )}
@@ -2087,7 +2085,7 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
                   return (
                     <button
                       key={session.id}
-                      onClick={() => isWired && setView('pre-checkin')}
+                      onClick={() => { if (!isWired) return; setActiveSession({ title: session.title || `Day ${session.day}`, audioUrl: session.audioUrl }); setView('meditation'); }}
                       className={`flex-shrink-0 w-[130px] rounded-[22px] overflow-hidden text-left shadow-sm ${isWired ? 'active:scale-95 transition-transform' : ''}`}
                     >
                       <div className="h-[96px] relative flex flex-col justify-between p-3.5" style={{ backgroundColor: color }}>
@@ -2217,9 +2215,10 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
                 ) : (
                   <button
                     onClick={async () => {
+                      if (activeModule) { showPathToast('Finish your current module first'); setActionSheetCard(null); return; }
                       const extra = isPathDoneToday ? { completedToday: todayISO } : {};
                       await addToPath(user.uid, actionSheetCard.id, pathItems.length, extra);
-                      showPathToast(isPathDoneToday ? 'Added — available tomorrow' : 'Added to your path');
+                      showPathToast('Added to your path');
                       setActionSheetCard(null);
                     }}
                     className="w-full py-4 bg-[#433422] text-[#FDF9F3] rounded-[24px] font-serif text-base"
@@ -2238,14 +2237,23 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
     );
   }
 
+  // ── Box Breathing ──────────────────────────────────────
+  if (view === 'breathe') {
+    return <BoxBreathing onBack={() => setView('explore')} />;
+  }
+
+  // ── Grounding Exercise ─────────────────────────────────
+  if (view === 'ground') {
+    return <GroundingExercise onBack={() => setView('explore')} user={user} />;
+  }
+
+  // ── Calm Fishing ───────────────────────────────────────
+  if (view === 'fishing') {
+    return <FishingSim onBack={() => setView('explore')} />;
+  }
+
   // ── Explore ─────────────────────────────────────────────
   if (view === 'explore') {
-    const games = [
-      { title: 'Bible Trivia', label: 'KNOWLEDGE', desc: 'Test your scripture knowledge', color: '#D4C5B2' },
-      { title: 'Verse Memory', label: 'MEMORY', desc: 'Commit the Word to heart', color: '#C4B5A0' },
-      { title: 'Faith Quiz', label: 'DAILY', desc: 'One question, every day', color: '#8E9775' },
-      { title: 'Word of Life', label: 'WORD GAME', desc: 'Scripture word puzzles', color: '#D9C9B5' },
-    ];
     return (
       <div className="bg-[#FDF9F3] text-[#433422] font-sans min-h-screen">
         <div className="animate-view-enter">
@@ -2267,31 +2275,71 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
 
           <main className="pt-4 pb-32 space-y-10">
 
-            {/* Minigames */}
+            {/* Wellness */}
             <section className="px-8">
               <div className="flex items-center justify-between mb-5">
                 <div>
-                  <p className="text-[10px] tracking-[0.3em] font-bold text-[#433422]/40">COMING SOON</p>
-                  <h2 className="text-xl font-serif">Minigames</h2>
-                </div>
-                <div className="w-9 h-9 rounded-xl bg-[#F4EFE6] flex items-center justify-center">
-                  <Gamepad2 size={17} className="text-[#D4A373]" />
+                  <p className="text-[10px] tracking-[0.3em] font-bold text-[#433422]/40">A MOMENT OF STILLNESS</p>
+                  <h2 className="text-xl font-serif">Breathe & Ground</h2>
                 </div>
               </div>
               <div className="space-y-3">
-                {games.map((game, i) => (
-                  <div key={i} className="bg-white rounded-[24px] p-5 border border-[#E9DCC9] flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-[16px] flex-shrink-0 flex items-center justify-center" style={{ backgroundColor: game.color }}>
-                      <Lock size={14} className="text-[#433422]/30" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[9px] font-bold tracking-widest text-[#433422]/35 mb-0.5">{game.label}</p>
-                      <p className="text-sm font-serif text-[#433422]">{game.title}</p>
-                      <p className="text-[10px] text-[#433422]/40 mt-0.5">{game.desc}</p>
-                    </div>
-                    <span className="text-[8px] font-bold tracking-widest text-[#433422]/30 bg-[#F4EFE6] px-2.5 py-1.5 rounded-full flex-shrink-0">SOON</span>
+                <button
+                  onClick={() => setView('breathe')}
+                  className="w-full bg-white rounded-[24px] p-5 border border-[#E9DCC9] flex items-center gap-4 text-left hover:border-[#D4A373] transition-colors"
+                >
+                  <div className="w-12 h-12 rounded-[16px] flex-shrink-0 flex items-center justify-center bg-[#D4A373]/10">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#D4A373" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>
+                    </svg>
                   </div>
-                ))}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[9px] font-bold tracking-widest text-[#D4A373] mb-0.5">BREATH WORK</p>
+                    <p className="text-sm font-serif text-[#433422]">Box Breathing</p>
+                    <p className="text-[10px] text-[#433422]/40 mt-0.5">4-count inhale, hold, exhale, hold</p>
+                  </div>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#433422" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-[#433422]/20 flex-shrink-0">
+                    <path d="M5 12h14M12 5l7 7-7 7"/>
+                  </svg>
+                </button>
+
+                <button
+                  onClick={() => setView('ground')}
+                  className="w-full bg-white rounded-[24px] p-5 border border-[#E9DCC9] flex items-center gap-4 text-left hover:border-[#8E9775] transition-colors"
+                >
+                  <div className="w-12 h-12 rounded-[16px] flex-shrink-0 flex items-center justify-center bg-[#8E9775]/10">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#8E9775" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10z"/><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/>
+                    </svg>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[9px] font-bold tracking-widest text-[#8E9775] mb-0.5">GROUNDING</p>
+                    <p className="text-sm font-serif text-[#433422]">5-4-3-2-1 Senses</p>
+                    <p className="text-[10px] text-[#433422]/40 mt-0.5">Anchor yourself in the present moment</p>
+                  </div>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#433422" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-[#433422]/20 flex-shrink-0">
+                    <path d="M5 12h14M12 5l7 7-7 7"/>
+                  </svg>
+                </button>
+
+                <button
+                  onClick={() => setView('fishing')}
+                  className="w-full bg-white rounded-[24px] p-5 border border-[#E9DCC9] flex items-center gap-4 text-left hover:border-[#5b8fa8] transition-colors"
+                >
+                  <div className="w-12 h-12 rounded-[16px] flex-shrink-0 flex items-center justify-center bg-[#5b8fa8]/10">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#5b8fa8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M18 5v8a4 4 0 0 1-4 4H6"/><path d="m6 17-3 3 3 3"/><path d="M21 3h-6"/><path d="M21 3v6"/>
+                    </svg>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[9px] font-bold tracking-widest text-[#5b8fa8] mb-0.5">MINDFUL GAME</p>
+                    <p className="text-sm font-serif text-[#433422]">Calm Fishing</p>
+                    <p className="text-[10px] text-[#433422]/40 mt-0.5">Breathe, wait, and be still</p>
+                  </div>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#433422" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-[#433422]/20 flex-shrink-0">
+                    <path d="M5 12h14M12 5l7 7-7 7"/>
+                  </svg>
+                </button>
               </div>
             </section>
 
@@ -2387,33 +2435,51 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
           </button>
         </section>
 
-        {/* Your Path Today */}
+        {/* Your Journey */}
         {(() => {
-          const pathCards = pathItems
+          // Build ordered module list: oldest archived first, then active
+          const archivedModules = archivedItems
             .map(item => { const card = allCards.find(c => c.id === item.cardId); return card ? { card, item } : null; })
-            .filter(Boolean);
-          const completedCount = pathCards.filter(({ card, item }) => {
-            const isSeq = card.type === 'playlist' || (card.type === 'article' && (card.tracks?.length ?? 0) > 0);
-            if (isSeq) return item.completedToday === todayISO || !!item.completed;
-            return completedCardIds.has(card.id) || completedHistory.has(card.id);
-          }).length + (journaledToday ? 1 : 0);
-          const totalCount = pathCards.length + 1;
-
-          const allSteps = [
-            ...pathCards.map(({ card, item }, idx) => ({ type: 'card', card, item, idx })),
-            { type: 'journal' },
+            .filter(Boolean)
+            .reverse(); // completedAt desc → reverse to oldest-first for display
+          const hasActive = !!activeModule && !!activeModuleCard;
+          const allModules = [
+            ...archivedModules,
+            ...(hasActive ? [{ card: activeModuleCard, item: activeModule }] : []),
           ];
 
-          const STEP_H = 200;
+          // Determine which module is being viewed
+          const viewingEntry = viewingModuleId
+            ? allModules.find(m => m.item.id === viewingModuleId)
+            : allModules[allModules.length - 1] ?? null;
+          const isViewingActive = !viewingModuleId || (hasActive && viewingModuleId === activeModule.id);
+          const vCard = viewingEntry?.card ?? null;
+          const vItem = viewingEntry?.item ?? null;
+
+          const tracks = vCard?.tracks ?? [];
+          const trackIndex = vItem?.trackIndex ?? 0;
+          const isArchived = !!vItem?.archived;
+          const allComplete = isArchived || !!vItem?.completed;
+          const doneToday = !allComplete && vItem?.completedToday === todayISO;
+          const completedTrackCount = allComplete ? tracks.length : trackIndex;
+          const totalSteps = tracks.length;
+          const completedSteps = completedTrackCount;
+
+          const STEP_H = 190;
+          const trackSteps = tracks.map((track, i) => {
+            const isDone = allComplete || i < trackIndex;
+            const isCurrent = isViewingActive && !allComplete && !doneToday && i === trackIndex;
+            const isLocked = !isDone && !isCurrent;
+            return { type: 'track', track, i, isDone, isCurrent, isLocked };
+          });
+          const allSteps = [...trackSteps];
           const totalHeight = allSteps.length * STEP_H + 20;
           const vbH = allSteps.length * 220;
 
           const buildPathD = (n) => {
             if (n <= 0) return 'M 50 0 L 50 220';
             let d = `M 50 0 Q 35 110 50 220`;
-            for (let i = 1; i < n; i++) {
-              d += ` T 50 ${(i + 1) * 220}`;
-            }
+            for (let i = 1; i < n; i++) d += ` T 50 ${(i + 1) * 220}`;
             return d;
           };
           const svgPathD = buildPathD(allSteps.length);
@@ -2421,216 +2487,206 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
 
           return (
             <section>
-              <div className="flex items-center justify-between mb-5">
-                <h3 className="text-xl font-serif">Your Path Today</h3>
-                <div className="flex items-center gap-2 flex-1 ml-4">
-                  <div className="flex-1 h-1 bg-[#E9DCC9] rounded-full overflow-hidden">
-                    <motion.div
-                      className="h-full bg-[#D4A373] rounded-full"
-                      initial={{ scaleX: 0 }}
-                      animate={{ scaleX: totalCount > 0 ? completedCount / totalCount : 0 }}
-                      transition={{ duration: 0.6, ease: 'easeOut' }}
-                      style={{ transformOrigin: 'left' }}
-                    />
-                  </div>
-                  <span className="text-xs font-bold text-[#433422]/30 tabular-nums">{completedCount}/{totalCount}</span>
-                </div>
+              {/* Section header */}
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-serif">Your Journey</h3>
               </div>
 
-              {pathCards.length === 0 && (
-                <div
-                  className="flex items-center gap-4 cursor-pointer mb-2"
-                  onClick={() => { setActiveTab('wheat'); setView('resources'); }}
-                >
-                  <div className="flex-1 bg-white rounded-[24px] px-5 py-4 border border-dashed border-[#E9DCC9] flex items-center justify-between">
-                    <span className="text-sm text-[#433422]/30">Browse the Library to build your path</span>
+              {/* Module selector — always visible */}
+              <div className="flex gap-2 overflow-x-auto no-scrollbar mb-4 pb-0.5">
+                {allModules.length === 0 ? (
+                  <button
+                    onClick={() => { setActiveTab('wheat'); setView('resources'); }}
+                    className="flex-1 bg-white rounded-[24px] px-5 py-4 border border-dashed border-[#E9DCC9] flex items-center justify-between"
+                  >
+                    <span className="text-sm text-[#433422]/30">Add a module from the Library to begin</span>
                     <ChevronRight size={16} className="text-[#433422]/20" />
+                  </button>
+                ) : allModules.map(({ card, item }) => {
+                  const isActive = !item.archived;
+                  const isSelected = viewingEntry?.item.id === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => setViewingModuleId(isActive ? null : item.id)}
+                      className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold tracking-widest transition-colors ${
+                        isSelected
+                          ? 'bg-[#D4A373] text-white'
+                          : 'bg-[#E9DCC9] text-[#433422] hover:bg-[#D9C9B5]'
+                      }`}
+                    >
+                      {isActive && <span className="w-1.5 h-1.5 rounded-full bg-current opacity-70" />}
+                      {card.title}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Module header card */}
+              {vCard && (
+                <div
+                  className="rounded-[20px] p-4 mb-5 relative overflow-hidden"
+                  style={{ backgroundColor: vCard.color || '#D4A373' }}
+                >
+                  {vCard.imageUrl && (
+                    <img src={vCard.imageUrl} alt="" className="absolute inset-0 w-full h-full object-cover pointer-events-none" />
+                  )}
+                  <div className="relative z-10">
+                    {/* Liquid-glass text pill */}
+                    <div
+                      className="inline-block rounded-[14px] px-3 py-2.5"
+                      style={{ backgroundColor: 'rgba(253,249,243,0.22)', backdropFilter: 'blur(12px) saturate(1.4)', WebkitBackdropFilter: 'blur(12px) saturate(1.4)', boxShadow: 'inset 0 0 0 1px rgba(253,249,243,0.18)' }}
+                    >
+                      <p className="text-[9px] font-bold tracking-[0.3em] text-white/70 mb-1 uppercase">
+                        {vCard.label || 'MODULE'} · {tracks.length} {tracks.length === 1 ? 'TRACK' : 'TRACKS'}
+                        {isArchived && ' · COMPLETE'}
+                      </p>
+                      <h4 className="text-lg font-serif text-white leading-snug" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.15)' }}>{vCard.title}</h4>
+                    </div>
                   </div>
                 </div>
               )}
 
-              <div className="relative w-full overflow-hidden" style={{ height: totalHeight }}>
-                {/* SVG Meandering Stream */}
-                <svg
-                  className="absolute top-0 left-0 w-full h-full pointer-events-none"
-                  viewBox={`0 0 100 ${vbH}`}
-                  preserveAspectRatio="none"
-                >
-                  <path d={svgPathD} fill="none" stroke="#D4A373" strokeWidth="8" strokeOpacity="0.08" strokeLinecap="round" />
-                  <path
-                    d={svgPathD}
-                    fill="none"
-                    stroke="#D4A373"
-                    strokeWidth="10"
-                    strokeDasharray={approxPathLen}
-                    strokeDashoffset={approxPathLen - approxPathLen * (completedCount / totalCount)}
-                    strokeLinecap="round"
-                    style={{ transition: 'stroke-dashoffset 1s ease-out', opacity: 0.4 }}
-                  />
-                </svg>
+              {/* Progress bar for this module's steps */}
+              {vCard && (
+                <div className="flex items-center gap-2 mb-5">
+                  <div className="flex-1 h-1 bg-[#E9DCC9] rounded-full overflow-hidden">
+                    <motion.div
+                      className="h-full bg-[#D4A373] rounded-full"
+                      initial={{ scaleX: 0 }}
+                      animate={{ scaleX: totalSteps > 0 ? completedSteps / totalSteps : 0 }}
+                      transition={{ duration: 0.6, ease: 'easeOut' }}
+                      style={{ transformOrigin: 'left' }}
+                    />
+                  </div>
+                  <span className="text-xs font-bold text-[#433422]/30 tabular-nums">{completedSteps}/{totalSteps}</span>
+                </div>
+              )}
 
-                {/* Steps */}
-                <motion.div
-                  className="relative flex flex-col"
-                  variants={pathContainerVariants}
-                  initial="hidden"
-                  animate="visible"
-                >
-                  {allSteps.map((step, index) => {
-                    const side = index % 2 === 0 ? 'left' : 'right';
+              {/* Stone path */}
+              {vCard && (
+                <div className="relative w-full overflow-hidden" style={{ height: totalHeight }}>
+                  {/* SVG Meandering Stream */}
+                  <svg
+                    className="absolute top-0 left-0 w-full h-full pointer-events-none"
+                    viewBox={`0 0 100 ${vbH}`}
+                    preserveAspectRatio="none"
+                  >
+                    <path d={svgPathD} fill="none" stroke="#D4A373" strokeWidth="8" strokeOpacity="0.08" strokeLinecap="round" />
+                    <path
+                      d={svgPathD}
+                      fill="none"
+                      stroke="#D4A373"
+                      strokeWidth="10"
+                      strokeDasharray={approxPathLen}
+                      strokeDashoffset={approxPathLen - approxPathLen * (completedSteps / totalSteps)}
+                      strokeLinecap="round"
+                      style={{ transition: 'stroke-dashoffset 1s ease-out', opacity: 0.4 }}
+                    />
+                  </svg>
 
-                    if (step.type === 'journal') {
+                  {/* Steps */}
+                  <motion.div
+                    className="relative flex flex-col"
+                    variants={pathContainerVariants}
+                    initial="hidden"
+                    animate="visible"
+                  >
+                    {allSteps.map((step, index) => {
+                      const side = index % 2 === 0 ? 'left' : 'right';
+
+
+
+                      // ── Track stone ──
+                      const { track, i, isDone, isCurrent, isLocked } = step;
                       return (
                         <motion.div
-                          key="journal"
+                          key={i}
                           variants={pathItemVariants}
                           className="relative w-full flex items-center justify-center"
                           style={{ height: STEP_H }}
                         >
-                          <div className={`relative flex flex-col items-center ${side === 'left' ? '-translate-x-14' : 'translate-x-14'}`}>
+                          <div className={`relative flex flex-col items-center ${side === 'left' ? '-translate-x-14' : 'translate-x-14'} transition-opacity duration-500 ${isDone ? 'opacity-55' : 'opacity-100'}`}>
+                            {/* Glow ring for current stone */}
+                            {isCurrent && (
+                              <div className="absolute w-16 h-16 rounded-full animate-pulse pointer-events-none" style={{ boxShadow: '0 0 0 6px rgba(212,163,115,0.2), 0 0 0 14px rgba(212,163,115,0.07)' }} />
+                            )}
                             <motion.button
-                              onClick={() => setView('journal')}
-                              animate={{ backgroundColor: journaledToday ? '#D4A373' : '#FDF9F3' }}
+                              onClick={() => {
+                                if (isLocked) return;
+                                const isArticle = vCard.type === 'article';
+                                if (isArticle) {
+                                  setActiveReadingSession({ card: vCard, reading: track, trackIndex: i, totalReadings: tracks.length, pathItemId: isCurrent ? vItem.id : null });
+                                } else {
+                                  setActiveSession({
+                                    title: track.title,
+                                    audioUrl: track.audioUrl,
+                                    cardId: vCard.id,
+                                    cardTitle: vCard.title,
+                                    ...(isCurrent ? { pathItemId: vItem.id, isPlaylistTrack: true, trackIndex: i, totalTracks: tracks.length } : { skipCheckin: true }),
+                                  });
+                                  setView('meditation');
+                                }
+                              }}
+                              animate={{
+                                backgroundColor: isDone ? '#D4A373' : isCurrent ? '#FDF9F3' : '#F4EFE6',
+                              }}
                               transition={{ duration: 0.4 }}
-                              whileTap={{ scale: 0.88 }}
-                              className={`w-16 h-16 rounded-full flex items-center justify-center shadow-lg border flex-shrink-0 ${
-                                journaledToday ? 'text-white border-[#D4A373]' : 'text-[#8E9775] border-[#D4A373]/30'
+                              whileTap={!isLocked ? { scale: 0.88 } : undefined}
+                              className={`relative w-16 h-16 rounded-full flex items-center justify-center shadow-md border flex-shrink-0 ${
+                                isDone
+                                  ? 'border-[#D4A373] text-white cursor-pointer active:opacity-80'
+                                  : isCurrent
+                                  ? 'border-[#D4A373] text-[#D4A373] cursor-pointer'
+                                  : 'border-[#E9DCC9] text-[#433422]/20 cursor-default'
                               }`}
                             >
-                              <PenLine size={22} />
+                              {isDone
+                                ? <span className="text-white text-lg leading-none">✓</span>
+                                : isCurrent
+                                ? <Play size={18} fill="currentColor" className="ml-0.5" />
+                                : <Lock size={14} strokeWidth={1.5} />}
                             </motion.button>
+
+                            {/* Label */}
                             <div
-                              className={`absolute top-1/2 -translate-y-1/2 transition-opacity duration-300 ${
-                                side === 'left' ? 'left-16 text-left' : 'right-16 text-right'
-                              } ${journaledToday ? 'opacity-40' : 'opacity-100'}`}
+                              className={`absolute top-1/2 -translate-y-1/2 ${side === 'left' ? 'left-16 text-left' : 'right-16 text-right'}`}
                               style={{ maxWidth: 130 }}
                             >
-                              <p className="text-[9px] font-bold uppercase tracking-[0.3em] text-[#8E9775] mb-0.5">REFLECT</p>
-                              <h3 className="text-sm font-serif text-[#433422] leading-snug">Record today's reflection</h3>
-                              {journaledToday && (
-                                <span className="text-[9px] font-bold text-[#8E9775] bg-[#F0F4EC] px-2 py-0.5 rounded-full inline-block mt-1">Done</span>
+                              <p className={`text-[9px] font-bold uppercase tracking-[0.3em] mb-0.5 ${
+                                isDone ? 'text-[#8E9775]' : isCurrent ? 'text-[#D4A373]' : 'text-[#433422]/20'
+                              }`}>
+                                {isDone ? 'DONE' : isCurrent ? 'TODAY' : `DAY ${i + 1}`}
+                              </p>
+                              <h3 className={`text-sm font-serif leading-snug ${
+                                isDone ? 'text-[#433422]/40' : isLocked ? 'text-[#433422]/20' : 'text-[#433422]'
+                              }`}>
+                                {isLocked ? '• • •' : track.title}
+                              </h3>
+                              {isDone && doneToday && i === trackIndex - 1 && (
+                                <span className="text-[9px] font-bold text-[#8E9775] bg-[#F0F4EC] px-2 py-0.5 rounded-full inline-block mt-1">Today</span>
                               )}
                             </div>
                           </div>
                         </motion.div>
                       );
-                    }
+                    })}
+                  </motion.div>
+                </div>
+              )}
 
-                    const { card, item, idx } = step;
-                    const isPlaylist = card.type === 'playlist';
-                    const isArticle = card.type === 'article';
-                    const isArticleSeries = isArticle && (card.tracks?.length ?? 0) > 0;
-                    const isSequential = isPlaylist || isArticleSeries;
-                    const doneToday = isSequential && item.completedToday === todayISO;
-                    const allTracksComplete = isSequential && !!item.completed;
-                    const isCompleted = doneToday || allTracksComplete || (!isSequential && (completedCardIds.has(card.id) || completedHistory.has(card.id)));
-                    const isSupporter = card.tier === 'supporter' && !isUserSupporter;
-                    const trackIndex = item.trackIndex ?? 0;
-                    const nonBroadcast = !item._broadcast;
-                    const canMoveUp = nonBroadcast && idx > 0 && !pathCards[idx - 1]?.item._broadcast;
-                    const canMoveDown = nonBroadcast && idx < pathCards.length - 1;
-
-                    const handleTap = () => {
-                      if (isSupporter) { setSupporterLockCard(card); setView('supporter-lock'); return; }
-                      setLibraryDetailCard(card);
-                    };
-
-                    const typeLabel = isSupporter ? 'SUPPORTER' : isPlaylist ? 'PLAYLIST' : isArticleSeries ? 'READING' : isArticle ? 'ARTICLE' : 'LISTEN';
-
-                    return (
-                      <motion.div
-                        key={item.id}
-                        variants={pathItemVariants}
-                        className="relative w-full flex items-center justify-center"
-                        style={{ height: STEP_H }}
-                      >
-                        <div className={`relative flex flex-col items-center ${side === 'left' ? '-translate-x-14' : 'translate-x-14'} transition-opacity duration-500 ${isCompleted ? 'opacity-60' : 'opacity-100'}`}>
-                          {/* Pebble */}
-                          <motion.button
-                            onClick={handleTap}
-                            disabled={isSupporter}
-                            animate={{ backgroundColor: isCompleted ? '#D4A373' : '#FDF9F3' }}
-                            transition={{ duration: 0.4 }}
-                            whileTap={!isSupporter ? { scale: 0.88 } : undefined}
-                            className={`relative w-16 h-16 rounded-full flex items-center justify-center shadow-lg border overflow-hidden flex-shrink-0 ${
-                              isSupporter
-                                ? 'border-[#433422]/10 cursor-not-allowed text-[#433422]/20'
-                                : isCompleted
-                                ? 'border-[#D4A373] text-white'
-                                : 'border-[#D4A373]/30 text-[#433422] hover:border-[#D4A373]'
-                            }`}
-                          >
-                            {isSupporter ? (
-                              <Lock size={18} strokeWidth={1.5} />
-                            ) : isPlaylist ? (
-                              <Headphones size={22} />
-                            ) : isArticle ? (
-                              <PenLine size={20} />
-                            ) : (
-                              <Headphones size={22} />
-                            )}
-                            {isCompleted && <div className="absolute inset-0 bg-[#D4A373]/50 pointer-events-none" />}
-                          </motion.button>
-
-                          {/* Metadata */}
-                          <div
-                            className={`absolute top-1/2 -translate-y-1/2 transition-opacity duration-300 ${
-                              side === 'left' ? 'left-16 text-left' : 'right-16 text-right'
-                            }`}
-                            style={{ maxWidth: 130, opacity: isSupporter ? 0.4 : 1 }}
-                          >
-                            <p className="text-[9px] font-bold uppercase tracking-[0.3em] text-[#8E9775] mb-0.5">
-                              {typeLabel}{isSequential ? ` • ${trackIndex + 1}/${card.tracks?.length ?? 0}` : ''}
-                            </p>
-                            <h3 className="text-sm font-serif text-[#433422] leading-snug">
-                              {isSupporter ? '• • •' : card.title}
-                            </h3>
-                            {allTracksComplete && (
-                              <div className={`flex items-center gap-1 mt-1 ${side === 'right' ? 'justify-end' : ''}`}>
-                                <span className="text-[9px] font-bold text-[#8E9775] bg-[#F0F4EC] px-2 py-0.5 rounded-full">Complete</span>
-                                <button
-                                  onClick={e => { e.stopPropagation(); resetPlaylist(user.uid, item.id); }}
-                                  className="text-[9px] font-bold text-[#D4A373]"
-                                >Replay</button>
-                              </div>
-                            )}
-                            {doneToday && !allTracksComplete && (
-                              <span className="text-[9px] font-bold text-[#8E9775] bg-[#F0F4EC] px-2 py-0.5 rounded-full inline-block mt-1">Done today</span>
-                            )}
-                            {/* Reorder + delete */}
-                            <div className={`flex gap-0.5 mt-1.5 ${side === 'right' ? 'justify-end' : ''}`}>
-                              {nonBroadcast && (
-                                <>
-                                  <button
-                                    disabled={!canMoveUp}
-                                    onClick={e => { e.stopPropagation(); const above = pathCards[idx - 1]; swapPathOrder(user.uid, item.id, item.order ?? idx, above.item.id, above.item.order ?? (idx - 1)); }}
-                                    className="p-1 rounded hover:bg-[#F4EFE6] disabled:opacity-20 transition-colors"
-                                  >
-                                    <ArrowUp size={10} className="text-[#433422]/50" />
-                                  </button>
-                                  <button
-                                    disabled={!canMoveDown}
-                                    onClick={e => { e.stopPropagation(); const below = pathCards[idx + 1]; swapPathOrder(user.uid, item.id, item.order ?? idx, below.item.id, below.item.order ?? (idx + 1)); }}
-                                    className="p-1 rounded hover:bg-[#F4EFE6] disabled:opacity-20 transition-colors"
-                                  >
-                                    <ArrowDown size={10} className="text-[#433422]/50" />
-                                  </button>
-                                </>
-                              )}
-                              <button
-                                onClick={e => { e.stopPropagation(); nonBroadcast ? removeFromPath(user.uid, item.id) : dismissBroadcast(user.uid, item.cardId); }}
-                                className="p-1 rounded hover:bg-[#FEF2F2] transition-colors"
-                              >
-                                <Trash2 size={10} className="text-[#D4A373]/60" />
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      </motion.div>
-                    );
-                  })}
-                </motion.div>
-              </div>
+              {/* CTA to begin next module — only shown when there's history but no active module */}
+              {!hasActive && allModules.length > 0 && (
+                <div
+                  className="flex items-center gap-4 cursor-pointer mt-2"
+                  onClick={() => { setActiveTab('wheat'); setView('resources'); }}
+                >
+                  <div className="flex-1 bg-white rounded-[24px] px-5 py-4 border border-dashed border-[#E9DCC9] flex items-center justify-between">
+                    <span className="text-sm text-[#433422]/30">Begin your next module</span>
+                    <ChevronRight size={16} className="text-[#433422]/20" />
+                  </div>
+                </div>
+              )}
             </section>
           );
         })()}

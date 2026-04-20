@@ -95,6 +95,27 @@
   animation: orb-core 7s ease-in-out infinite;
 }
 
+@keyframes countPop {
+  0%   { opacity: 0; transform: scale(1.4); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+/* Gentle ring pulse during hold phases — layered offsets so they breathe independently */
+@keyframes holdPulseOuter {
+  0%, 100% { opacity: 0.25; }
+  50%       { opacity: 0.10; }
+}
+
+@keyframes holdPulseInner {
+  0%, 100% { opacity: 0.40; }
+  50%       { opacity: 0.20; }
+}
+
+@keyframes fadeSlideUp {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
 @keyframes spin-slow {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }

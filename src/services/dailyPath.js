@@ -1,4 +1,4 @@
-import { collection, addDoc, deleteDoc, doc, setDoc, query, where, getDocs, writeBatch, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, deleteDoc, doc, setDoc, query, where, getDocs, writeBatch } from 'firebase/firestore';
 import { db } from '../firebase';
 import {
   localAddToPath, localRemovePathItem, localUpdatePathItem,
@@ -57,7 +57,7 @@ export async function completeTrackForDay(uid, { itemId, cardId, cardTitle, trac
     localUpdatePathItem(itemId, {
       completedToday: today,
       trackIndex: nextIndex,
-      ...(isLast ? { completed: true, completedAt: now } : {}),
+      ...(isLast ? { completed: true, completedAt: now, archived: true } : {}),
     });
     localAddTrackCompletion({ cardId, cardTitle, trackIndex, trackTitle, completedAt: now });
     if (isLast) localAddCompletionHistory({ cardId, title: cardTitle, type: 'playlist', completedAt: now });
@@ -68,7 +68,7 @@ export async function completeTrackForDay(uid, { itemId, cardId, cardTitle, trac
   await withTimeout(setDoc(doc(db, 'users', uid, 'dailyPath', itemId), {
     completedToday: today,
     trackIndex: nextIndex,
-    ...(isLast ? { completed: true, completedAt: now } : {}),
+    ...(isLast ? { completed: true, completedAt: now, archived: true } : {}),
   }, { merge: true }));
 
   // NON-CRITICAL: permanent history records — fire-and-forget so they never block the above
