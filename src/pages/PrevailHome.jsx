@@ -1114,7 +1114,7 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
     };
 
     return (
-      <div className="flex flex-col h-screen font-sans animate-view-enter" style={{ backgroundColor: '#EDE8DF' }}>
+      <div className="flex flex-col h-screen font-sans animate-view-enter" style={{ backgroundColor: '#FDF9F3' }}>
 
         {/* Top nav */}
         <div className="flex items-center justify-between px-6 pt-14 pb-4">
@@ -1128,26 +1128,64 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
           <div className="w-10" />
         </div>
 
-        {/* Orb */}
-        <div className="flex-1 flex items-center justify-center -mt-10">
-          <div className="relative flex items-center justify-center overflow-hidden" style={{ width: 400, height: 400 }}>
-            {isPlaying && (
-              <>
-                <div className="absolute animate-orb-ring-1" style={{ width: 170, height: 170, borderRadius: 40, backgroundColor: 'rgba(212,163,115,0.22)' }} />
-                <div className="absolute animate-orb-ring-2" style={{ width: 170, height: 170, borderRadius: 40, backgroundColor: 'rgba(212,163,115,0.15)' }} />
-                <div className="absolute animate-orb-ring-3" style={{ width: 170, height: 170, borderRadius: 40, backgroundColor: 'rgba(212,163,115,0.08)' }} />
-              </>
-            )}
-            <div
-              className={isPlaying ? 'relative animate-orb-core' : 'relative'}
-              style={{ width: 170, height: 170, borderRadius: 40, background: '#D4A373' }}
-            />
+        {/* Fire scene — embers.md */}
+        <div className="flex-1 relative flex justify-center items-end overflow-hidden" style={{ background: 'linear-gradient(to bottom, #FDF9F3 0%, #E8E2D5 100%)' }}>
+
+          {/* Forest silhouette */}
+          <svg className="absolute pointer-events-none" viewBox="0 0 1000 100" preserveAspectRatio="none"
+            style={{ bottom: 40, width: '110%', height: 120, fill: '#433422', opacity: 0.08 }}>
+            <path d="M0,100 L0,80 L20,60 L40,85 L60,40 L80,90 L100,55 L120,80 L150,30 L180,90 L210,50 L250,95 L280,45 L320,85 L350,20 L400,90 L450,40 L500,95 L550,35 L600,85 L650,25 L700,90 L750,45 L800,95 L850,30 L900,85 L950,40 L1000,90 L1000,100 Z" />
+          </svg>
+
+          {/* Fire glow */}
+          <div className="absolute pointer-events-none" style={{
+            bottom: 30, width: 240, height: 180,
+            background: 'radial-gradient(circle, #D4A373 0%, transparent 70%)',
+            filter: 'blur(10px)',
+            opacity: isPlaying ? 0.1 : 0,
+            transition: 'opacity 2s ease',
+          }} />
+
+          {/* Campfire container */}
+          <div style={{ position: 'relative', zIndex: 4, marginBottom: 20, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <svg viewBox="0 0 100 120" style={{ width: 110, height: 140, filter: 'drop-shadow(0 0 10px rgba(212,163,115,0.15))' }}>
+              <g fill="#433422" opacity="1">
+                <rect x="25" y="105" width="50" height="7" rx="3.5" transform="rotate(-10 50 108.5)" />
+                <rect x="25" y="105" width="50" height="7" rx="3.5" transform="rotate(15 50 108.5)" />
+                <circle cx="50" cy="108.5" r="5" />
+              </g>
+              <path fill="#D4A373" d="M50,110 C32,110 28,92 50,48 C72,92 68,110 50,110 Z" style={{
+                transformOrigin: 'bottom center', filter: 'blur(0.5px)',
+                opacity: isPlaying ? 1 : 0, transition: 'opacity 1.5s ease',
+                animation: isPlaying ? 'flame-flicker 3.5s ease-in-out infinite' : 'none',
+              }} />
+              <path fill="#F4EFE6" d="M50,108 C40,108 34,98 50,65 C66,98 60,108 50,108 Z" style={{
+                transformOrigin: 'bottom center', filter: 'blur(0.5px)',
+                opacity: isPlaying ? 1 : 0, transition: 'opacity 1.5s ease',
+                animation: isPlaying ? 'flame-flicker 2.6s ease-in-out infinite' : 'none',
+              }} />
+              <path fill="#FFF9E6" d="M50,106 C44,106 40,102 50,80 C60,102 56,106 50,106 Z" style={{
+                transformOrigin: 'bottom center', filter: 'blur(0.5px)',
+                opacity: isPlaying ? 1 : 0, transition: 'opacity 1.5s ease',
+                animation: isPlaying ? 'flame-flicker 1.8s ease-in-out infinite' : 'none',
+              }} />
+            </svg>
           </div>
         </div>
 
-        {/* Bottom controls */}
-        <div className="px-6 pb-10">
-          <div className="bg-white rounded-[28px] px-6 pt-5 pb-6 shadow-sm space-y-4">
+        {/* Bottom controls — arched horizon */}
+        <div style={{
+          backgroundColor: '#FFFFFF',
+          borderTopLeftRadius: '100% 40px',
+          borderTopRightRadius: '100% 40px',
+          marginTop: -30,
+          paddingTop: 44,
+          paddingBottom: 32,
+          paddingLeft: 24,
+          paddingRight: 24,
+          boxShadow: '0 -4px 24px rgba(67,52,34,0.04)',
+        }}>
+          <div className="space-y-4">
 
             {/* Title */}
             <div className="text-center">
