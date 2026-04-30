@@ -1116,16 +1116,24 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
     return (
       <div className="flex flex-col h-screen font-sans animate-view-enter" style={{ backgroundColor: '#FDF9F3' }}>
 
-        {/* Top nav */}
-        <div className="flex items-center justify-between px-6 pt-14 pb-4">
-          <button
-            onClick={() => { audioRef.current?.pause(); audioRef.current && (audioRef.current.currentTime = 0); setIsPlaying(false); setView('dashboard'); }}
-            className="w-10 h-10 rounded-full bg-white/60 backdrop-blur-sm flex items-center justify-center"
-          >
-            <ChevronRight className="rotate-180" size={18} color="#433422" />
-          </button>
-          <span className="text-[10px] tracking-[0.3em] font-bold text-[#433422]/40">MEDITATION</span>
-          <div className="w-10" />
+        {/* Top arched header */}
+        <div style={{
+          backgroundColor: '#FFFFFF',
+          borderBottomLeftRadius: '100% 40px',
+          borderBottomRightRadius: '100% 40px',
+          paddingBottom: 28,
+          boxShadow: '0 4px 24px rgba(67,52,34,0.04)',
+        }}>
+          <div className="flex items-center justify-between px-6 pt-14 pb-0">
+            <button
+              onClick={() => { audioRef.current?.pause(); audioRef.current && (audioRef.current.currentTime = 0); setIsPlaying(false); setView('dashboard'); }}
+              className="w-10 h-10 rounded-full bg-[#FDF9F3] flex items-center justify-center"
+            >
+              <ChevronRight className="rotate-180" size={18} color="#433422" />
+            </button>
+            <span className="text-[10px] tracking-[0.3em] font-bold text-[#433422]/40">MEDITATION</span>
+            <div className="w-10" />
+          </div>
         </div>
 
         {/* Fire scene — embers.md */}
