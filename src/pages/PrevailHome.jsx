@@ -116,7 +116,6 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
   const trackCompletions = useTrackCompletions(user?.uid, (libraryDetailCard || activeDetailCard)?.id);
   const [detailPathItem, setDetailPathItem] = useState(null); // path item context when popup opened from daily path
   const [activeReadingSession, setActiveReadingSession] = useState(null); // { card, reading, trackIndex, totalReadings, pathItemId }
-  const [actionSheetCard, setActionSheetCard] = useState(null);
   const [supporterLockCard, setSupporterLockCard] = useState(null);
   const [pathToast, setPathToast] = useState(null); // { message, id }
   const [togglingCardIds, setTogglingCardIds] = useState(new Set());
@@ -700,275 +699,142 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
           <div className="bg-[#433422] text-[#FDF9F3] text-[11px] font-bold tracking-widest px-5 py-2.5 rounded-full shadow-lg whitespace-nowrap">{pathToast.message.toUpperCase()}</div>
         </div>
       )}
-      {/* Library card snap-scroll view */}
+      {/* Library detail — vertical bottom sheet */}
       {libraryDetailCard && (() => {
         const card = libraryDetailCard;
-        const isPlaylist = card.type === 'playlist';
-        const isArticle = card.type === 'article';
-        const isArticleSeries = isArticle && (card.tracks?.length ?? 0) > 0;
-        const isSequential = isPlaylist || isArticleSeries;
-        const isSingleAudio = !isSequential && !isArticle;
-        const isSingleArticle = isArticle && !isArticleSeries;
-
         const existingItems = pathItems.filter(i => i.cardId === card.id);
         const isInPath = existingItems.length > 0;
         const pathItem = pathItems.find(i => i.cardId === card.id);
         const trackIdx = pathItem?.trackIndex ?? 0;
-        const allTracksComplete = isSequential && !!pathItem?.completed;
+        const allTracksComplete = !!pathItem?.completed;
         const todayStr = new Date().toISOString().slice(0, 10);
-        // User already completed their track/reading for today on this sequential card
-        const doneToday = isSequential && !!pathItem && pathItem.completedToday === todayStr && !allTracksComplete;
-
-        const TypeIcon = isPlaylist ? List : isArticle ? PenLine : Headphones;
+        const doneToday = !!pathItem && pathItem.completedToday === todayStr && !allTracksComplete;
+        const tracks = card.tracks || [];
 
         return (
-          <div className="fixed inset-0 z-[60] flex flex-col bg-[#FDF9F3] font-sans text-[#433422] animate-view-enter">
-            {/* Colored arch tint */}
-            <div
-              className="absolute top-0 left-0 right-0 h-36 pointer-events-none overflow-hidden"
-              style={{ backgroundColor: (card.color || '#D4A373') + '18' }}
-            >
-              <div
-                className="absolute bottom-0 left-[-20%] right-[-20%] h-24 bg-[#FDF9F3]"
-                style={{ borderTopLeftRadius: '100% 100%', borderTopRightRadius: '100% 100%' }}
-              />
-            </div>
+          <>
+            {/* Backdrop */}
+            <div className="fixed inset-0 bg-black/40 z-[59]" onClick={() => setLibraryDetailCard(null)} />
 
-            {/* Header */}
-            <div className="relative z-10 pt-14 px-8 flex items-center justify-between flex-shrink-0">
-              <button
-                onClick={() => setLibraryDetailCard(null)}
-                className="p-3 rounded-full bg-[#F4EFE6] hover:bg-[#D4A373]/10 transition-colors"
-              >
-                <ArrowLeft size={20} />
-              </button>
-              <div className="text-center max-w-[55%]">
-                <span className="text-[10px] font-bold tracking-[0.3em] uppercase text-[#433422]/50">
-                  {card.label || (isPlaylist ? 'PLAYLIST' : isArticle ? 'READING' : 'LISTEN')}
-                </span>
-                <p className="text-sm font-serif truncate">{card.title}</p>
-              </div>
-              <div className="w-12 h-12" />
-            </div>
+            {/* Sheet */}
+            <div className="fixed inset-x-0 bottom-0 z-[60] bg-[#FDF9F3] rounded-t-[32px] max-h-[88vh] flex flex-col animate-sheet-enter font-sans text-[#433422]">
 
-            {/* Add to Path button */}
-            <div className="h-4 flex-shrink-0" />
-            <div className="relative z-10 px-8 mb-2 flex-shrink-0">
-              <motion.button
-                whileTap={{ scale: 0.95 }}
-                onClick={async () => {
-                  if (isInPath) {
-                    await Promise.all(existingItems.map(i => removeFromPath(user.uid, i.id)));
-                    showPathToast('Removed from your path');
-                  } else {
-                    if (card.tier === 'supporter' && !isUserSupporter) {
-                      setLibraryDetailCard(null);
-                      setSupporterLockCard(card);
-                      setView('supporter-lock');
-                      return;
-                    }
-                    if (activeModule) { showPathToast('Finish your current module first'); return; }
-                    const extra = isPathDoneToday ? { completedToday: todayISO } : {};
-                    await addToPath(user.uid, card.id, pathItems.length, extra);
-                    showPathToast('Added to your path');
-                  }
-                }}
-                className={`w-full flex items-center justify-center gap-2 py-3.5 rounded-[20px] text-xs font-bold tracking-[0.15em] uppercase transition-colors ${
-                  isInPath
-                    ? 'bg-[#F4EFE6] text-[#433422]/50'
-                    : card.tier === 'supporter' && !isUserSupporter
-                    ? 'bg-[#F4EFE6] text-[#433422]/40'
-                    : 'bg-[#D4A373] text-white'
-                }`}
-              >
-                {isInPath
-                  ? <><div className="w-3 h-0.5 bg-[#433422]/40 rounded-full" /><span>In Path</span></>
-                  : card.tier === 'supporter' && !isUserSupporter
-                  ? <><Crown size={13} /><span>Supporter Only</span></>
-                  : <><Plus size={13} /><span>Add to Path</span></>}
-              </motion.button>
-            </div>
-
-            {/* Horizontal snap scroll */}
-            <div
-              className="flex-1 overflow-x-auto overflow-y-hidden mt-2 flex items-center no-scrollbar snap-x snap-mandatory cursor-grab active:cursor-grabbing"
-              onMouseDown={e => {
-                const el = e.currentTarget;
-                el.dataset.dragging = 'true';
-                el.dataset.startX = e.pageX - el.offsetLeft;
-                el.dataset.scrollLeft = el.scrollLeft;
-              }}
-              onMouseLeave={e => { e.currentTarget.dataset.dragging = 'false'; }}
-              onMouseUp={e => { e.currentTarget.dataset.dragging = 'false'; }}
-              onMouseMove={e => {
-                const el = e.currentTarget;
-                if (el.dataset.dragging !== 'true') return;
-                e.preventDefault();
-                const x = e.pageX - el.offsetLeft;
-                el.scrollLeft = parseInt(el.dataset.scrollLeft) + (parseInt(el.dataset.startX) - x);
-              }}
-            >
-              <div className="min-w-[10vw] flex-shrink-0" />
-
-              {/* Cover card */}
-              <div
-                className="w-[80vw] aspect-square rounded-[48px] flex flex-col justify-between p-9 relative overflow-hidden flex-shrink-0 mx-4 snap-center snap-always"
-                style={{ backgroundColor: card.color || '#D4A373' }}
-              >
-                {card.imageUrl && <img src={card.imageUrl} alt="" className="absolute inset-0 w-full h-full object-cover" />}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/10 to-transparent" />
-                <div className="absolute top-6 left-6 opacity-10 scale-[3] origin-top-left text-white pointer-events-none">
-                  <TypeIcon size={40} />
-                </div>
-
-                {/* Cover bottom info */}
-                <div className="relative z-10">
-                  <p className="text-[10px] font-bold tracking-[0.4em] text-white/60 mb-3 uppercase">{card.label || ''}</p>
-                  <h2 className="text-3xl font-serif text-white leading-tight">{card.title}</h2>
-                  {isSequential && (
-                    <p className="text-white/50 text-xs mt-2">{card.tracks?.length ?? 0} {isPlaylist ? 'tracks' : 'readings'}</p>
-                  )}
-                  <div className="mt-6 flex items-center gap-3 text-white/40">
-                    <div className="h-px w-8 bg-white/40" />
-                    <span className="text-[10px] tracking-widest uppercase">{isSequential ? 'Swipe to explore' : 'Swipe to begin'}</span>
-                  </div>
-                </div>
+              {/* Handle */}
+              <div className="flex-shrink-0 flex justify-center pt-3 pb-1">
+                <div className="w-10 h-1 bg-[#433422]/20 rounded-full" />
               </div>
 
-              {/* Single audio card */}
-              {isSingleAudio && (
-                <div
-                  className="w-[80vw] aspect-square bg-[#F4EFE6] rounded-[48px] p-9 flex flex-col justify-between flex-shrink-0 mx-4 snap-center snap-always cursor-pointer active:scale-[0.98] transition-transform"
-                  onClick={() => {
-                    setActiveSession({ title: card.title, audioUrl: card.audioUrl, cardId: card.id, skipCheckin: true });
-                    setLibraryDetailCard(null);
-                    setView('meditation');
-                  }}
-                >
-                  <div>
-                    <span className="text-[10px] font-bold tracking-[0.4em] text-[#433422]/40 uppercase">LISTEN</span>
-                    <h3 className="text-3xl mt-6 font-serif leading-tight">{card.title}</h3>
-                    {card.duration && <p className="text-sm text-[#433422]/50 mt-3">{card.duration}</p>}
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs text-[#433422]/40 italic">Tap to play</p>
-                    <div className="w-16 h-16 rounded-full bg-[#433422] flex items-center justify-center">
-                      <Play size={26} fill="white" className="text-white ml-1" />
-                    </div>
+              {/* Scrollable content */}
+              <div className="overflow-y-auto flex-1 pb-10">
+
+                {/* Swatch */}
+                <div className="mx-5 mt-2 h-36 rounded-[24px] relative overflow-hidden flex-shrink-0" style={{ backgroundColor: card.color || '#D4A373' }}>
+                  {card.imageUrl && <img src={card.imageUrl} alt="" className="absolute inset-0 w-full h-full object-cover" />}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/10 to-transparent" />
+                  <div className="absolute bottom-0 left-0 right-0 p-5 z-10">
+                    {card.label && <p className="text-[9px] font-bold tracking-[0.35em] text-white/60 mb-1 uppercase">{card.label}</p>}
+                    <h2 className="text-2xl font-serif text-white leading-tight">{card.title}</h2>
+                    {tracks.length > 0 && <p className="text-white/50 text-xs mt-1">{tracks.length} {tracks.length === 1 ? 'track' : 'tracks'}</p>}
                   </div>
                 </div>
-              )}
 
-              {/* Single article (no tracks) */}
-              {isSingleArticle && (
-                <div className="w-[80vw] aspect-square bg-[#F4EFE6] rounded-[48px] p-9 flex flex-col flex-shrink-0 mx-4 snap-center snap-always">
-                  <span className="text-[10px] font-bold tracking-[0.4em] text-[#433422]/40 uppercase">ARTICLE</span>
-                  <p className="mt-6 text-sm text-[#433422]/70 leading-relaxed overflow-y-auto">{card.description || ''}</p>
-                </div>
-              )}
-
-              {/* Playlist tracks */}
-              {isPlaylist && (card.tracks || []).map((track, i) => {
-                const trackRecord = trackCompletions.find(tc => tc.trackIndex === i);
-                const isDone = !!trackRecord || (pathItem && (allTracksComplete || i < trackIdx));
-                const isLockedToday = doneToday && i === trackIdx; // today's track already done
-                const isCurrent = pathItem && !allTracksComplete && i === trackIdx && !isLockedToday;
-                const isLocked = !pathItem || (!isDone && !isCurrent && !isLockedToday && i > trackIdx);
-                const canPlay = isCurrent;
-                return (
-                  <div
-                    key={i}
-                    onClick={() => {
-                      if (!canPlay) return;
-                      setActiveSession({
-                        title: track.title,
-                        audioUrl: track.audioUrl,
-                        cardId: card.id, cardTitle: card.title, pathItemId: pathItem.id, isPlaylistTrack: true, trackIndex: i, totalTracks: card.tracks.length,
-                        skipCheckin: true,
-                      });
-                      setLibraryDetailCard(null);
-                      setView('meditation');
+                {/* Add to Path button */}
+                <div className="px-5 mt-4">
+                  <motion.button
+                    whileTap={{ scale: 0.97 }}
+                    onClick={async () => {
+                      if (isInPath) {
+                        await Promise.all(existingItems.map(i => removeFromPath(user?.uid, i.id)));
+                        showPathToast('Removed from your path');
+                      } else {
+                        if (card.tier === 'supporter' && !isUserSupporter) {
+                          setLibraryDetailCard(null);
+                          setSupporterLockCard(card);
+                          setView('supporter-lock');
+                          return;
+                        }
+                        if (activeModule) { showPathToast('Finish your current module first'); return; }
+                        const extra = isPathDoneToday ? { completedToday: todayISO } : {};
+                        await addToPath(user?.uid, card.id, pathItems.length, extra);
+                        showPathToast('Added to your path');
+                      }
                     }}
-                    className={`w-[80vw] aspect-square rounded-[48px] p-9 flex flex-col justify-between flex-shrink-0 mx-4 snap-center snap-always transition-transform ${canPlay ? 'cursor-pointer active:scale-[0.98]' : 'cursor-default'} ${isDone ? 'bg-[#EEF1EA]' : isLockedToday ? 'bg-[#F4EFE6]' : 'bg-[#F4EFE6]'}`}
+                    className={`w-full flex items-center justify-center gap-2 py-3.5 rounded-[20px] text-xs font-bold tracking-[0.15em] uppercase transition-colors ${
+                      isInPath ? 'bg-[#F4EFE6] text-[#433422]/50'
+                      : card.tier === 'supporter' && !isUserSupporter ? 'bg-[#F4EFE6] text-[#433422]/40'
+                      : 'bg-[#D4A373] text-white'
+                    }`}
                   >
-                    <div>
-                      <span className={`text-[10px] font-bold tracking-[0.4em] uppercase ${isDone ? 'text-[#8E9775]' : isLockedToday ? 'text-[#D4A373]/60' : isCurrent ? 'text-[#D4A373]' : 'text-[#433422]/30'}`}>
-                        {isDone ? 'DONE' : isLockedToday ? 'COME BACK TOMORROW' : isCurrent ? 'UP NEXT' : `TRACK ${i + 1}`}
-                      </span>
-                      <h3 className={`text-3xl mt-6 font-serif leading-tight ${(isLocked || isLockedToday) && !isDone ? 'opacity-40' : ''}`}>{track.title}</h3>
-                      {track.duration && <p className="text-sm text-[#433422]/50 mt-3">{track.duration}</p>}
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <p className="text-xs text-[#433422]/40 italic">
-                        {isDone ? 'Completed' : isLockedToday ? 'Available tomorrow' : canPlay ? 'Tap to play' : ''}
-                      </p>
-                      <div className={`w-16 h-16 rounded-full flex items-center justify-center ${isDone ? 'bg-[#8E9775]/20' : isLockedToday ? 'bg-[#F4EFE6] border-2 border-[#D4A373]/20' : isLocked ? 'bg-[#F0EBE3]' : 'bg-[#433422]'}`}>
-                        {isDone
-                          ? <span className="text-[#8E9775] text-xl">✓</span>
-                          : isLockedToday
-                          ? <Lock size={20} className="text-[#D4A373]/50" />
-                          : isLocked
-                          ? <Lock size={20} className="text-[#433422]/20" />
-                          : <Play size={26} fill="white" className="text-white ml-1" />}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
+                    {isInPath
+                      ? <><div className="w-3 h-0.5 bg-[#433422]/40 rounded-full" /><span>In Path</span></>
+                      : card.tier === 'supporter' && !isUserSupporter
+                      ? <><Crown size={13} /><span>Supporter Only</span></>
+                      : <><Plus size={13} /><span>Add to Path</span></>}
+                  </motion.button>
+                </div>
 
-              {/* Article series readings */}
-              {isArticleSeries && card.tracks.map((reading, i) => {
-                const trackRecord = trackCompletions.find(tc => tc.trackIndex === i);
-                const isDone = !!trackRecord || (pathItem && (allTracksComplete || i < trackIdx));
-                const isLockedToday = doneToday && i === trackIdx;
-                const isCurrent = pathItem && !allTracksComplete && i === trackIdx && !isLockedToday;
-                const isLocked = !pathItem || (!isDone && !isCurrent && !isLockedToday && i > trackIdx);
-                const canRead = isCurrent;
-                return (
-                  <div
-                    key={i}
-                    onClick={() => {
-                      if (!canRead) return;
-                      setActiveReadingSession({ card, reading, trackIndex: i, totalReadings: card.tracks.length, pathItemId: pathItem.id });
-                      setLibraryDetailCard(null);
-                    }}
-                    className={`w-[80vw] aspect-square rounded-[48px] p-9 flex flex-col justify-between flex-shrink-0 mx-4 snap-center snap-always transition-transform ${canRead ? 'cursor-pointer active:scale-[0.98]' : 'cursor-default'} ${isDone ? 'bg-[#EEF1EA]' : 'bg-[#F4EFE6]'}`}
-                  >
-                    <div>
-                      <span className={`text-[10px] font-bold tracking-[0.4em] uppercase ${isDone ? 'text-[#8E9775]' : isLockedToday ? 'text-[#D4A373]/60' : isCurrent ? 'text-[#D4A373]' : 'text-[#433422]/30'}`}>
-                        {isDone ? 'READ' : isLockedToday ? 'COME BACK TOMORROW' : isCurrent ? 'TODAY' : `READING ${i + 1}`}
-                      </span>
-                      <h3 className={`text-3xl mt-6 font-serif leading-tight ${(isLocked || isLockedToday) && !isDone ? 'opacity-40' : ''}`}>{reading.title}</h3>
+                {/* Track list */}
+                {tracks.length > 0 && (
+                  <>
+                    <div className="mx-5 mt-5 h-px bg-[#433422]/8" />
+                    <div className="mt-3 px-5 space-y-1">
+                      {tracks.map((track, i) => {
+                        const trackRecord = trackCompletions.find(tc => tc.trackIndex === i);
+                        const isDone = !!trackRecord || (pathItem && (allTracksComplete || i < trackIdx));
+                        const isLockedToday = doneToday && i === trackIdx;
+                        const isCurrent = pathItem && !allTracksComplete && i === trackIdx && !isLockedToday;
+                        const isLocked = !pathItem || (!isDone && !isCurrent && !isLockedToday && i > trackIdx);
+                        const canPlay = isCurrent;
+                        return (
+                          <button
+                            key={i}
+                            disabled={!canPlay}
+                            onClick={() => {
+                              if (!canPlay) return;
+                              setActiveSession({
+                                title: track.title, audioUrl: track.audioUrl,
+                                cardId: card.id, cardTitle: card.title,
+                                pathItemId: pathItem.id, isPlaylistTrack: true,
+                                trackIndex: i, totalTracks: tracks.length, skipCheckin: true,
+                              });
+                              setLibraryDetailCard(null);
+                              setView('meditation');
+                            }}
+                            className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-[18px] transition-colors text-left ${canPlay ? 'bg-[#F4EFE6] active:bg-[#EDE5D8]' : 'bg-transparent'}`}
+                          >
+                            {/* Track number */}
+                            <span className={`text-[10px] font-bold w-5 text-center flex-shrink-0 ${isDone ? 'text-[#8E9775]' : isLocked || isLockedToday ? 'text-[#433422]/20' : 'text-[#D4A373]'}`}>
+                              {isDone ? '✓' : i + 1}
+                            </span>
+                            {/* Title + duration */}
+                            <div className="flex-1 min-w-0">
+                              <p className={`text-sm font-serif leading-snug truncate ${isLocked && !isDone ? 'text-[#433422]/30' : 'text-[#433422]'}`}>{track.title}</p>
+                              {track.duration && <p className="text-[10px] text-[#433422]/40 mt-0.5">{track.duration}</p>}
+                            </div>
+                            {/* Status icon */}
+                            <div className="flex-shrink-0">
+                              {isDone
+                                ? <div className="w-8 h-8 rounded-full bg-[#8E9775]/15 flex items-center justify-center"><span className="text-[#8E9775] text-xs">✓</span></div>
+                                : isLockedToday
+                                ? <div className="w-8 h-8 rounded-full bg-[#F0EBE3] flex items-center justify-center"><Lock size={12} className="text-[#D4A373]/60" /></div>
+                                : isLocked
+                                ? <div className="w-8 h-8 rounded-full bg-[#F0EBE3] flex items-center justify-center"><Lock size={12} className="text-[#433422]/20" /></div>
+                                : <div className="w-8 h-8 rounded-full bg-[#433422] flex items-center justify-center"><Play size={12} fill="white" className="text-white ml-0.5" /></div>}
+                            </div>
+                          </button>
+                        );
+                      })}
                     </div>
-                    <div className="flex items-center justify-between">
-                      <p className="text-xs text-[#433422]/40 italic">
-                        {isDone ? 'Completed' : isLockedToday ? 'Available tomorrow' : canRead ? 'Tap to read' : ''}
-                      </p>
-                      <div className={`w-16 h-16 rounded-full flex items-center justify-center ${isDone ? 'bg-[#8E9775]/20' : isLockedToday ? 'bg-[#F4EFE6] border-2 border-[#D4A373]/20' : isLocked ? 'bg-[#F0EBE3]' : 'bg-[#433422]'}`}>
-                        {isDone
-                          ? <span className="text-[#8E9775] text-xl">✓</span>
-                          : isLockedToday
-                          ? <Lock size={20} className="text-[#D4A373]/50" />
-                          : isLocked
-                          ? <Lock size={20} className="text-[#433422]/20" />
-                          : <ChevronRight size={28} className="text-white" />}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
+                  </>
+                )}
 
-              <div className="min-w-[10vw] flex-shrink-0" />
-            </div>
-
-            {/* Footer description */}
-            {card.description && (
-              <div className="pb-12 px-12 text-center flex items-center justify-center flex-shrink-0" style={{ minHeight: 72 }}>
-                <p className="text-sm italic text-[#433422]/40 max-w-xs mx-auto leading-relaxed line-clamp-2">{card.description}</p>
+                {/* Footer description */}
+                {card.description && (
+                  <p className="text-sm italic text-[#433422]/40 text-center px-10 mt-6 leading-relaxed">{card.description}</p>
+                )}
               </div>
-            )}
-            {!card.description && <div className="h-12 flex-shrink-0" />}
-          </div>
+            </div>
+          </>
         );
       })()}
     </>
@@ -2170,7 +2036,7 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
                     <p className="text-[10px] tracking-[0.3em] font-bold text-[#433422]/40">{cat.sectionTag || 'SERIES'}</p>
                     <h2 className="text-xl font-serif">{cat.name}</h2>
                   </div>
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-2 gap-3">
                     {catCards.map((s) => {
                       const existingItems = pathItems.filter(i => i.cardId === s.id);
                       const isInPath = existingItems.length > 0;
@@ -2185,8 +2051,12 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
                           completed={completedHistory.has(s.id)}
                           lockedToday={isLockedToday}
                           onClick={() => handleCardTap(s)}
-                          onLongPress={() => setActionSheetCard(s)}
-                          onContextMenu={(e) => { e.preventDefault(); setActionSheetCard(s); }}
+                          onQuickAdd={async () => {
+                            if (activeModule) { showPathToast('Finish your current module first'); return; }
+                            const extra = isPathDoneToday ? { completedToday: todayISO } : {};
+                            await addToPath(user?.uid, s.id, pathItems.length, extra);
+                            showPathToast('Added to your path');
+                          }}
                         />
                       );
                     })}
@@ -2222,60 +2092,6 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
         </nav>
 
         {/* Action sheet — long-press to add/remove from path */}
-        {actionSheetCard && (
-          <>
-            <div className="fixed inset-0 bg-black/40 z-40" onClick={() => setActionSheetCard(null)} />
-            <div className="fixed bottom-0 left-0 right-0 z-50 bg-[#FDF9F3] rounded-t-[28px] px-6 pb-10 pt-5 animate-sheet-enter">
-              <div className="w-10 h-1 bg-[#433422]/20 rounded-full mx-auto mb-6" />
-              <div className="flex items-center gap-4 mb-8">
-                <div className="w-12 h-12 rounded-2xl flex-shrink-0" style={{ backgroundColor: actionSheetCard.color || '#E9DCC9' }} />
-                <div className="min-w-0">
-                  <p className="text-[9px] font-bold tracking-widest text-[#433422]/40">{actionSheetCard.label || 'CONTENT'}</p>
-                  <p className="font-serif text-[#433422] text-base leading-snug truncate">{actionSheetCard.title}</p>
-                </div>
-              </div>
-              {(() => {
-                const existingItems = pathItems.filter(i => i.cardId === actionSheetCard.id);
-                const isSupporter = actionSheetCard.tier === 'supporter' && !isUserSupporter;
-                return existingItems.length > 0 ? (
-                  <button
-                    onClick={async () => {
-                      await Promise.all(existingItems.map(item => removeFromPath(user.uid, item.id)));
-                      showPathToast('Removed from your path');
-                      setActionSheetCard(null);
-                    }}
-                    className="w-full py-4 bg-[#433422]/10 text-[#433422] rounded-[24px] font-serif text-base"
-                  >
-                    Remove from My Path
-                  </button>
-                ) : isSupporter ? (
-                  <div className="w-full py-4 bg-[#F4EFE6] rounded-[24px] text-center">
-                    <p className="text-sm font-serif text-[#433422]/50">Supporter only content</p>
-                    <button
-                      onClick={() => { setActionSheetCard(null); setActiveTab('user'); setView('account'); }}
-                      className="text-[10px] font-bold tracking-widest text-[#D4A373] mt-1"
-                    >
-                      BECOME A SUPPORTER
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    onClick={async () => {
-                      if (activeModule) { showPathToast('Finish your current module first'); setActionSheetCard(null); return; }
-                      const extra = isPathDoneToday ? { completedToday: todayISO } : {};
-                      await addToPath(user.uid, actionSheetCard.id, pathItems.length, extra);
-                      showPathToast('Added to your path');
-                      setActionSheetCard(null);
-                    }}
-                    className="w-full py-4 bg-[#433422] text-[#FDF9F3] rounded-[24px] font-serif text-base"
-                  >
-                    {isPathDoneToday ? 'Add to Path (available tomorrow)' : 'Add to My Path'}
-                  </button>
-                );
-              })()}
-            </div>
-          </>
-        )}
 
         {renderSharedModals()}
 
