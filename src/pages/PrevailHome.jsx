@@ -135,6 +135,11 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
   const [viewingModuleId, setViewingModuleId] = useState(null);
   const [compassSpinning, setCompassSpinning] = useState(false);
   const [showJourneyInfo, setShowJourneyInfo] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState(null);
+  const [showJourneyConflict, setShowJourneyConflict] = useState(false);
+  const [pendingJourneyCard, setPendingJourneyCard] = useState(null);
+  const [showEndJourneyConfirm, setShowEndJourneyConfirm] = useState(false);
+  const [pendingEndAction, setPendingEndAction] = useState(null);
   const [pendingCelebration, setPendingCelebration] = useState(false);
   const [focusedStepIndex, setFocusedStepIndex] = useState(0);
   const [pathNavDir, setPathNavDir] = useState(0);
@@ -553,7 +558,7 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
                         <button
                           onClick={async () => {
                             if (isInPath) { await Promise.all(existingItems.map(item => removeFromPath(uid, item.id))); showPathToast('Removed from your path'); }
-                            else if (activeModule && activeModuleCard) { showPathToast('Finish your current module first'); }
+                            else if (activeModule && activeModuleCard) { setPendingJourneyCard(activeDetailCard); setShowJourneyConflict(true); }
                             else { await addToPath(uid, activeDetailCard.id, pathItems.length); showPathToast('Added to your path'); }
                           }}
                           className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold transition-colors ${isInPath ? 'bg-[#D4A373] text-white' : 'bg-[#E9DCC9]/80 text-[#433422]/70 hover:bg-[#E9DCC9]'}`}
@@ -789,14 +794,23 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
                   </div>
                 </div>
 
+                {/* Description */}
+                {card.description && (
+                  <p className="text-sm text-[#433422]/60 leading-relaxed px-5 mt-4">{card.description}</p>
+                )}
+
                 {/* Add to Path button */}
                 <div className="px-5 mt-4">
                   <motion.button
                     whileTap={{ scale: 0.97 }}
                     onClick={async () => {
                       if (isInPath) {
-                        await Promise.all(existingItems.map(i => removeFromPath(uid, i.id)));
-                        showPathToast('Removed from your path');
+                        setPendingEndAction(() => async () => {
+                          await Promise.all(existingItems.map(i => removeFromPath(uid, i.id)));
+                          showPathToast('Your journey has been released');
+                          setLibraryDetailCard(null);
+                        });
+                        setShowEndJourneyConfirm(true);
                       } else {
                         if (card.tier === 'supporter' && !isUserSupporter) {
                           setLibraryDetailCard(null);
@@ -804,7 +818,7 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
                           setView('supporter-lock');
                           return;
                         }
-                        if (activeModule && activeModuleCard) { showPathToast('Finish your current module first'); return; }
+                        if (activeModule && activeModuleCard) { setPendingJourneyCard(card); setShowJourneyConflict(true); return; }
                         const extra = isPathDoneToday ? { completedToday: todayISO } : {};
                         await addToPath(uid, card.id, pathItems.length, extra);
                         showPathToast('Added to your path');
@@ -817,10 +831,10 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
                     }`}
                   >
                     {isInPath
-                      ? <><div className="w-3 h-0.5 bg-[#433422]/40 rounded-full" /><span>In Path</span></>
+                      ? <span>End This Journey</span>
                       : card.tier === 'supporter' && !isUserSupporter
                       ? <><Crown size={13} /><span>Supporter Only</span></>
-                      : <><Plus size={13} /><span>Add to Path</span></>}
+                      : <span>Start This Journey</span>}
                   </motion.button>
                 </div>
 
@@ -879,15 +893,92 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
                   </>
                 )}
 
-                {/* Footer description */}
-                {card.description && (
-                  <p className="text-sm italic text-[#433422]/40 text-center px-10 mt-6 leading-relaxed">{card.description}</p>
-                )}
               </div>
             </div>
           </>
         );
       })()}
+
+      {/* End journey confirmation — mindful pause */}
+      {showEndJourneyConfirm && (
+        <>
+          <div className="fixed inset-0 bg-black/40 z-[69]" onClick={() => { setShowEndJourneyConfirm(false); setPendingEndAction(null); }} />
+          <div className="fixed inset-x-0 bottom-0 z-[70] bg-[#FDF9F3] rounded-t-[32px] animate-sheet-enter font-sans text-[#433422]">
+            <div className="flex justify-center pt-3 pb-1">
+              <div className="w-10 h-1 bg-[#433422]/20 rounded-full" />
+            </div>
+            <div className="px-8 pt-4 pb-12">
+              <p className="text-[9px] font-bold tracking-[0.3em] text-[#D4A373] uppercase mb-2">A Moment of Reflection</p>
+              <h2 className="text-2xl font-serif mb-4 leading-snug">Every step counts.</h2>
+              <p className="text-sm text-[#433422]/60 leading-relaxed mb-2">
+                Releasing a journey early is always an option, but we gently invite you to sit with this choice first. The sessions you haven't yet walked may hold exactly what you need.
+              </p>
+              <p className="text-sm text-[#433422]/60 leading-relaxed mb-8">
+                If you feel at peace stepping away, that too is a considered act of faith.
+              </p>
+              <button
+                onClick={() => { setShowEndJourneyConfirm(false); setPendingEndAction(null); }}
+                className="w-full py-4 rounded-[20px] bg-[#D4A373] text-white text-xs font-bold tracking-[0.15em] uppercase mb-3"
+              >
+                Keep Walking
+              </button>
+              <button
+                onClick={async () => {
+                  if (pendingEndAction) await pendingEndAction();
+                  setShowEndJourneyConfirm(false);
+                  setPendingEndAction(null);
+                }}
+                className="w-full py-3.5 rounded-[20px] bg-[#F4EFE6] text-[#433422]/50 text-xs font-bold tracking-[0.15em] uppercase"
+              >
+                Release This Journey
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Journey conflict — mindful redirect */}
+      {showJourneyConflict && (
+        <>
+          <div className="fixed inset-0 bg-black/40 z-[69]" onClick={() => { setShowJourneyConflict(false); setPendingJourneyCard(null); }} />
+          <div className="fixed inset-x-0 bottom-0 z-[70] bg-[#FDF9F3] rounded-t-[32px] animate-sheet-enter font-sans text-[#433422]">
+            <div className="flex justify-center pt-3 pb-1">
+              <div className="w-10 h-1 bg-[#433422]/20 rounded-full" />
+            </div>
+            <div className="px-8 pt-4 pb-12">
+              <p className="text-[9px] font-bold tracking-[0.3em] text-[#D4A373] uppercase mb-2">One Path at a Time</p>
+              <h2 className="text-2xl font-serif mb-4 leading-snug">Stillness grows, in staying.</h2>
+              <p className="text-sm text-[#433422]/60 leading-relaxed mb-2">
+                You are already walking <span className="font-semibold text-[#433422]/80">{activeModuleCard?.title}</span>. There is deep fruit in seeing a journey through, each session builds on the last, and the path knows where it's taking you.
+              </p>
+              <p className="text-sm text-[#433422]/60 leading-relaxed mb-8">
+                If your heart is genuinely calling you elsewhere, you may release this chapter. Let that be a considered step, taken with intention.
+              </p>
+              <button
+                onClick={() => { setShowJourneyConflict(false); setPendingJourneyCard(null); }}
+                className="w-full py-4 rounded-[20px] bg-[#D4A373] text-white text-xs font-bold tracking-[0.15em] uppercase mb-3"
+              >
+                Stay the Course
+              </button>
+              <button
+                onClick={async () => {
+                  if (!pendingJourneyCard || !activeModule) return;
+                  await removeFromPath(uid, activeModule.id);
+                  await addToPath(uid, pendingJourneyCard.id, 0);
+                  showPathToast('A new journey begins');
+                  setShowJourneyConflict(false);
+                  setPendingJourneyCard(null);
+                  setLibraryDetailCard(null);
+                  setActiveDetailCard(null);
+                }}
+                className="w-full py-3.5 rounded-[20px] bg-[#F4EFE6] text-[#433422]/50 text-xs font-bold tracking-[0.15em] uppercase"
+              >
+                Release This Journey
+              </button>
+            </div>
+          </div>
+        </>
+      )}
     </>
   );
 
@@ -2088,13 +2179,13 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
       <div className="bg-[#FDF9F3] text-[#433422] font-sans min-h-screen">
         <div className="animate-view-enter">
 
-        <header className="relative h-[26vh] bg-[#E9DCC9] flex items-end px-8 pb-14">
+        <header className="relative h-[18vh] bg-[#E9DCC9] flex items-end px-8 pb-10">
           <div className="absolute inset-0 overflow-hidden pointer-events-none">
             <div className="absolute top-[-10%] right-[-10%] w-64 h-64 bg-[#FFF3E0] rounded-full blur-3xl opacity-60" />
           </div>
           <div className="relative z-10">
             <p className="text-[10px] tracking-[0.3em] font-bold text-[#433422]/50 mb-1">SANCTUARY</p>
-            <h1 className="text-3xl font-serif">Choose a journey</h1>
+            <h1 className="text-2xl font-serif">Choose a journey</h1>
           </div>
           <div className="absolute bottom-0 left-0 right-0 z-20 pointer-events-none">
             <svg viewBox="0 0 400 50" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-10">
@@ -2103,98 +2194,146 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
           </div>
         </header>
 
-        <main className="pt-4 pb-32 space-y-10">
+        {/* Sticky category chips */}
+        <div className="sticky top-0 z-10 bg-[#FDF9F3] pt-3 pb-2">
+          <div className="flex gap-2 overflow-x-auto no-scrollbar px-6">
+            <button
+              onClick={() => setSelectedCategory(null)}
+              className={`flex-shrink-0 text-[10px] font-bold tracking-[0.2em] uppercase px-4 py-1.5 rounded-full transition-colors ${selectedCategory === null ? 'bg-[#433422] text-[#FDF9F3]' : 'bg-[#F4EFE6] text-[#433422]/50'}`}
+            >All</button>
+            {categories.map(cat => (
+              <button
+                key={cat.id || cat.value}
+                onClick={() => setSelectedCategory(cat.value)}
+                className={`flex-shrink-0 text-[10px] font-bold tracking-[0.2em] uppercase px-4 py-1.5 rounded-full transition-colors ${selectedCategory === cat.value ? 'bg-[#433422] text-[#FDF9F3]' : 'bg-[#F4EFE6] text-[#433422]/50'}`}
+              >{cat.name}</button>
+            ))}
+          </div>
+        </div>
 
-          {/* 30-Day Path */}
-          {pathSessions.length > 0 && (
-            <section>
-              <div className="px-8 flex items-center justify-between mb-4">
-                <div>
-                  <p className="text-[10px] tracking-[0.3em] font-bold text-[#433422]/40">FEATURED</p>
-                  <h2 className="text-xl font-serif">The 30-Day Path</h2>
-                </div>
-                <span className="text-[10px] font-bold text-[#433422]/30">1 / {pathSessions.length}</span>
+        <main className="pt-2 pb-32">
+
+          {/* Filtered list — category selected */}
+          {selectedCategory && (() => {
+            const todayStr = new Date().toISOString().slice(0, 10);
+            const filteredCards = allCards.filter(c => c.category === selectedCategory);
+            if (filteredCards.length === 0) return (
+              <div className="flex flex-col items-center justify-center py-24 px-8 text-center">
+                <p className="text-[#433422]/30 text-sm">Nothing here yet.</p>
               </div>
-              <div className="flex gap-3 overflow-x-auto no-scrollbar pl-8 pr-6 pb-1">
-                {pathSessions.map((session) => {
-                  const color = PATH_CARD_COLORS[(( session.day || 1) - 1) % PATH_CARD_COLORS.length];
-                  const isWired = !!session.audioUrl;
+            );
+            return (
+              <section className="px-6 space-y-2.5">
+                {filteredCards.map(s => {
+                  const existingItems = pathItems.filter(i => i.cardId === s.id);
+                  const isInPath = existingItems.length > 0;
                   return (
-                    <button
-                      key={session.id}
-                      onClick={() => { if (!isWired) return; setActiveSession({ title: session.title || `Day ${session.day}`, audioUrl: session.audioUrl }); setView('meditation'); }}
-                      className={`flex-shrink-0 w-[130px] rounded-[22px] overflow-hidden text-left shadow-sm ${isWired ? 'active:scale-95 transition-transform' : ''}`}
-                    >
-                      <div className="h-[96px] relative flex flex-col justify-between p-3.5" style={{ backgroundColor: color }}>
-                        <Headphones size={18} className="absolute bottom-10 right-3.5 text-[#433422]/20" />
-                        <span className="relative text-[8px] font-bold tracking-widest text-[#433422]/50">DAY {session.day}</span>
-                        {isWired ? (
-                          <div className="relative self-end w-6 h-6 rounded-full bg-[#433422] flex items-center justify-center">
-                            <Play size={9} fill="currentColor" className="text-[#FDF9F3] ml-0.5" />
-                          </div>
-                        ) : (
-                          <div className="relative self-end w-5 h-5 rounded-full bg-black/10 flex items-center justify-center">
-                            <Lock size={9} className="text-[#433422]/40" />
-                          </div>
-                        )}
-                      </div>
-                      <div className="bg-white px-3.5 pt-2.5 pb-3">
-                        <p className="text-[11px] font-serif text-[#433422] leading-tight">{session.title}</p>
-                        <p className="text-[9px] text-[#433422]/40 font-bold mt-0.5">{session.duration}</p>
-                      </div>
-                    </button>
+                    <ResourceCard
+                      key={s.id}
+                      {...s}
+                      horizontal
+                      inPath={isInPath}
+                      completed={completedHistory.has(s.id)}
+                      onClick={() => handleCardTap(s)}
+                    />
                   );
                 })}
-              </div>
-            </section>
-          )}
+              </section>
+            );
+          })()}
 
-          {/* Dynamic library categories */}
-          {(() => {
-            const todayStr = new Date().toISOString().slice(0, 10);
-            return categories.map(cat => {
-              const catCards = allCards.filter(c => c.category === cat.value);
-              if (catCards.length === 0) return null;
-              return (
-                <section key={cat.id || cat.value} className="px-8">
-                  <div className="mb-4">
-                    <p className="text-[10px] tracking-[0.3em] font-bold text-[#433422]/40">{cat.sectionTag || 'SERIES'}</p>
-                    <h2 className="text-xl font-serif">{cat.name}</h2>
+          {/* All view — 30-Day Path + horizontal rows per category */}
+          {!selectedCategory && (
+            <div className="space-y-8">
+              {/* 30-Day Path */}
+              {pathSessions.length > 0 && (
+                <section>
+                  <div className="px-6 flex items-baseline justify-between mb-3">
+                    <div>
+                      <p className="text-[9px] tracking-[0.3em] font-bold text-[#433422]/35">FEATURED</p>
+                      <h2 className="text-lg font-serif">The 30-Day Path</h2>
+                    </div>
+                    <span className="text-[10px] font-bold text-[#433422]/30">{pathSessions.length} days</span>
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    {catCards.map((s) => {
-                      const existingItems = pathItems.filter(i => i.cardId === s.id);
-                      const isInPath = existingItems.length > 0;
-                      const pathItem = existingItems[0];
-                      const isSequential = s.type === 'playlist' || (s.type === 'article' && (s.tracks?.length ?? 0) > 0);
-                      const isLockedToday = isSequential && !!pathItem && pathItem.completedToday === todayStr && !pathItem.completed;
+                  <div className="flex gap-3 overflow-x-auto no-scrollbar pl-6 pr-4 pb-1">
+                    {pathSessions.map((session) => {
+                      const color = PATH_CARD_COLORS[((session.day || 1) - 1) % PATH_CARD_COLORS.length];
+                      const isWired = !!session.audioUrl;
                       return (
-                        <ResourceCard
-                          key={s.id}
-                          {...s}
-                          inPath={isInPath}
-                          completed={completedHistory.has(s.id)}
-                          lockedToday={isLockedToday}
-                          onClick={() => handleCardTap(s)}
-                          onQuickAdd={async () => {
-                            if (activeModule && activeModuleCard) { showPathToast('Finish your current module first'); return; }
-                            const extra = isPathDoneToday ? { completedToday: todayISO } : {};
-                            await addToPath(uid, s.id, pathItems.length, extra);
-                            showPathToast('Added to your path');
-                          }}
-                        />
+                        <button
+                          key={session.id}
+                          onClick={() => { if (!isWired) return; setActiveSession({ title: session.title || `Day ${session.day}`, audioUrl: session.audioUrl }); setView('meditation'); }}
+                          className={`flex-shrink-0 w-[130px] rounded-[22px] overflow-hidden text-left shadow-sm ${isWired ? 'active:scale-95 transition-transform' : ''}`}
+                        >
+                          <div className="h-[96px] relative flex flex-col justify-between p-3.5" style={{ backgroundColor: color }}>
+                            <Headphones size={18} className="absolute bottom-10 right-3.5 text-[#433422]/20" />
+                            <span className="relative text-[8px] font-bold tracking-widest text-[#433422]/50">DAY {session.day}</span>
+                            {isWired ? (
+                              <div className="relative self-end w-6 h-6 rounded-full bg-[#433422] flex items-center justify-center">
+                                <Play size={9} fill="currentColor" className="text-[#FDF9F3] ml-0.5" />
+                              </div>
+                            ) : (
+                              <div className="relative self-end w-5 h-5 rounded-full bg-black/10 flex items-center justify-center">
+                                <Lock size={9} className="text-[#433422]/40" />
+                              </div>
+                            )}
+                          </div>
+                          <div className="bg-white px-3.5 pt-2.5 pb-3">
+                            <p className="text-[11px] font-serif text-[#433422] leading-tight">{session.title}</p>
+                            <p className="text-[9px] text-[#433422]/40 font-bold mt-0.5">{session.duration}</p>
+                          </div>
+                        </button>
                       );
                     })}
                   </div>
                 </section>
-              );
-            });
-          })()}
+              )}
 
-          {/* Empty state */}
-          {pathSessions.length === 0 && allCards.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-24 px-8 text-center">
-              <p className="text-[#433422]/30 text-sm">Content coming soon.</p>
+              {/* Category horizontal rows */}
+              {(() => {
+                const todayStr = new Date().toISOString().slice(0, 10);
+                return categories.map(cat => {
+                  const catCards = allCards.filter(c => c.category === cat.value);
+                  if (catCards.length === 0) return null;
+                  return (
+                    <section key={cat.id || cat.value}>
+                      <div className="flex items-baseline justify-between px-6 mb-3">
+                        <div>
+                          <p className="text-[9px] tracking-[0.3em] font-bold text-[#433422]/35">{cat.sectionTag || 'SERIES'}</p>
+                          <h2 className="text-lg font-serif">{cat.name}</h2>
+                        </div>
+                        <button
+                          onClick={() => setSelectedCategory(cat.value)}
+                          className="text-[10px] font-bold text-[#D4A373]"
+                        >See all</button>
+                      </div>
+                      <div className="flex gap-3 overflow-x-auto no-scrollbar pl-6 pr-4 pb-1">
+                        {catCards.slice(0, 6).map(s => {
+                          const existingItems = pathItems.filter(i => i.cardId === s.id);
+                          const isInPath = existingItems.length > 0;
+                          return (
+                            <div key={s.id} className="flex-shrink-0 w-[130px]">
+                              <ResourceCard
+                                {...s}
+                                inPath={isInPath}
+                                completed={completedHistory.has(s.id)}
+                                onClick={() => handleCardTap(s)}
+                              />
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </section>
+                  );
+                });
+              })()}
+
+              {/* Empty state */}
+              {pathSessions.length === 0 && allCards.length === 0 && (
+                <div className="flex flex-col items-center justify-center py-24 px-8 text-center">
+                  <p className="text-[#433422]/30 text-sm">Content coming soon.</p>
+                </div>
+              )}
             </div>
           )}
 
