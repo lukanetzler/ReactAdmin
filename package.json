@@ -12,6 +12,9 @@
     "deploy": "gh-pages -d dist --repo https://github.com/lukanetzler/ReactAdmin.git"
   },
   "dependencies": {
+    "@capacitor/core": "^8.3.3",
+    "@revenuecat/purchases-capacitor": "^13.1.0",
+    "@revenuecat/purchases-capacitor-ui": "^13.1.0",
     "firebase": "^12.9.0",
     "framer-motion": "^12.35.2",
     "react": "^19.2.0",

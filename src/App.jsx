@@ -5,6 +5,7 @@ import { useAuth } from './hooks/useAuth';
 import { signOut } from 'firebase/auth';
 import { auth } from './firebase';
 import { migrateGuestDataIfNeeded } from './services/migrateGuest';
+import { initializePurchases } from './services/purchases';
 import prayvailLogo from './assets/prayvail-logo-blank.png';
 import PrevailGateway from './pages/PrevailGateway';
 import PrevailOnboarding from './pages/PrevailOnboarding';
@@ -49,6 +50,10 @@ function App() {
     }
     if (user && !user.isAnonymous) {
       migrateGuestDataIfNeeded(user.uid).catch(() => {});
+    }
+    // Initialize RevenueCat with the Firebase UID so purchases are linked to the account
+    if (user) {
+      initializePurchases(user.uid).catch(() => {});
     }
   }, [user, loading]);
 

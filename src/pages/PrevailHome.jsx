@@ -11,6 +11,7 @@ import { useDailyPath } from '../hooks/useDailyPath';
 import { addJournalEntry, updateJournalEntry, deleteJournalEntry } from '../services/journal';
 import { updateUserProfile } from '../services/userProfile';
 import { addToPath, removeFromPath, completeTrackForDay, dismissBroadcast, completePathItem, recordCompletion, recordStreakDay } from '../services/dailyPath';
+import { checkIsSupporter, presentPaywall, presentCustomerCenter, restorePurchases, isNative } from '../services/purchases';
 import { useTrackCompletions } from '../hooks/useTrackCompletions';
 import { useCompletionHistory } from '../hooks/useCompletionHistory';
 import { useStreakDays } from '../hooks/useStreakDays';
@@ -30,6 +31,8 @@ import {
   Wheat,
   Flame,
   ChevronRight,
+  ChevronUp,
+  ChevronDown,
   Headphones,
   ArrowRight,
   ArrowLeft,
@@ -81,6 +84,11 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
   const [nameSaving, setNameSaving] = useState(false);
   const [nameError, setNameError] = useState('');
   useEffect(() => { setNameInput(profile?.name || user?.displayName || ''); }, [profile, user]);
+
+  // Check RevenueCat entitlement on mount and whenever the user changes
+  useEffect(() => {
+    checkIsSupporter().then(setRcIsSupporter).catch(() => {});
+  }, [user?.uid]);
   const notifDailyVerse = profile?.notifDailyVerse ?? true;
   const notifReflection = profile?.notifReflection ?? true;
 
@@ -102,25 +110,38 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
   const [journalSaving, setJournalSaving] = useState(false);
   const [journalError, setJournalError] = useState('');
 
+  // Anonymous Firebase users have a non-null uid but no Firestore write access.
+  // Pass null for data hooks/services so they fall back to localStorage.
+  const uid = user?.isAnonymous ? null : user?.uid;
+
   // Daily path
-  const { items: pathItems, archivedItems } = useDailyPath(user?.uid);
-  const activeModule = pathItems.find(i => !i._broadcast) ?? null;
+  const { items: pathItems, archivedItems } = useDailyPath(uid);
+  const activeModule = pathItems.find(i => !i._broadcast && allCards.some(c => c.id === i.cardId)) ?? null;
   const activeModuleCard = activeModule ? allCards.find(c => c.id === activeModule.cardId) ?? null : null;
-  const { completedCardIds: completedHistory, completionDates } = useCompletionHistory(user?.uid);
-  const streakDays = useStreakDays(user?.uid);
+  const { completedCardIds: completedHistory, completionDates } = useCompletionHistory(uid);
+  const streakDays = useStreakDays(uid);
   const [completedCardIds, setCompletedCardIds] = useState(new Set());
   const [activeSession, setActiveSession] = useState(null); // { title, audioUrl, imageUrl?, cardId?, pathItemId?, isPlaylistTrack?, trackIndex?, totalTracks?, skipCheckin? }
   const [activePlaylist, setActivePlaylist] = useState(null);
   const [activeDetailCard, setActiveDetailCard] = useState(null);
   const [libraryDetailCard, setLibraryDetailCard] = useState(null);
-  const trackCompletions = useTrackCompletions(user?.uid, (libraryDetailCard || activeDetailCard)?.id);
+  const trackCompletions = useTrackCompletions(uid, (libraryDetailCard || activeDetailCard)?.id);
   const [detailPathItem, setDetailPathItem] = useState(null); // path item context when popup opened from daily path
   const [activeReadingSession, setActiveReadingSession] = useState(null); // { card, reading, trackIndex, totalReadings, pathItemId }
   const [supporterLockCard, setSupporterLockCard] = useState(null);
+  const [rcIsSupporter, setRcIsSupporter] = useState(false);
   const [pathToast, setPathToast] = useState(null); // { message, id }
   const [togglingCardIds, setTogglingCardIds] = useState(new Set());
   const [viewingModuleId, setViewingModuleId] = useState(null);
+  const [compassSpinning, setCompassSpinning] = useState(false);
+  const [showJourneyInfo, setShowJourneyInfo] = useState(false);
   const [pendingCelebration, setPendingCelebration] = useState(false);
+  const [focusedStepIndex, setFocusedStepIndex] = useState(0);
+  const [pathNavDir, setPathNavDir] = useState(0);
+
+  useEffect(() => {
+    setFocusedStepIndex(activeModule?.trackIndex ?? 0);
+  }, [activeModule?.id]);
 
   const showPathToast = (message) => {
     const id = Date.now();
@@ -178,7 +199,7 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
   };
 
   // Journal entries from Firestore
-  const { entries: journalEntries } = useJournalEntries(user?.uid);
+  const { entries: journalEntries } = useJournalEntries(uid);
 
   // Core loop state
   const [preFeelingWord, setPreFeelingWord] = useState('');
@@ -231,7 +252,7 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
     return `${m}:${Math.floor(s % 60).toString().padStart(2, '0')}`;
   };
 
-  const isUserSupporter = profile?.role === 'supporter' || profile?.role === 'admin';
+  const isUserSupporter = profile?.role === 'supporter' || profile?.role === 'admin' || rcIsSupporter;
 
   const handleCardTap = (card) => {
     if (card.tier === 'supporter' && !isUserSupporter) {
@@ -250,7 +271,7 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
     if (activeSession?.isPlaylistTrack && activeSession?.pathItemId) {
       const isLast = activeSession.trackIndex >= activeSession.totalTracks - 1;
       const nextIndex = activeSession.trackIndex + 1;
-      completeTrackForDay(user.uid, {
+      completeTrackForDay(uid, {
         itemId: activeSession.pathItemId,
         cardId: activeSession.cardId,
         cardTitle: activeSession.cardTitle || activeSession.title,
@@ -261,8 +282,8 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
       }).catch(() => {});
       if (isLast) setPendingCelebration(true);
     } else if (activeSession?.cardId && activeSession?.pathItemId) {
-      completePathItem(user.uid, activeSession.pathItemId).catch(() => {});
-      recordCompletion(user.uid, activeSession.cardId, activeSession.title, 'single').catch(() => {});
+      completePathItem(uid, activeSession.pathItemId).catch(() => {});
+      recordCompletion(uid, activeSession.cardId, activeSession.title, 'single').catch(() => {});
     }
 
     if (activeSession?.cardId) {
@@ -531,9 +552,9 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
                       <div className="flex items-center justify-end gap-2 mt-2">
                         <button
                           onClick={async () => {
-                            if (isInPath) { await Promise.all(existingItems.map(item => removeFromPath(user.uid, item.id))); showPathToast('Removed from your path'); }
-                            else if (activeModule) { showPathToast('Finish your current module first'); }
-                            else { await addToPath(user.uid, activeDetailCard.id, pathItems.length); showPathToast('Added to your path'); }
+                            if (isInPath) { await Promise.all(existingItems.map(item => removeFromPath(uid, item.id))); showPathToast('Removed from your path'); }
+                            else if (activeModule && activeModuleCard) { showPathToast('Finish your current module first'); }
+                            else { await addToPath(uid, activeDetailCard.id, pathItems.length); showPathToast('Added to your path'); }
                           }}
                           className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold transition-colors ${isInPath ? 'bg-[#D4A373] text-white' : 'bg-[#E9DCC9]/80 text-[#433422]/70 hover:bg-[#E9DCC9]'}`}
                         >
@@ -668,7 +689,7 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
               <button onClick={() => {
                 const isLast = activeReadingSession.trackIndex + 1 >= activeReadingSession.totalReadings;
                 const nextIndex = activeReadingSession.trackIndex + 1;
-                completeTrackForDay(user.uid, {
+                completeTrackForDay(uid, {
                   itemId: activeReadingSession.pathItemId,
                   cardId: activeReadingSession.card.id,
                   cardTitle: activeReadingSession.card.title,
@@ -699,6 +720,36 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
           <div className="bg-[#433422] text-[#FDF9F3] text-[11px] font-bold tracking-widest px-5 py-2.5 rounded-full shadow-lg whitespace-nowrap">{pathToast.message.toUpperCase()}</div>
         </div>
       )}
+      {/* Journey info sheet */}
+      {showJourneyInfo && activeModuleCard && (
+        <>
+          <div className="fixed inset-0 bg-black/40 z-[59]" onClick={() => setShowJourneyInfo(false)} />
+          <div className="fixed inset-x-0 bottom-0 z-[60] bg-[#FDF9F3] rounded-t-[32px] max-h-[75vh] flex flex-col overflow-y-auto animate-sheet-enter">
+            <div className="px-5 pt-4 pb-2 flex-shrink-0 flex justify-center">
+              <div className="w-10 h-1 rounded-full bg-[#433422]/10" />
+            </div>
+            <button onClick={() => setShowJourneyInfo(false)} className="absolute top-4 right-4 w-8 h-8 rounded-full bg-[#E9DCC9]/60 flex items-center justify-center">
+              <X size={14} className="text-[#433422]/60" />
+            </button>
+            <div className="h-40 mx-5 mt-2 rounded-[20px] overflow-hidden relative flex-shrink-0">
+              {activeModuleCard.imageUrl
+                ? <img src={activeModuleCard.imageUrl} alt="" className="absolute inset-0 w-full h-full object-cover" />
+                : <div className="absolute inset-0" style={{ backgroundColor: activeModuleCard.color || '#D4A373' }} />}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
+              <div className="absolute bottom-0 left-0 px-4 pb-3">
+                <p className="font-serif text-lg text-white leading-snug">{activeModuleCard.title}</p>
+              </div>
+            </div>
+            <div className="px-6 pt-4 pb-10">
+              {activeModuleCard.label && <p className="text-[9px] font-bold tracking-[0.3em] text-[#433422]/40 uppercase mb-2">{activeModuleCard.label}</p>}
+              {activeModuleCard.description
+                ? <p className="text-sm text-[#433422]/70 leading-relaxed">{activeModuleCard.description}</p>
+                : <p className="text-sm text-[#433422]/30 italic">No description yet.</p>}
+            </div>
+          </div>
+        </>
+      )}
+
       {/* Library detail — vertical bottom sheet */}
       {libraryDetailCard && (() => {
         const card = libraryDetailCard;
@@ -744,7 +795,7 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
                     whileTap={{ scale: 0.97 }}
                     onClick={async () => {
                       if (isInPath) {
-                        await Promise.all(existingItems.map(i => removeFromPath(user?.uid, i.id)));
+                        await Promise.all(existingItems.map(i => removeFromPath(uid, i.id)));
                         showPathToast('Removed from your path');
                       } else {
                         if (card.tier === 'supporter' && !isUserSupporter) {
@@ -753,9 +804,9 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
                           setView('supporter-lock');
                           return;
                         }
-                        if (activeModule) { showPathToast('Finish your current module first'); return; }
+                        if (activeModule && activeModuleCard) { showPathToast('Finish your current module first'); return; }
                         const extra = isPathDoneToday ? { completedToday: todayISO } : {};
-                        await addToPath(user?.uid, card.id, pathItems.length, extra);
+                        await addToPath(uid, card.id, pathItems.length, extra);
                         showPathToast('Added to your path');
                       }
                     }}
@@ -845,27 +896,40 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
     const card = supporterLockCard;
     return (
       <div className="flex flex-col min-h-screen bg-[#FDF9F3] text-[#433422] font-sans animate-view-enter">
-        <div className="h-[28vh] flex flex-col justify-end px-8 pb-8 relative overflow-hidden" style={{ backgroundColor: card?.color || '#E9DCC9', opacity: 0.85 }}>
-          <button onClick={() => setView('resources')} className="flex items-center gap-2 text-[#433422]/50 mb-6 pt-14">
+        <div className="h-[28vh] flex flex-col justify-end px-8 pb-8 relative overflow-hidden" style={{ backgroundColor: card?.color || '#E9DCC9' }}>
+          <div className="absolute inset-0 bg-black/10" />
+          <button onClick={() => setView('resources')} className="relative flex items-center gap-2 text-white/70 mb-6 pt-14">
             <ArrowLeft size={18} />
             <span className="text-sm">Back</span>
           </button>
-          <p className="text-[9px] tracking-widest font-bold text-[#433422]/50 mb-1">SUPPORTER CONTENT</p>
-          <h1 className="text-2xl font-serif">{card?.title}</h1>
+          <p className="relative text-[9px] tracking-widest font-bold text-white/60 mb-1">SUPPORTER CONTENT</p>
+          <h1 className="relative text-2xl font-serif text-white">{card?.title}</h1>
         </div>
         <div className="flex-1 flex flex-col items-center justify-center px-8 text-center gap-6">
           <div className="w-16 h-16 rounded-full bg-[#D4A373]/15 flex items-center justify-center">
-            <Lock size={24} className="text-[#D4A373]" />
+            <Crown size={22} className="text-[#D4A373]" />
           </div>
           <div>
-            <h2 className="text-xl font-serif mb-2">Supporter Content</h2>
-            <p className="text-sm text-[#433422]/50 leading-relaxed">This content is exclusively for Prayvail Supporters. Support the mission to unlock.</p>
+            <h2 className="text-xl font-serif mb-2">Supporter Only</h2>
+            <p className="text-sm text-[#433422]/50 leading-relaxed max-w-xs">
+              This content is exclusively for Prayvail Supporters. Support the mission to unlock this and all supporter content.
+            </p>
           </div>
           <button
-            onClick={() => { setView('account'); setActiveTab('user'); }}
-            className="w-full py-4 bg-[#433422] text-[#FDF9F3] rounded-[24px] font-serif text-base"
+            onClick={async () => {
+              const purchased = await presentPaywall();
+              if (purchased) {
+                const isNowSupporter = await checkIsSupporter();
+                setRcIsSupporter(isNowSupporter);
+                if (isNowSupporter) {
+                  await updateUserProfile(user?.uid, { role: 'supporter' });
+                  setView('resources');
+                }
+              }
+            }}
+            className="w-full py-4 bg-[#433422] text-[#FDF9F3] rounded-[24px] font-serif text-base active:scale-[0.98] transition-transform"
           >
-            Go to Supporter
+            {isNative() ? 'Become a Supporter' : 'Supporter Plans Coming Soon'}
           </button>
           <button onClick={() => setView('resources')} className="text-sm text-[#433422]/40">Go back</button>
         </div>
@@ -1236,13 +1300,13 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
       setJournalError('');
       try {
         if (isEditMode) {
-          await updateJournalEntry(user.uid, editingEntryId, {
+          await updateJournalEntry(uid, editingEntryId, {
             feelingBefore: preFeelingWord,
             feelingAfter: postFeelingWord,
             reflection: journalText,
           });
         } else {
-          await addJournalEntry(user.uid, {
+          await addJournalEntry(uid, {
             dateISO: entryDateISO,
             dateDisplay: entryDateDisplay,
             feelingAfter: postFeelingWord,
@@ -1255,7 +1319,7 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
         setJournalText('');
         setJournalStep(0);
         if (isNewMode) {
-          recordStreakDay(user.uid).catch(() => {});
+          recordStreakDay(uid).catch(() => {});
           if (pendingCelebration) { setPendingCelebration(false); setView('completion-celebration'); }
           else { setView('dashboard'); }
         } else { setView('calendar-log'); }
@@ -1508,7 +1572,7 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
                         <PenLine size={14} />
                       </button>
                       <button
-                        onClick={() => deleteJournalEntry(user.uid, entry.id)}
+                        onClick={() => deleteJournalEntry(uid, entry.id)}
                         className="w-8 h-8 rounded-full bg-[#F9F4EE] flex items-center justify-center text-[#433422]/40 hover:text-red-400 transition-colors"
                       >
                         <Trash2 size={14} />
@@ -1678,16 +1742,77 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
               </div>
               <div>
                 <p className="text-[10px] tracking-[0.3em] font-bold text-[#433422]/40">SUPPORTER</p>
-                <p className="font-serif text-[#433422] text-base">Become a Supporter</p>
+                <p className="font-serif text-[#433422] text-base">
+                  {isUserSupporter ? 'Active Supporter' : 'Become a Supporter'}
+                </p>
               </div>
             </div>
-            <p className="text-sm text-[#433422]/55 leading-relaxed mb-4">
-              Support the mission and unlock premium sessions, deeper reflection tools, and exclusive content as the sanctuary grows.
-            </p>
-            <div className="flex items-center gap-2.5 py-3 px-4 bg-[#433422]/6 rounded-[16px]">
-              <Lock size={13} className="text-[#433422]/30" />
-              <span className="text-[11px] font-bold text-[#433422]/30 tracking-widest">COMING SOON</span>
-            </div>
+
+            {isUserSupporter ? (
+              <>
+                <p className="text-sm text-[#433422]/55 leading-relaxed mb-4">
+                  Thank you for supporting the mission. You have full access to all supporter content.
+                </p>
+                {isNative() && (
+                  <div className="space-y-2">
+                    <button
+                      onClick={() => presentCustomerCenter()}
+                      className="w-full flex items-center justify-center gap-2 py-3 bg-[#433422]/8 text-[#433422] rounded-[16px] text-xs font-bold tracking-widest"
+                    >
+                      MANAGE SUBSCRIPTION
+                    </button>
+                    <button
+                      onClick={async () => {
+                        const restored = await restorePurchases();
+                        setRcIsSupporter(restored);
+                        if (restored) await updateUserProfile(user?.uid, { role: 'supporter' });
+                      }}
+                      className="w-full py-3 text-[#433422]/40 text-xs font-bold tracking-widest"
+                    >
+                      RESTORE PURCHASES
+                    </button>
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                <p className="text-sm text-[#433422]/55 leading-relaxed mb-4">
+                  Support the mission and unlock premium sessions, deeper reflection tools, and exclusive content as the sanctuary grows.
+                </p>
+                {isNative() ? (
+                  <div className="space-y-2">
+                    <button
+                      onClick={async () => {
+                        const purchased = await presentPaywall();
+                        if (purchased) {
+                          const isNowSupporter = await checkIsSupporter();
+                          setRcIsSupporter(isNowSupporter);
+                          if (isNowSupporter) await updateUserProfile(user?.uid, { role: 'supporter' });
+                        }
+                      }}
+                      className="w-full py-3.5 bg-[#D4A373] text-white rounded-[16px] text-xs font-bold tracking-widest flex items-center justify-center gap-2 active:scale-[0.98] transition-transform"
+                    >
+                      <Crown size={13} /> VIEW PLANS
+                    </button>
+                    <button
+                      onClick={async () => {
+                        const restored = await restorePurchases();
+                        setRcIsSupporter(restored);
+                        if (restored) await updateUserProfile(user?.uid, { role: 'supporter' });
+                      }}
+                      className="w-full py-2.5 text-[#433422]/40 text-xs font-bold tracking-widest"
+                    >
+                      RESTORE PURCHASES
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2.5 py-3 px-4 bg-[#433422]/6 rounded-[16px]">
+                    <Lock size={13} className="text-[#433422]/30" />
+                    <span className="text-[11px] font-bold text-[#433422]/30 tracking-widest">AVAILABLE ON DEVICE</span>
+                  </div>
+                )}
+              </>
+            )}
           </div>
 
           {/* Name */}
@@ -1969,7 +2094,7 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
           </div>
           <div className="relative z-10">
             <p className="text-[10px] tracking-[0.3em] font-bold text-[#433422]/50 mb-1">SANCTUARY</p>
-            <h1 className="text-3xl font-serif">Build your path</h1>
+            <h1 className="text-3xl font-serif">Choose a journey</h1>
           </div>
           <div className="absolute bottom-0 left-0 right-0 z-20 pointer-events-none">
             <svg viewBox="0 0 400 50" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-10">
@@ -2052,9 +2177,9 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
                           lockedToday={isLockedToday}
                           onClick={() => handleCardTap(s)}
                           onQuickAdd={async () => {
-                            if (activeModule) { showPathToast('Finish your current module first'); return; }
+                            if (activeModule && activeModuleCard) { showPathToast('Finish your current module first'); return; }
                             const extra = isPathDoneToday ? { completedToday: todayISO } : {};
-                            await addToPath(user?.uid, s.id, pathItems.length, extra);
+                            await addToPath(uid, s.id, pathItems.length, extra);
                             showPathToast('Added to your path');
                           }}
                         />
@@ -2232,70 +2357,86 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
     <div className="bg-[#FDF9F3] text-[#433422] font-sans">
       <div className="animate-view-enter">
 
-      <header className="relative h-[35vh]">
-        <div className="absolute inset-0 bg-[#E9DCC9] overflow-hidden">
-          <div className="absolute top-[-10%] right-[-10%] w-64 h-64 bg-[#FFF3E0] rounded-full blur-3xl opacity-60 pointer-events-none" />
+      {/* Header */}
+      <header className="relative h-[18vh] bg-[#E9DCC9] flex items-end px-8 pb-10">
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-[-10%] right-[-10%] w-64 h-64 bg-[#FFF3E0] rounded-full blur-3xl opacity-60" />
         </div>
-
-        <div className="relative z-10 px-8 pt-12">
-          <div className="flex justify-between items-start mb-6">
-            <div className="w-10 h-10 rounded-full overflow-hidden border border-white/60 bg-white/80 flex-shrink-0">
-              <img src={prayvailLogo} alt="Prayvail" className="w-full h-full object-cover" />
+        <div className="relative z-10 w-full">
+          <div className="flex items-end justify-between">
+            <div>
+              <p className="text-2xl font-serif text-[#433422]/40 leading-none mb-0.5">Good</p>
+              <h1 className="text-2xl font-serif">{timeGreeting}</h1>
             </div>
-
-            <div className="text-right">
-              <p className="text-[10px] tracking-[0.2em] font-bold text-[#433422]/40 uppercase">{userName}'s</p>
-              <p className="text-base font-serif text-[#433422]/70">Sanctuary</p>
+            <div className="flex flex-col items-center gap-1 mb-0.5">
+              <div className="w-fit self-center mb-1">
+                <p className="text-[10px] tracking-[0.3em] font-bold text-[#433422]/20 mb-1">WELCOME BACK</p>
+                <div className="h-px bg-[#433422]/6" />
+              </div>
+              <button onClick={() => setShowFlameModal(true)} className="flex items-center gap-1.5 bg-[#D4A373]/15 rounded-full px-3 py-1 active:opacity-70">
+                <Flame size={15} className="text-[#D4A373]" />
+                <span className="text-[13px] font-bold text-[#433422]/60 tabular-nums">{streak}</span>
+              </button>
+              <p className="text-[9px] tracking-[0.25em] font-bold text-[#433422]/35 uppercase"><span className="text-[#433422]/60">{userName}</span>'s Sanctuary</p>
             </div>
           </div>
-
-          <h1 className="text-4xl font-serif mb-2">{timeGreeting} Reflection</h1>
-          <p className="text-sm text-[#433422]/60 font-medium">Rest in His presence today.</p>
         </div>
-
-        <div className="absolute bottom-0 left-0 right-0 z-30">
-          <svg viewBox="0 0 400 80" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-16">
-            <path d="M0,80 L0,60 L40,35 L65,50 L105,15 L140,45 L170,8 L205,50 L240,22 L270,52 L305,35 L335,55 L370,45 L400,60 L400,80 Z" fill="#FDF9F3" />
+        <div className="absolute bottom-0 left-0 right-0 z-20 pointer-events-none">
+          <svg viewBox="0 0 400 50" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-10">
+            <path d="M0,50 L0,28 C80,8 160,42 240,22 C300,6 360,38 400,26 L400,50 Z" fill="#FDF9F3" />
           </svg>
         </div>
       </header>
 
-      <main className="px-8 pt-10 relative z-20 space-y-8 pb-32">
+      <div className="px-6 pb-4">
 
-        {/* Verse + Streak row */}
+        {/* Verse + Streak row — compact */}
         <section className="flex gap-3 items-stretch">
-          {/* Verse Card */}
-          <div className="flex-[3] bg-[#433422] text-[#FDF9F3] p-7 rounded-[32px] relative overflow-hidden flex flex-col justify-between">
-            <div className="absolute top-[-20px] right-[-20px] w-40 h-40 bg-white/5 rounded-full" />
+          <div className="flex-[3] bg-[#433422] text-[#FDF9F3] px-5 py-4 rounded-[24px] relative overflow-hidden flex flex-col justify-between gap-3">
+            <div className="absolute top-[-20px] right-[-20px] w-32 h-32 bg-white/5 rounded-full" />
             <div>
-              <p className="text-[10px] tracking-[0.3em] font-bold opacity-50 mb-4">DAILY BREAD</p>
-              <h3 className="text-lg font-serif italic leading-relaxed mb-4">
-                "{dailyVerse.text}"
-              </h3>
+              <p className="text-[9px] tracking-[0.3em] font-bold opacity-50 mb-2">DAILY BREAD</p>
+              <p className="text-sm font-serif italic leading-relaxed opacity-90 line-clamp-3">"{dailyVerse.text}"</p>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-xs font-medium opacity-60">{dailyVerse.ref}</span>
-              <button
-                onClick={handleAmen}
-                className="flex items-center gap-1.5 text-xs font-medium text-[#D4A373]/80"
-              >
-                Amen <ArrowRight size={14} />
+              <span className="text-[10px] font-medium opacity-50">{dailyVerse.ref}</span>
+              <button onClick={handleAmen} className="flex items-center gap-1 text-[10px] font-medium text-[#D4A373]/80">
+                Amen <ArrowRight size={12} />
               </button>
             </div>
           </div>
-
-          {/* Streak Card */}
-          <button
-            onClick={() => setShowFlameModal(true)}
-            className="flex-[2] bg-[#F4EFE6] rounded-[32px] flex flex-col items-center justify-center gap-2 py-6"
-          >
-            <div className="w-11 h-11 rounded-full bg-[#D4A373]/20 flex items-center justify-center">
-              <Flame size={20} className="text-[#D4A373]" />
-            </div>
-            <span className="text-3xl font-serif text-[#433422]">{streak}</span>
-            <span className="text-[9px] font-bold tracking-widest text-[#433422]/40 uppercase">Day Streak</span>
-          </button>
+          {activeModuleCard ? (
+            <button
+              onClick={() => setShowJourneyInfo(true)}
+              className="flex-[2] bg-[#F4EFE6] rounded-[24px] flex flex-col justify-between px-4 py-4"
+            >
+              <p className="text-[8px] tracking-[0.3em] font-bold text-[#433422]/35 uppercase">On the Path</p>
+              <div>
+                <p className="text-sm font-serif text-[#433422] leading-snug line-clamp-2">{activeModuleCard.title}</p>
+                <p className="text-[9px] text-[#433422]/40 mt-0.5">
+                  {activeModule?.completed || activeModule?.archived
+                    ? `${activeModuleCard.tracks?.length ?? 0} sessions complete`
+                    : `Session ${(activeModule?.trackIndex ?? 0) + 1} of ${activeModuleCard.tracks?.length ?? 0}`}
+                </p>
+              </div>
+              <div className="h-1 bg-[#E9DCC9] rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-[#D4A373] rounded-full transition-all duration-700"
+                  style={{ width: `${activeModuleCard.tracks?.length > 0 ? ((activeModule?.completed || activeModule?.archived ? activeModuleCard.tracks.length : (activeModule?.trackIndex ?? 0)) / activeModuleCard.tracks.length) * 100 : 0}%` }}
+                />
+              </div>
+            </button>
+          ) : (
+            <button
+              onClick={() => { setActiveTab('wheat'); setView('resources'); }}
+              className="flex-[2] bg-[#F4EFE6] rounded-[24px] flex flex-col items-center justify-center gap-2 py-4"
+            >
+              <Compass size={18} className="text-[#433422]/25" />
+              <p className="text-[8px] font-bold tracking-widest text-[#433422]/30 uppercase text-center leading-relaxed">Begin<br/>Your Path</p>
+            </button>
+          )}
         </section>
+      </div>{/* end fixed panel */}
 
         {/* Your Journey */}
         {(() => {
@@ -2327,7 +2468,7 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
           const totalSteps = tracks.length;
           const completedSteps = completedTrackCount;
 
-          const STEP_H = 190;
+          const STEP_H = 171;
           const trackSteps = tracks.map((track, i) => {
             const isDone = allComplete || i < trackIndex;
             const isCurrent = isViewingActive && !allComplete && !doneToday && i === trackIndex;
@@ -2335,79 +2476,51 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
             return { type: 'track', track, i, isDone, isCurrent, isLocked };
           });
           const allSteps = [...trackSteps];
-          const totalHeight = allSteps.length * STEP_H + 20;
+          const totalHeight = allSteps.length * STEP_H;
           const vbH = allSteps.length * 220;
 
           const buildPathD = (n) => {
             if (n <= 0) return 'M 50 0 L 50 220';
+            // n=1: half-segment Q from top to stone 0's centre
+            if (n === 1) return 'M 50 0 Q 35 55 50 110';
+            // Full segments up to stone n-2, then half-segment to last stone's centre
             let d = `M 50 0 Q 35 110 50 220`;
-            for (let i = 1; i < n; i++) d += ` T 50 ${(i + 1) * 220}`;
+            for (let i = 1; i < n - 1; i++) d += ` T 50 ${(i + 1) * 220}`;
+            d += ` T 50 ${(n - 1) * 220 + 110}`;
             return d;
           };
           const svgPathD = buildPathD(allSteps.length);
           const approxPathLen = vbH * 1.15;
 
+          const visibleSteps = allSteps.slice(0, completedSteps + 3);
+          const hiddenCount = allSteps.length - visibleSteps.length;
+
           return (
-            <section>
-              {/* Section header */}
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-xl font-serif">Your Journey</h3>
-              </div>
-
-              {/* Module selector — always visible */}
-              <div className="flex gap-2 overflow-x-auto no-scrollbar mb-4 pb-0.5">
-                {allModules.length === 0 ? (
-                  <button
-                    onClick={() => { setActiveTab('wheat'); setView('resources'); }}
-                    className="flex-1 bg-white rounded-[24px] px-5 py-4 border border-dashed border-[#E9DCC9] flex items-center justify-between"
-                  >
-                    <span className="text-sm text-[#433422]/30">Add a module from the Library to begin</span>
-                    <ChevronRight size={16} className="text-[#433422]/20" />
-                  </button>
-                ) : allModules.map(({ card, item }) => {
-                  const isActive = !item.archived;
-                  const isSelected = viewingEntry?.item.id === item.id;
-                  return (
+            <div className="px-6 pb-32">
+              {!vCard && (
+                  <div className="flex flex-col items-center gap-5 py-6">
                     <button
-                      key={item.id}
-                      onClick={() => setViewingModuleId(isActive ? null : item.id)}
-                      className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold tracking-widest transition-colors ${
-                        isSelected
-                          ? 'bg-[#D4A373] text-white'
-                          : 'bg-[#E9DCC9] text-[#433422] hover:bg-[#D9C9B5]'
-                      }`}
+                      onClick={() => setCompassSpinning(true)}
+                      className="relative flex items-center justify-center"
                     >
-                      {isActive && <span className="w-1.5 h-1.5 rounded-full bg-current opacity-70" />}
-                      {card.title}
+                      <svg
+                        width="160" height="160"
+                        viewBox="0 0 1024 1024"
+                        xmlns="http://www.w3.org/2000/svg"
+                        className={compassSpinning ? 'animate-compass-tap' : ''}
+                        onAnimationEnd={() => { setCompassSpinning(false); setActiveTab('wheat'); setView('resources'); }}
+                        shapeRendering="geometricPrecision"
+                      >
+                        <path d="M528.64 482.56m-396.8 0a396.8 396.8 0 1 0 793.6 0 396.8 396.8 0 1 0-793.6 0Z" fill="#E9DCC9" /><path d="M528.64 892.16c-225.28 0-409.6-184.32-409.6-409.6s184.32-409.6 409.6-409.6 409.6 184.32 409.6 409.6-184.32 409.6-409.6 409.6z m0-793.6c-211.2 0-384 172.8-384 384s172.8 384 384 384 384-172.8 384-384-172.8-384-384-384z" fill="#433422" /><path d="M528.64 482.56m-345.6 0a345.6 345.6 0 1 0 691.2 0 345.6 345.6 0 1 0-691.2 0Z" fill="#FDF9F3" /><path d="M528.64 840.96c-197.12 0-358.4-161.28-358.4-358.4s161.28-358.4 358.4-358.4 358.4 161.28 358.4 358.4-161.28 358.4-358.4 358.4z m0-691.2c-183.04 0-332.8 149.76-332.8 332.8s149.76 332.8 332.8 332.8 332.8-149.76 332.8-332.8-149.76-332.8-332.8-332.8z" fill="#433422" /><path d="M528.64 814.08l-75.52-331.52 75.52-331.52 74.24 331.52z" fill="#D4A373" /><path d="M528.64 826.88c-6.4 0-11.52-3.84-12.8-10.24l-75.52-331.52v-5.12l75.52-331.52c1.28-6.4 6.4-10.24 12.8-10.24s11.52 3.84 12.8 10.24l75.52 331.52v5.12l-75.52 331.52c-2.56 6.4-7.68 10.24-12.8 10.24z m-62.72-344.32l61.44 273.92L588.8 482.56l-61.44-273.92-61.44 273.92z" fill="#433422" /><path d="M195.84 482.56l332.8-75.52 331.52 75.52-331.52 75.52z" fill="#D4A373" /><path d="M528.64 570.88h-2.56l-331.52-75.52c-6.4-1.28-10.24-6.4-10.24-12.8s3.84-11.52 10.24-12.8L524.8 395.52h5.12l331.52 75.52c6.4 1.28 10.24 6.4 10.24 12.8s-3.84 11.52-10.24 12.8l-331.52 75.52c0-2.56-1.28-1.28-1.28-1.28z m-273.92-88.32l273.92 61.44 273.92-61.44-273.92-61.44-273.92 61.44z" fill="#433422" /><path d="M323.84 687.36l158.72-250.88 249.6-158.72-157.44 250.88z" fill="#D4A373" /><path d="M323.84 700.16c-3.84 0-6.4-1.28-8.96-3.84-3.84-3.84-5.12-10.24-1.28-15.36l158.72-250.88 3.84-3.84 250.88-158.72c5.12-2.56 11.52-2.56 15.36 1.28 3.84 3.84 5.12 10.24 1.28 15.36L584.96 535.04l-3.84 3.84-250.88 158.72c-1.28 1.28-3.84 2.56-6.4 2.56z m167.68-254.72l-126.72 199.68 199.68-126.72L691.2 320l-199.68 125.44z" fill="#433422" /><path d="M323.84 277.76l250.88 158.72 157.44 250.88-249.6-158.72z" fill="#D4A373" /><path d="M732.16 700.16c-2.56 0-5.12-1.28-6.4-2.56L474.88 540.16l-3.84-3.84-157.44-250.88c-2.56-5.12-2.56-11.52 1.28-15.36 3.84-3.84 10.24-5.12 15.36-1.28l250.88 158.72 3.84 3.84 158.72 250.88c2.56 5.12 2.56 11.52-1.28 15.36-3.84 1.28-6.4 2.56-10.24 2.56zM491.52 519.68L691.2 646.4l-126.72-199.68L364.8 320l126.72 199.68z" fill="#433422" /><path d="M528.64 482.56m-230.4 0a230.4 230.4 0 1 0 460.8 0 230.4 230.4 0 1 0-460.8 0Z" fill="#E9DCC9" /><path d="M528.64 725.76c-134.4 0-243.2-108.8-243.2-243.2s108.8-243.2 243.2-243.2 243.2 108.8 243.2 243.2-108.8 243.2-243.2 243.2z m0-460.8c-120.32 0-217.6 97.28-217.6 217.6s97.28 217.6 217.6 217.6 217.6-97.28 217.6-217.6-97.28-217.6-217.6-217.6z" fill="#433422" /><path d="M304.64 705.28l172.8-272.64 273.92-172.8-172.8 272.64z" fill="#8E9775" /><path d="M304.64 718.08c-3.84 0-6.4-1.28-8.96-3.84-3.84-3.84-5.12-10.24-1.28-15.36l172.8-273.92 3.84-3.84 273.92-172.8c5.12-2.56 11.52-2.56 15.36 1.28s5.12 10.24 1.28 15.36L590.08 540.16l-3.84 3.84L312.32 716.8c-2.56 1.28-5.12 1.28-7.68 1.28z m183.04-276.48L345.6 664.32l222.72-140.8 140.8-222.72-221.44 140.8z" fill="#433422" /><path d="M528.64 482.56m-38.4 0a38.4 38.4 0 1 0 76.8 0 38.4 38.4 0 1 0-76.8 0Z" fill="#433422" /><path d="M528.64 533.76c-28.16 0-51.2-23.04-51.2-51.2s23.04-51.2 51.2-51.2 51.2 23.04 51.2 51.2-23.04 51.2-51.2 51.2z m0-76.8c-14.08 0-25.6 11.52-25.6 25.6s11.52 25.6 25.6 25.6 25.6-11.52 25.6-25.6-11.52-25.6-25.6-25.6z" fill="#433422" />
+                      </svg>
                     </button>
-                  );
-                })}
-              </div>
-
-              {/* Module header card */}
-              {vCard && (
-                <div
-                  className="rounded-[20px] p-4 mb-5 relative overflow-hidden"
-                  style={{ backgroundColor: vCard.color || '#D4A373' }}
-                >
-                  {vCard.imageUrl && (
-                    <img src={vCard.imageUrl} alt="" className="absolute inset-0 w-full h-full object-cover pointer-events-none" />
-                  )}
-                  <div className="relative z-10">
-                    {/* Liquid-glass text pill */}
-                    <div
-                      className="inline-block rounded-[14px] px-3 py-2.5"
-                      style={{ backgroundColor: 'rgba(253,249,243,0.22)', backdropFilter: 'blur(12px) saturate(1.4)', WebkitBackdropFilter: 'blur(12px) saturate(1.4)', boxShadow: 'inset 0 0 0 1px rgba(253,249,243,0.18)' }}
-                    >
-                      <p className="text-[9px] font-bold tracking-[0.3em] text-white/70 mb-1 uppercase">
-                        {vCard.label || 'MODULE'} · {tracks.length} {tracks.length === 1 ? 'TRACK' : 'TRACKS'}
-                        {isArchived && ' · COMPLETE'}
-                      </p>
-                      <h4 className="text-lg font-serif text-white leading-snug" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.15)' }}>{vCard.title}</h4>
+                    <div className="flex flex-col items-center gap-1 text-center">
+                      <p className="font-serif text-base text-[#433422]">Your journey awaits.</p>
+                      <p className="text-[11px] text-[#433422]/40 leading-relaxed">Tap the compass to choose<br />your first module.</p>
                     </div>
                   </div>
-                </div>
               )}
+
 
               {/* Progress bar for this module's steps */}
               {vCard && (
@@ -2425,117 +2538,136 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
                 </div>
               )}
 
-              {/* Stone path */}
-              {vCard && (
-                <div className="relative w-full overflow-hidden" style={{ height: totalHeight }}>
-                  {/* SVG Meandering Stream */}
-                  <svg
-                    className="absolute top-0 left-0 w-full h-full pointer-events-none"
-                    viewBox={`0 0 100 ${vbH}`}
-                    preserveAspectRatio="none"
-                  >
-                    <path d={svgPathD} fill="none" stroke="#D4A373" strokeWidth="8" strokeOpacity="0.08" strokeLinecap="round" />
-                    <path
-                      d={svgPathD}
-                      fill="none"
-                      stroke="#D4A373"
-                      strokeWidth="10"
-                      strokeDasharray={approxPathLen}
-                      strokeDashoffset={approxPathLen - approxPathLen * (completedSteps / totalSteps)}
-                      strokeLinecap="round"
-                      style={{ transition: 'stroke-dashoffset 1s ease-out', opacity: 0.4 }}
-                    />
-                  </svg>
+              {/* Stone navigation — one stone at a time */}
+              {vCard && (() => {
+                const clampedIdx = Math.min(focusedStepIndex, allSteps.length - 1);
+                const step = allSteps[clampedIdx];
+                if (!step) return null;
+                const { track, i, isDone, isCurrent, isLocked } = step;
 
-                  {/* Steps */}
-                  <motion.div
-                    className="relative flex flex-col"
-                    variants={pathContainerVariants}
-                    initial="hidden"
-                    animate="visible"
-                  >
-                    {allSteps.map((step, index) => {
-                      const side = index % 2 === 0 ? 'left' : 'right';
+                const goTo = (nextIdx) => {
+                  setPathNavDir(nextIdx > clampedIdx ? 1 : -1);
+                  setFocusedStepIndex(nextIdx);
+                };
 
+                const stoneVariants = {
+                  enter: (dir) => ({ opacity: 0, y: dir * 28 }),
+                  center: { opacity: 1, y: 0 },
+                  exit: (dir) => ({ opacity: 0, y: dir * -28 }),
+                };
 
+                return (
+                  <div className="flex flex-col items-center gap-3">
+                    {/* Stream window — SVG + stone */}
+                    <div className="relative overflow-hidden rounded-[28px] w-full" style={{ minHeight: 'max(234px, calc(100dvh - 18vh - 360px))' }}>
+                      {/* SVG backdrop */}
+                      <motion.svg
+                        className="absolute left-0 w-full pointer-events-none"
+                        viewBox={`0 0 100 ${vbH}`}
+                        preserveAspectRatio="none"
+                        style={{ height: totalHeight, top: 0 }}
+                        animate={{ y: -clampedIdx * STEP_H - 6 }}
+                        transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+                      >
+                        <path d={svgPathD} fill="none" stroke="#D4A373" strokeWidth="8" strokeOpacity="0.07" strokeLinecap="round" />
+                        <path
+                          d={svgPathD}
+                          fill="none"
+                          stroke="#D4A373"
+                          strokeWidth="10"
+                          strokeDasharray={approxPathLen}
+                          strokeDashoffset={approxPathLen - approxPathLen * (completedSteps / totalSteps)}
+                          strokeLinecap="round"
+                          style={{ transition: 'stroke-dashoffset 1s ease-out', opacity: 0.3 }}
+                        />
+                      </motion.svg>
 
-                      // ── Track stone ──
-                      const { track, i, isDone, isCurrent, isLocked } = step;
-                      return (
-                        <motion.div
-                          key={i}
-                          variants={pathItemVariants}
-                          className="relative w-full flex items-center justify-center"
-                          style={{ height: STEP_H }}
+                      {/* Arrows — left side, clear of centered stone */}
+                      <div className="absolute left-4 top-0 bottom-0 z-20 flex flex-col items-center justify-center gap-20">
+                        <button
+                          onClick={() => goTo(clampedIdx - 1)}
+                          className={`w-11 h-11 rounded-full bg-[#F4EFE6] flex items-center justify-center active:scale-90 transition-all duration-200 ${clampedIdx === 0 ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
                         >
-                          <div className={`relative flex flex-col items-center ${side === 'left' ? '-translate-x-14' : 'translate-x-14'} transition-opacity duration-500 ${isDone ? 'opacity-55' : 'opacity-100'}`}>
-                            {/* Glow ring for current stone */}
-                            {isCurrent && (
-                              <div className="absolute w-16 h-16 rounded-full animate-pulse pointer-events-none" style={{ boxShadow: '0 0 0 6px rgba(212,163,115,0.2), 0 0 0 14px rgba(212,163,115,0.07)' }} />
-                            )}
-                            <motion.button
-                              onClick={() => {
-                                if (isLocked) return;
-                                const isArticle = vCard.type === 'article';
-                                if (isArticle) {
-                                  setActiveReadingSession({ card: vCard, reading: track, trackIndex: i, totalReadings: tracks.length, pathItemId: isCurrent ? vItem.id : null });
-                                } else {
-                                  setActiveSession({
-                                    title: track.title,
-                                    audioUrl: track.audioUrl,
-                                    cardId: vCard.id,
-                                    cardTitle: vCard.title,
-                                    ...(isCurrent ? { pathItemId: vItem.id, isPlaylistTrack: true, trackIndex: i, totalTracks: tracks.length } : { skipCheckin: true }),
-                                  });
-                                  setView('meditation');
-                                }
-                              }}
-                              animate={{
-                                backgroundColor: isDone ? '#D4A373' : isCurrent ? '#FDF9F3' : '#F4EFE6',
-                              }}
-                              transition={{ duration: 0.4 }}
-                              whileTap={!isLocked ? { scale: 0.88 } : undefined}
-                              className={`relative w-16 h-16 rounded-full flex items-center justify-center shadow-md border flex-shrink-0 ${
-                                isDone
-                                  ? 'border-[#D4A373] text-white cursor-pointer active:opacity-80'
-                                  : isCurrent
-                                  ? 'border-[#D4A373] text-[#D4A373] cursor-pointer'
-                                  : 'border-[#E9DCC9] text-[#433422]/20 cursor-default'
-                              }`}
-                            >
-                              {isDone
-                                ? <span className="text-white text-lg leading-none">✓</span>
-                                : isCurrent
-                                ? <Play size={18} fill="currentColor" className="ml-0.5" />
-                                : <Lock size={14} strokeWidth={1.5} />}
-                            </motion.button>
+                          <ChevronUp size={18} className="text-[#433422]/40" />
+                        </button>
+                        <button
+                          onClick={() => goTo(clampedIdx + 1)}
+                          className={`w-11 h-11 rounded-full bg-[#F4EFE6] flex items-center justify-center active:scale-90 transition-all duration-200 ${clampedIdx === allSteps.length - 1 ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
+                        >
+                          <ChevronDown size={18} className="text-[#433422]/40" />
+                        </button>
+                      </div>
 
-                            {/* Label */}
-                            <div
-                              className={`absolute top-1/2 -translate-y-1/2 ${side === 'left' ? 'left-16 text-left' : 'right-16 text-right'}`}
-                              style={{ maxWidth: 130 }}
-                            >
-                              <p className={`text-[9px] font-bold uppercase tracking-[0.3em] mb-0.5 ${
+                      {/* Stone content */}
+                      <div className="relative z-10 flex flex-col items-center justify-center gap-4 py-10">
+                        <AnimatePresence mode="wait" custom={pathNavDir}>
+                          <motion.div
+                            key={clampedIdx}
+                            custom={pathNavDir}
+                            variants={stoneVariants}
+                            initial="enter"
+                            animate="center"
+                            exit="exit"
+                            transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+                            className="flex flex-col items-center gap-4 w-full"
+                          >
+                            <div className="relative flex items-center justify-center">
+                              {isCurrent && (
+                                <div className="absolute w-20 h-20 rounded-full animate-pulse pointer-events-none" style={{ boxShadow: '0 0 0 8px rgba(212,163,115,0.15), 0 0 0 20px rgba(212,163,115,0.06)' }} />
+                              )}
+                              <motion.button
+                                onClick={() => {
+                                  if (isLocked) return;
+                                  const isArticle = vCard.type === 'article';
+                                  if (isArticle) {
+                                    setActiveReadingSession({ card: vCard, reading: track, trackIndex: i, totalReadings: tracks.length, pathItemId: isCurrent ? vItem.id : null });
+                                  } else {
+                                    setActiveSession({
+                                      title: track.title,
+                                      audioUrl: track.audioUrl,
+                                      cardId: vCard.id,
+                                      cardTitle: vCard.title,
+                                      ...(isCurrent ? { pathItemId: vItem.id, isPlaylistTrack: true, trackIndex: i, totalTracks: tracks.length } : { skipCheckin: true }),
+                                    });
+                                    setView('meditation');
+                                  }
+                                }}
+                                animate={{ backgroundColor: isDone ? '#D4A373' : isCurrent ? '#FDF9F3' : '#F4EFE6' }}
+                                transition={{ duration: 0.4 }}
+                                whileTap={!isLocked ? { scale: 0.88 } : undefined}
+                                className={`relative w-20 h-20 rounded-full flex items-center justify-center shadow-lg border-2 flex-shrink-0 ${
+                                  isDone
+                                    ? 'border-[#D4A373] text-white cursor-pointer'
+                                    : isCurrent
+                                    ? 'border-[#D4A373] text-[#D4A373] cursor-pointer'
+                                    : 'border-[#E9DCC9] text-[#433422]/20 cursor-default'
+                                }`}
+                              >
+                                {isDone
+                                  ? <span className="text-white text-2xl leading-none">✓</span>
+                                  : isCurrent
+                                  ? <Play size={22} fill="currentColor" className="ml-0.5" />
+                                  : <span className="text-sm font-bold text-[#433422]/25">{i + 1}</span>}
+                              </motion.button>
+                            </div>
+
+                            <div className="text-center px-8">
+                              <p className={`text-[9px] font-bold uppercase tracking-[0.3em] mb-1 ${
                                 isDone ? 'text-[#8E9775]' : isCurrent ? 'text-[#D4A373]' : 'text-[#433422]/20'
                               }`}>
-                                {isDone ? 'DONE' : isCurrent ? 'TODAY' : `DAY ${i + 1}`}
+                                {isDone ? 'Complete' : isCurrent ? 'Today' : `Session ${i + 1}`}
                               </p>
-                              <h3 className={`text-sm font-serif leading-snug ${
-                                isDone ? 'text-[#433422]/40' : isLocked ? 'text-[#433422]/20' : 'text-[#433422]'
-                              }`}>
-                                {isLocked ? '• • •' : track.title}
-                              </h3>
-                              {isDone && doneToday && i === trackIndex - 1 && (
-                                <span className="text-[9px] font-bold text-[#8E9775] bg-[#F0F4EC] px-2 py-0.5 rounded-full inline-block mt-1">Today</span>
-                              )}
+                              <h3 className={`text-base font-serif leading-snug ${
+                                isDone ? 'text-[#433422]/45' : isLocked ? 'text-[#433422]/25' : 'text-[#433422]'
+                              }`}>{track.title}</h3>
                             </div>
-                          </div>
-                        </motion.div>
-                      );
-                    })}
-                  </motion.div>
-                </div>
-              )}
+                          </motion.div>
+                        </AnimatePresence>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* CTA to begin next module — only shown when there's history but no active module */}
               {!hasActive && allModules.length > 0 && (
@@ -2549,11 +2681,10 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
                   </div>
                 </div>
               )}
-            </section>
+            </div>
           );
         })()}
 
-      </main>
       </div>
 
       {/* Floating Nav */}

@@ -128,7 +128,19 @@
 }
 
 @utility animate-spin-slow {
-  animation: spin-slow 12s linear infinite;
+  animation: spin-slow 25s linear infinite;
+}
+
+@keyframes compass-search {
+  0%   { transform: rotate(0deg); }
+  25%  { transform: rotate(42deg); }
+  60%  { transform: rotate(-36deg); }
+  85%  { transform: rotate(12deg); }
+  100% { transform: rotate(0deg); }
+}
+
+@utility animate-compass-tap {
+  animation: compass-search 0.9s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 
 @utility no-scrollbar {
