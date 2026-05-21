@@ -9,7 +9,7 @@ import ResourceCard from '../components/ResourceCard';
 import {
   Plus, Trash2, PenLine, Eye, EyeOff,
   Upload, X, ArrowLeft, List, GripVertical,
-  Play, Headphones,
+  Headphones,
 } from 'lucide-react';
 
 const CARD_COLORS = ['#E9DCC9', '#D9C9B5', '#D4A373', '#C4B5A0', '#8E9775', '#B0A898', '#D4C5B2', '#C4A882'];
@@ -184,72 +184,56 @@ function AdminCardItem({ card, onEdit, onTogglePublish, onDragEnd }) {
   );
 }
 
-// ─── TrackPreviewCard — Reorder.Item for snap-scroll track preview ────────────
-function TrackPreviewCard({ track, index, type, isSelected, onSelect }) {
-  const dragControls = useDragControls();
-  const isPlaylist = type === 'playlist';
+// ─── TrackListRow — vertical list row matching the playlist sheet aesthetic ────
+function TrackListRow({ track, index, isSelected, onSelect, dragControls }) {
+  return (
+    <div
+      onClick={onSelect}
+      className={`w-full flex items-center gap-3 rounded-[16px] px-3 py-3 border text-left cursor-pointer transition-all active:scale-[0.99] ${isSelected ? 'bg-[#FFFBF5] border-[#D4A373]/50' : 'bg-white border-[#E9DCC9] hover:border-[#D4A373]/30'}`}
+    >
+      <div
+        onPointerDown={e => { e.stopPropagation(); dragControls.start(e); }}
+        className="cursor-grab active:cursor-grabbing touch-none p-0.5 flex-shrink-0"
+      >
+        <GripVertical size={14} className="text-[#433422]/20" />
+      </div>
+      <div className={`w-9 h-9 rounded-[10px] flex items-center justify-center flex-shrink-0 overflow-hidden relative ${isSelected ? 'bg-[#D4A373]/15' : 'bg-[#F4EFE6]'}`}>
+        {track.imageUrl
+          ? <img src={track.imageUrl} alt="" className="absolute inset-0 w-full h-full object-cover" />
+          : <Headphones size={12} className={isSelected ? 'text-[#D4A373]' : 'text-[#433422]/30'} />
+        }
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className={`text-[9px] font-bold tracking-widest mb-0.5 ${isSelected ? 'text-[#D4A373]' : 'text-[#433422]/40'}`}>DAY {index + 1}</p>
+        <p className="text-sm font-serif truncate text-[#433422]">{track.title || <span className="opacity-30 italic">Untitled</span>}</p>
+        {track.duration && <p className="text-[9px] text-[#433422]/40">{track.duration}</p>}
+      </div>
+      <span className="text-[7px] font-bold tracking-widest bg-[#D4A373]/10 text-[#D4A373]/70 px-2 py-0.5 rounded-full uppercase flex-shrink-0">{track.trackType || 'audio'}</span>
+      {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-[#D4A373] flex-shrink-0" />}
+    </div>
+  );
+}
 
+// ─── TrackListItem — Reorder.Item wrapper for TrackListRow ───────────────────
+function TrackListItem({ track, index, isSelected, onSelect, onDragEnd }) {
+  const dragControls = useDragControls();
   return (
     <Reorder.Item
       value={track}
       dragControls={dragControls}
       dragListener={false}
-      className="flex-shrink-0 snap-center"
+      onDragEnd={onDragEnd}
       style={{ touchAction: 'none' }}
-      whileDrag={{ scale: 1.02 }}
+      whileDrag={{ scale: 1.02, zIndex: 10, boxShadow: '0 4px 20px rgba(67,52,34,0.12)' }}
     >
-      <div
-        onClick={onSelect}
-        className={`min-w-[80vw] h-[440px] bg-[#F4EFE6] rounded-[48px] p-9 mx-4 flex flex-col justify-between cursor-pointer relative transition-all ${isSelected ? 'ring-2 ring-[#D4A373]' : 'hover:bg-[#EDE8E0]'}`}
-      >
-        {/* Drag handle */}
-        <div
-          onPointerDown={e => { e.stopPropagation(); dragControls.start(e); }}
-          className="absolute top-6 right-6 cursor-grab active:cursor-grabbing touch-none z-10 w-8 h-8 rounded-full bg-[#433422]/8 flex items-center justify-center"
-        >
-          <GripVertical size={16} className="text-[#433422]/30" />
-        </div>
-
-        <div>
-          <span className="text-[10px] font-bold tracking-[0.4em] text-[#433422]/40 uppercase">
-            {isPlaylist ? `TRACK ${index + 1}` : `READING ${index + 1}`}
-          </span>
-          <h3 className="text-3xl mt-6 font-serif leading-tight text-[#433422]">
-            {track.title || <span className="opacity-30">Untitled</span>}
-          </h3>
-          {track.duration && <p className="text-sm text-[#433422]/50 mt-3">{track.duration}</p>}
-        </div>
-
-        <div className="flex items-center justify-between">
-          <p className="text-xs text-[#433422]/30 italic">
-            {isSelected ? 'Editing below ↓' : 'Tap to edit'}
-          </p>
-          <div className={`w-14 h-14 rounded-full flex items-center justify-center ${isSelected ? 'bg-[#D4A373]' : 'bg-[#433422]/10'}`}>
-            {isPlaylist
-              ? <Headphones size={20} className={isSelected ? 'text-white' : 'text-[#433422]/30'} />
-              : <PenLine size={18} className={isSelected ? 'text-white' : 'text-[#433422]/30'} />
-            }
-          </div>
-        </div>
-      </div>
+      <TrackListRow
+        track={track}
+        index={index}
+        isSelected={isSelected}
+        onSelect={onSelect}
+        dragControls={dragControls}
+      />
     </Reorder.Item>
-  );
-}
-
-// ─── AddTrackTile — snap-scroll + card at end of track row ────────────────────
-function AddTrackTile({ type, onClick }) {
-  return (
-    <div
-      onClick={onClick}
-      className="min-w-[80vw] h-[440px] rounded-[48px] border-2 border-dashed border-[#D4A373]/40 flex flex-col items-center justify-center gap-3 flex-shrink-0 mx-4 snap-center cursor-pointer hover:border-[#D4A373]/60 hover:bg-[#D4A373]/5 transition-colors"
-    >
-      <div className="w-14 h-14 rounded-full bg-[#D4A373]/15 flex items-center justify-center">
-        <Plus size={22} className="text-[#D4A373]" />
-      </div>
-      <p className="text-xs font-bold text-[#D4A373]/60 tracking-widest">
-        ADD {type === 'playlist' ? 'TRACK' : 'READING'}
-      </p>
-    </div>
   );
 }
 
@@ -286,22 +270,6 @@ function CoverEditPanel({ form, set, categories, imgInputRef, imgProgress }) {
       </div>
 
       <ColorPicker value={form.color} onChange={v => set('color', v)} />
-
-      {/* Content type */}
-      <div>
-        <p className="text-[10px] tracking-widest font-bold text-[#433422]/50 mb-2">CONTENT TYPE</p>
-        <div className="flex gap-2">
-          {['single', 'playlist', 'article'].map(t => (
-            <button
-              key={t}
-              onClick={() => set('type', t)}
-              className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-colors ${form.type === t ? 'bg-[#433422] text-[#FDF9F3]' : 'bg-[#F4EFE6] text-[#433422]/50 hover:text-[#433422]'}`}
-            >
-              {t === 'single' ? 'Single' : t === 'playlist' ? 'Playlist' : 'Article'}
-            </button>
-          ))}
-        </div>
-      </div>
 
       {/* Title */}
       <div>
@@ -376,31 +344,13 @@ function CoverEditPanel({ form, set, categories, imgInputRef, imgProgress }) {
         />
       </div>
 
-      {/* Single audio */}
-      {form.type === 'single' && (
-        <UploadField label="Audio (MP3)" accept="audio/*" value={form.audioUrl} storagePath="library/audio" onUploaded={url => set('audioUrl', url)} />
-      )}
-
-      {/* Visibility + Distribution */}
+      {/* Visibility */}
       <div className="bg-white rounded-[20px] border border-[#E9DCC9] overflow-hidden">
-        <div className="px-4 pt-4 pb-3">
+        <div className="px-4 pt-4 pb-4">
           <p className="text-[10px] tracking-widest font-bold text-[#433422]/40 mb-3">VISIBILITY</p>
           <div className="space-y-1 divide-y divide-[#F4EFE6]">
             <Toggle label="Coming Soon" subLabel="Show 'SOON' badge on tile" value={form.coming} onChange={v => set('coming', v)} color="#8E9775" />
             <Toggle label="Supporter Only" subLabel="Locked to supporter tier" value={form.tier === 'supporter'} onChange={v => set('tier', v ? 'supporter' : 'free')} color="#C4A882" />
-          </div>
-        </div>
-        <div className="border-t border-[#E9DCC9] px-4 pt-4 pb-4">
-          <p className="text-[10px] tracking-widest font-bold text-[#433422]/40 mb-3">PATH DISTRIBUTION</p>
-          <div className="space-y-1 divide-y divide-[#F4EFE6]">
-            <Toggle label="Add to new user paths" subLabel="Auto-added on signup" value={form.addOnSignup} onChange={v => set('addOnSignup', v)} color="#8E9775" />
-            <Toggle
-              label="Broadcast to all users"
-              subLabel={form.broadcastToAll ? "⚡ Live in every user's path now" : "Push into every user's daily path"}
-              value={form.broadcastToAll}
-              onChange={v => set('broadcastToAll', v)}
-              color="#D4A373"
-            />
           </div>
         </div>
       </div>
@@ -409,12 +359,14 @@ function CoverEditPanel({ form, set, categories, imgInputRef, imgProgress }) {
 }
 
 // ─── TrackEditPanel ───────────────────────────────────────────────────────────
-function TrackEditPanel({ track, index, type, onChange, onDelete }) {
-  const label = type === 'playlist' ? 'TRACK' : 'READING';
+function TrackEditPanel({ track, index, onChange, onDelete }) {
   return (
     <div className="px-5 pt-5 pb-8 space-y-4">
       <div className="flex items-center justify-between">
-        <p className="text-[10px] font-bold tracking-widest text-[#433422]/40">{label} {index + 1}</p>
+        <div className="flex items-center gap-2">
+          <p className="text-[10px] font-bold tracking-widest text-[#433422]/40">DAY {index + 1}</p>
+          <span className="text-[7px] font-bold tracking-widest bg-[#D4A373]/15 text-[#D4A373] px-2 py-0.5 rounded-full uppercase">{track.trackType || 'audio'}</span>
+        </div>
         <button
           onClick={onDelete}
           className="w-8 h-8 rounded-full bg-[#FEF2F2] flex items-center justify-center"
@@ -428,39 +380,22 @@ function TrackEditPanel({ track, index, type, onChange, onDelete }) {
         <input
           value={track.title || ''}
           onChange={e => onChange('title', e.target.value)}
-          placeholder={type === 'playlist' ? 'Track title' : 'Day 1: The Beginning'}
+          placeholder="Day title"
           className="w-full bg-white rounded-xl px-3 py-2.5 text-sm border border-[#E9DCC9] focus:border-[#D4A373] focus:outline-none"
         />
       </div>
 
-      {type === 'playlist' && (
-        <>
-          <div>
-            <p className="text-[10px] tracking-widest font-bold text-[#433422]/50 mb-1">DURATION</p>
-            <input
-              value={track.duration || ''}
-              onChange={e => onChange('duration', e.target.value)}
-              placeholder="8 min"
-              className="w-full bg-white rounded-xl px-3 py-2.5 text-sm border border-[#E9DCC9] focus:border-[#D4A373] focus:outline-none"
-            />
-          </div>
-          <UploadField label="Audio (MP3)" accept="audio/*" value={track.audioUrl || ''} storagePath="library/audio" onUploaded={url => onChange('audioUrl', url)} />
-          <UploadField label="Track Image (optional)" accept="image/*" value={track.imageUrl || ''} storagePath="library/images" onUploaded={url => onChange('imageUrl', url)} />
-        </>
-      )}
-
-      {type === 'article' && (
-        <div>
-          <p className="text-[10px] tracking-widest font-bold text-[#433422]/50 mb-1">CONTENT</p>
-          <textarea
-            value={track.content || ''}
-            onChange={e => onChange('content', e.target.value)}
-            placeholder="Reading text…"
-            rows={10}
-            className="w-full bg-white rounded-xl px-3 py-2.5 text-sm border border-[#E9DCC9] focus:border-[#D4A373] focus:outline-none resize-none"
-          />
-        </div>
-      )}
+      <div>
+        <p className="text-[10px] tracking-widest font-bold text-[#433422]/50 mb-1">DURATION</p>
+        <input
+          value={track.duration || ''}
+          onChange={e => onChange('duration', e.target.value)}
+          placeholder="8 min"
+          className="w-full bg-white rounded-xl px-3 py-2.5 text-sm border border-[#E9DCC9] focus:border-[#D4A373] focus:outline-none"
+        />
+      </div>
+      <UploadField label="Audio (MP3)" accept="audio/*" value={track.audioUrl || ''} storagePath="library/audio" onUploaded={url => onChange('audioUrl', url)} />
+      <UploadField label="Day Image (optional)" accept="image/*" value={track.imageUrl || ''} storagePath="library/images" onUploaded={url => onChange('imageUrl', url)} />
     </div>
   );
 }
@@ -468,9 +403,9 @@ function TrackEditPanel({ track, index, type, onChange, onDelete }) {
 // ─── CardEditorSheet ──────────────────────────────────────────────────────────
 const EMPTY_CARD = {
   title: '', label: '', category: '', duration: '', description: '',
-  color: '#E9DCC9', audioUrl: '', imageUrl: '', published: false,
-  coming: false, order: 0, type: 'single', tier: 'free',
-  tracks: [], addOnSignup: false, broadcastToAll: false,
+  color: '#E9DCC9', imageUrl: '', published: false,
+  coming: false, order: 0, type: 'playlist', tier: 'free',
+  tracks: [],
 };
 
 function CardEditorSheet({ initial, categories, onSave, onCancel, onDelete }) {
@@ -484,16 +419,13 @@ function CardEditorSheet({ initial, categories, onSave, onCancel, onDelete }) {
       duration: initial.duration || '',
       description: initial.description || '',
       color: initial.color || '#E9DCC9',
-      audioUrl: initial.audioUrl || '',
       imageUrl: initial.imageUrl || '',
       published: !!initial.published,
       coming: !!initial.coming,
       order: initial.order ?? 0,
-      type: initial.type || 'single',
+      type: 'playlist',
       tier: initial.tier || 'free',
       tracks: ensureKeys(initial.tracks || []),
-      addOnSignup: !!initial.addOnSignup,
-      broadcastToAll: !!initial.broadcastToAll,
     } : {}),
   }));
   const [saving, setSaving] = useState(false);
@@ -506,9 +438,7 @@ function CardEditorSheet({ initial, categories, onSave, onCancel, onDelete }) {
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   const addTrack = () => {
-    const newTrack = form.type === 'playlist'
-      ? { _key: mkKey(), title: '', audioUrl: '', imageUrl: '', duration: '' }
-      : { _key: mkKey(), title: '', content: '' };
+    const newTrack = { _key: mkKey(), title: '', audioUrl: '', imageUrl: '', duration: '', trackType: 'audio' };
     const newTracks = [...form.tracks, newTrack];
     set('tracks', newTracks);
     setSelectedCard(newTracks.length - 1);
@@ -555,28 +485,18 @@ function CardEditorSheet({ initial, categories, onSave, onCancel, onDelete }) {
         published: !!form.published,
         coming: !!form.coming,
         order: Number(form.order) || 0,
-        type: form.type,
+        type: 'playlist',
         tier: form.tier,
-        addOnSignup: !!form.addOnSignup,
-        broadcastToAll: !!form.broadcastToAll,
-        broadcastOrder: Number(form.order) || 0,
+        audioUrl: '',
+        tracks: form.tracks.map((t, i) => ({
+          title: t.title,
+          audioUrl: t.audioUrl || '',
+          imageUrl: t.imageUrl || '',
+          duration: t.duration || '',
+          trackType: t.trackType || 'audio',
+          order: i,
+        })),
       };
-      if (form.type === 'single') {
-        payload.audioUrl = form.audioUrl || '';
-        payload.tracks = [];
-      } else if (form.type === 'playlist') {
-        payload.audioUrl = '';
-        // Strip _key before saving to Firestore
-        payload.tracks = form.tracks.map((t, i) => ({
-          title: t.title, audioUrl: t.audioUrl || '',
-          imageUrl: t.imageUrl || '', duration: t.duration || '', order: i,
-        }));
-      } else {
-        payload.audioUrl = '';
-        payload.tracks = form.tracks.map((t, i) => ({
-          title: t.title || '', content: t.content || '', order: i,
-        }));
-      }
       await saveLibraryCard(payload, initial?.id);
       onSave();
     } catch {
@@ -585,10 +505,6 @@ function CardEditorSheet({ initial, categories, onSave, onCancel, onDelete }) {
       setSaving(false);
     }
   };
-
-  const isPlaylist = form.type === 'playlist';
-  const isArticle = form.type === 'article';
-  const isSequential = isPlaylist || isArticle;
 
   return (
     <div className="fixed inset-0 z-50 bg-[#FDF9F3] font-sans text-[#433422] flex flex-col animate-sheet-enter">
@@ -614,91 +530,57 @@ function CardEditorSheet({ initial, categories, onSave, onCancel, onDelete }) {
       {/* Scrollable body */}
       <div className="flex-1 overflow-y-auto pb-24">
 
-        {/* ── Snap-scroll preview ── */}
-        <div className="bg-[#F4EFE6]/40 pt-4 pb-2 flex-shrink-0" style={{ borderBottom: '1px solid #E9DCC9' }}>
-          <p className="text-[9px] font-bold tracking-widest text-[#433422]/40 px-6 mb-3">PREVIEW — tap a card to edit it</p>
+        {/* ── Cover card ── */}
+        <div className="px-5 pt-5 pb-3">
           <div
-            className="overflow-x-auto overflow-y-hidden flex items-center no-scrollbar snap-x snap-mandatory"
-            style={{ height: 480 }}
+            onClick={() => setSelectedCard('cover')}
+            className={`relative h-28 rounded-[20px] overflow-hidden cursor-pointer transition-all ${selectedCard === 'cover' ? 'ring-2 ring-[#D4A373]' : ''}`}
+            style={{ backgroundColor: form.color || '#D4A373' }}
           >
-            <div className="min-w-[10vw] flex-shrink-0" />
-
-            {/* Cover card */}
-            <div
-              onClick={() => setSelectedCard('cover')}
-              className={`min-w-[80vw] h-[440px] rounded-[48px] flex flex-col justify-end p-9 relative overflow-hidden flex-shrink-0 mx-4 snap-center cursor-pointer transition-all duration-200 ${selectedCard === 'cover' ? 'ring-2 ring-[#D4A373]' : ''}`}
-              style={{ backgroundColor: form.color || '#D4A373' }}
-            >
-              {form.imageUrl && <img src={form.imageUrl} alt="" className="absolute inset-0 w-full h-full object-cover" />}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/10 to-transparent" />
-              <div className="absolute top-6 left-6 opacity-8 scale-[3] origin-top-left text-white pointer-events-none select-none">
-                {isPlaylist ? <List size={32} /> : <Headphones size={32} />}
-              </div>
-              <div className="relative z-10">
-                <p className="text-[10px] font-bold tracking-[0.4em] text-white/60 mb-3 uppercase">{form.label || ''}</p>
-                <h2 className="text-3xl font-serif text-white leading-tight">{form.title || <span className="opacity-40">Card title</span>}</h2>
-                {isSequential && (
-                  <p className="text-white/50 text-xs mt-2">{form.tracks.length} {isPlaylist ? 'tracks' : 'readings'}</p>
-                )}
-                <div className="mt-6 flex items-center gap-3 text-white/40">
-                  <div className="h-px w-8 bg-white/40" />
-                  <span className="text-[10px] tracking-widest uppercase">
-                    {selectedCard === 'cover' ? 'Editing ↓' : 'Tap to edit'}
-                  </span>
-                </div>
-              </div>
+            {form.imageUrl && <img src={form.imageUrl} alt="" className="absolute inset-0 w-full h-full object-cover" />}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/10 to-transparent" />
+            <div className="absolute bottom-0 left-0 right-0 px-4 pb-4 z-10">
+              {form.label && <p className="text-[8px] font-bold tracking-widest text-white/50 mb-1 uppercase">{form.label}</p>}
+              <p className="text-lg font-serif text-white leading-tight">{form.title || <span className="opacity-40">Untitled journey</span>}</p>
+              <p className="text-white/40 text-[10px] mt-0.5">{form.tracks.length} day{form.tracks.length !== 1 ? 's' : ''}</p>
             </div>
-
-            {/* Single audio card */}
-            {!isSequential && (
-              <div
-                onClick={() => setSelectedCard('cover')}
-                className={`min-w-[80vw] h-[440px] bg-[#F4EFE6] rounded-[48px] p-9 flex flex-col justify-between flex-shrink-0 mx-4 snap-center cursor-pointer ${selectedCard === 'cover' ? 'ring-2 ring-[#D4A373]' : ''}`}
-              >
-                <div>
-                  <span className="text-[10px] font-bold tracking-[0.4em] text-[#433422]/40 uppercase">LISTEN</span>
-                  <h3 className="text-3xl mt-6 font-serif leading-tight">{form.title || <span className="opacity-30">Title</span>}</h3>
-                  {form.duration && <p className="text-sm text-[#433422]/50 mt-3">{form.duration}</p>}
-                </div>
-                <div className="flex items-center justify-between">
-                  <p className="text-xs text-[#433422]/40 italic">Audio card</p>
-                  <div className="w-14 h-14 rounded-full bg-[#433422]/10 flex items-center justify-center">
-                    <Play size={22} className="text-[#433422]/30 ml-1" />
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Track/reading cards */}
-            {isSequential && (
-              <Reorder.Group
-                axis="x"
-                values={form.tracks}
-                onReorder={newTracks => set('tracks', newTracks)}
-                className="flex items-center"
-                style={{ touchAction: 'none' }}
-              >
-                {form.tracks.map((track, i) => (
-                  <TrackPreviewCard
-                    key={track._key}
-                    track={track}
-                    index={i}
-                    type={form.type}
-                    isSelected={selectedCard === i}
-                    onSelect={() => setSelectedCard(i)}
-                  />
-                ))}
-              </Reorder.Group>
-            )}
-
-            {/* Add track tile */}
-            {isSequential && (
-              <AddTrackTile type={form.type} onClick={addTrack} />
-            )}
-
-            <div className="min-w-[10vw] flex-shrink-0" />
+            <div className="absolute top-3 right-3 z-10">
+              <span className="text-[7px] font-bold tracking-widest text-white/50 bg-black/20 px-2 py-0.5 rounded-full">
+                {selectedCard === 'cover' ? 'EDITING ↓' : 'TAP TO EDIT'}
+              </span>
+            </div>
           </div>
         </div>
+
+        {/* ── Track list ── */}
+        <div className="px-5 pb-4">
+          <p className="text-[9px] font-bold tracking-widest text-[#433422]/35 mb-3">DAYS — tap to edit, drag to reorder</p>
+          <Reorder.Group
+            axis="y"
+            values={form.tracks}
+            onReorder={newTracks => set('tracks', newTracks)}
+            className="space-y-2"
+            style={{ touchAction: 'none' }}
+          >
+            {form.tracks.map((track, i) => (
+              <TrackListItem
+                key={track._key}
+                track={track}
+                index={i}
+                isSelected={selectedCard === i}
+                onSelect={() => setSelectedCard(i)}
+              />
+            ))}
+          </Reorder.Group>
+          <button
+            onClick={addTrack}
+            className="mt-2 w-full flex items-center justify-center gap-2 py-3 rounded-[16px] border-2 border-dashed border-[#D4A373]/30 text-[#D4A373]/60 text-xs font-bold tracking-widest hover:border-[#D4A373]/50 hover:bg-[#D4A373]/5 transition-colors"
+          >
+            <Plus size={14} /> ADD DAY
+          </button>
+        </div>
+
+        <div className="h-px bg-[#E9DCC9] mx-5 mb-1" />
 
         {/* ── Edit panel ── */}
         <AnimatePresence mode="wait">
@@ -729,7 +611,6 @@ function CardEditorSheet({ initial, categories, onSave, onCancel, onDelete }) {
               <TrackEditPanel
                 track={form.tracks[selectedCard]}
                 index={selectedCard}
-                type={form.type}
                 onChange={(k, v) => updateTrack(selectedCard, k, v)}
                 onDelete={() => removeTrack(selectedCard)}
               />

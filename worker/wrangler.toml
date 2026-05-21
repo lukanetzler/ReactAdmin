@@ -1,7 +1,7 @@
 name = "prayvail-r2-worker"
 main = "src/index.js"
 compatibility_date = "2024-09-23"
-account_id = "ec72bd13edf7417d3fbf141a8025467e"
+account_id = "d327007bdfcca99cc021d660830eaa06"
 
 [[r2_buckets]]
 binding = "R2"

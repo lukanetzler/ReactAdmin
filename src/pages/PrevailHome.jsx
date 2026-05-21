@@ -233,11 +233,12 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
     audio.addEventListener('ended', onEnded);
     return () => {
       audio.pause();
+      audio.src = '';
       audio.removeEventListener('timeupdate', onTimeUpdate);
       audio.removeEventListener('loadedmetadata', onLoadedMetadata);
       audio.removeEventListener('ended', onEnded);
     };
-  }, [activeSession]);
+  }, [activeSession?.audioUrl]);
 
   const togglePlay = () => {
     const audio = audioRef.current;
@@ -2928,7 +2929,7 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
                 <Share2 size={18} /> Share
               </button>
               <button
-                onClick={() => { setShowShareModal(false); setView('dashboard'); setActiveTab('home'); }}
+                onClick={() => { setShowShareModal(false); setShareImageUrl(''); setView('dashboard'); setActiveTab('home'); }}
                 className="w-full py-4 text-[#433422]/40 text-sm font-medium tracking-wide"
               >
                 Done

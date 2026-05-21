@@ -26,7 +26,7 @@ export function uploadFile(file, storagePath, onProgress) {
   return new Promise(async (resolve, reject) => {
     try {
       const idToken = await auth.currentUser.getIdToken();
-      const key = `${storagePath}/${Date.now()}_${file.name}`;
+      const key = storagePath;
       const workerUrl = `${R2_WORKER_URL}/upload?key=${encodeURIComponent(key)}&contentType=${encodeURIComponent(file.type || 'application/octet-stream')}`;
 
       const xhr = new XMLHttpRequest();
