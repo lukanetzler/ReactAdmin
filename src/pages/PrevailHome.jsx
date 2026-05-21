@@ -2194,6 +2194,37 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
           </div>
         </header>
 
+        {/* Current Journey strip */}
+        {activeModuleCard && (
+          <div className="px-6 pt-4 pb-1">
+            <p className="text-[9px] tracking-[0.3em] font-bold text-[#433422]/35 mb-2">CURRENT JOURNEY</p>
+            <button
+              onClick={() => handleCardTap(activeModuleCard)}
+              className="w-full flex items-center gap-3 bg-[#F4EFE6] rounded-[20px] px-4 py-3 active:scale-[0.98] transition-transform text-left"
+            >
+              <div className="w-12 h-12 rounded-[12px] flex-shrink-0 relative overflow-hidden" style={{ backgroundColor: activeModuleCard.color || '#D4A373' }}>
+                {activeModuleCard.imageUrl && <img src={activeModuleCard.imageUrl} alt="" className="absolute inset-0 w-full h-full object-cover" />}
+              </div>
+              <div className="flex-1 min-w-0">
+                {activeModuleCard.label && <p className="text-[8px] font-bold tracking-widest text-[#433422]/35 uppercase">{activeModuleCard.label}</p>}
+                <p className="text-sm font-serif text-[#433422] leading-snug truncate">{activeModuleCard.title}</p>
+                <p className="text-[9px] text-[#433422]/40 mt-0.5">
+                  {activeModule?.completed || activeModule?.archived
+                    ? `${activeModuleCard.tracks?.length ?? 0} sessions complete`
+                    : `Session ${(activeModule?.trackIndex ?? 0) + 1} of ${activeModuleCard.tracks?.length ?? 0}`}
+                </p>
+                <div className="h-0.5 bg-[#E9DCC9] rounded-full overflow-hidden mt-1.5">
+                  <div
+                    className="h-full bg-[#D4A373] rounded-full"
+                    style={{ width: `${activeModuleCard.tracks?.length > 0 ? ((activeModule?.completed || activeModule?.archived ? activeModuleCard.tracks.length : (activeModule?.trackIndex ?? 0)) / activeModuleCard.tracks.length) * 100 : 0}%` }}
+                  />
+                </div>
+              </div>
+              <ChevronRight size={16} className="text-[#433422]/25 flex-shrink-0" />
+            </button>
+          </div>
+        )}
+
         {/* Sticky category chips */}
         <div className="sticky top-0 z-10 bg-[#FDF9F3] pt-3 pb-2">
           <div className="flex gap-2 overflow-x-auto no-scrollbar px-6">
@@ -2208,15 +2239,51 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
                 className={`flex-shrink-0 text-[10px] font-bold tracking-[0.2em] uppercase px-4 py-1.5 rounded-full transition-colors ${selectedCategory === cat.value ? 'bg-[#433422] text-[#FDF9F3]' : 'bg-[#F4EFE6] text-[#433422]/50'}`}
               >{cat.name}</button>
             ))}
+            {archivedItems.length > 0 && (
+              <button
+                onClick={() => setSelectedCategory('_completed')}
+                className={`flex-shrink-0 text-[10px] font-bold tracking-[0.2em] uppercase px-4 py-1.5 rounded-full transition-colors ${selectedCategory === '_completed' ? 'bg-[#8E9775] text-white' : 'bg-[#F4EFE6] text-[#433422]/50'}`}
+              >Completed</button>
+            )}
           </div>
         </div>
 
         <main className="pt-2 pb-32">
 
+          {/* Completed journeys view */}
+          {selectedCategory === '_completed' && (() => {
+            const completedCards = archivedItems
+              .map(item => {
+                const card = allCards.find(c => c.id === item.cardId);
+                return card ? { ...card, _completedAt: item.completedAt } : null;
+              })
+              .filter(Boolean);
+            if (completedCards.length === 0) return (
+              <div className="flex flex-col items-center justify-center py-24 px-8 text-center">
+                <p className="text-[#433422]/30 text-sm">No completed journeys yet.</p>
+              </div>
+            );
+            return (
+              <section className="px-6 space-y-2.5 pt-2">
+                {completedCards.map(s => (
+                  <ResourceCard
+                    key={s.id}
+                    {...s}
+                    horizontal
+                    completed={true}
+                    duration={s._completedAt
+                      ? `Walked ${new Date(s._completedAt).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}`
+                      : s.duration}
+                    onClick={() => handleCardTap(s)}
+                  />
+                ))}
+              </section>
+            );
+          })()}
+
           {/* Filtered list — category selected */}
-          {selectedCategory && (() => {
-            const todayStr = new Date().toISOString().slice(0, 10);
-            const filteredCards = allCards.filter(c => c.category === selectedCategory);
+          {selectedCategory && selectedCategory !== '_completed' && (() => {
+            const filteredCards = allCards.filter(c => c.category === selectedCategory && c.id !== activeModuleCard?.id);
             if (filteredCards.length === 0) return (
               <div className="flex flex-col items-center justify-center py-24 px-8 text-center">
                 <p className="text-[#433422]/30 text-sm">Nothing here yet.</p>
@@ -2293,7 +2360,7 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
               {(() => {
                 const todayStr = new Date().toISOString().slice(0, 10);
                 return categories.map(cat => {
-                  const catCards = allCards.filter(c => c.category === cat.value);
+                  const catCards = allCards.filter(c => c.category === cat.value && c.id !== activeModuleCard?.id);
                   if (catCards.length === 0) return null;
                   return (
                     <section key={cat.id || cat.value}>

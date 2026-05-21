@@ -33,7 +33,8 @@ const ResourceCard = ({
         {inPath && <div className="w-1 flex-shrink-0 bg-[#D4A373]" />}
         {/* Left swatch */}
         <div className="w-[72px] h-[72px] flex-shrink-0 relative" style={{ backgroundColor: color }}>
-          {imageUrl && <img src={imageUrl} alt="" className="absolute inset-0 w-full h-full object-cover" />}
+          {imageUrl && <img src={imageUrl} alt="" className={`absolute inset-0 w-full h-full object-cover ${completed && !inPath ? 'opacity-70' : ''}`} />}
+          {completed && !inPath && <div className="absolute inset-0 bg-[#FDF9F3]/20" />}
         </div>
         {/* Text */}
         <div className={`flex-1 px-4 flex flex-col justify-center gap-0.5 min-w-0 ${inPath ? 'bg-[#EDE8DF]' : 'bg-[#F4EFE6]'}`}>
@@ -70,6 +71,11 @@ const ResourceCard = ({
 
       {/* Warm overlay when in path */}
       {inPath && <div className="absolute inset-0 bg-[#D4A373]/15" />}
+
+      {/* Linen wash on completed cards — signals "been here before" */}
+      {completed && !coming && !isSupporter && !inPath && (
+        <div className="absolute inset-0 bg-[#FDF9F3]/25" />
+      )}
 
       {isSupporter && (
         <div className="absolute top-2.5 right-2.5 z-10 w-5 h-5 rounded-full bg-black/20 backdrop-blur-sm flex items-center justify-center">
