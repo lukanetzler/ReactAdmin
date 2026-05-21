@@ -76,7 +76,7 @@ export default function GroundingExercise({ onBack, user }) {
       <div className="min-h-screen bg-[#FDF9F3] flex flex-col items-center justify-center px-6 py-10">
         <div className="w-full max-w-[360px] bg-[#F4EFE6] rounded-[40px] overflow-hidden shadow-sm">
           <div className="bg-[#FDF9F3] px-8 pt-10 pb-16 text-center relative">
-            <p className="text-[9px] font-bold tracking-[0.4em] text-[#8E9775] uppercase mb-3">Prevail</p>
+            <p className="text-[9px] font-bold tracking-[0.4em] text-[#8E9775] uppercase mb-3">Prayvail</p>
             <h1 className="text-3xl font-serif leading-tight">
               You are<br /><em className="italic text-[#8E9775]">grounded.</em>
             </h1>
@@ -108,7 +108,7 @@ export default function GroundingExercise({ onBack, user }) {
         <div className="w-full max-w-[360px] bg-[#F4EFE6] rounded-[40px] overflow-hidden shadow-sm">
           {/* Arch header */}
           <div className="bg-[#FDF9F3] px-8 pt-10 pb-16 text-center relative">
-            <p className="text-[9px] font-bold tracking-[0.4em] text-[#8E9775] uppercase mb-3">Prevail</p>
+            <p className="text-[9px] font-bold tracking-[0.4em] text-[#8E9775] uppercase mb-3">Prayvail</p>
             <h1 className="text-3xl font-serif leading-tight">
               Your<br /><em className="italic text-[#8E9775]">Reflections</em>
             </h1>
@@ -179,7 +179,7 @@ export default function GroundingExercise({ onBack, user }) {
           >
             <ArrowLeft size={20} strokeWidth={1.5} />
           </button>
-          <p className="text-[9px] font-bold tracking-[0.4em] text-[#8E9775] uppercase mb-3">Prevail</p>
+          <p className="text-[9px] font-bold tracking-[0.4em] text-[#8E9775] uppercase mb-3">Prayvail</p>
           <h1 className="text-3xl font-serif leading-tight">
             5·4·3·2·1<br /><em className="italic text-[#8E9775]">Grounding</em>
           </h1>

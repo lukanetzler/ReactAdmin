@@ -15,12 +15,13 @@ function withTimeout(promise, ms = 5000) {
 
 const entriesRef = (uid) => collection(db, 'users', uid, 'journalEntries');
 
-export async function addJournalEntry(uid, { dateISO, dateDisplay, feelingBefore, feelingAfter, reflection }) {
-  if (!uid) return localAddJournalEntry({ dateISO, dateDisplay, feelingBefore, feelingAfter, reflection });
-  return withTimeout(addDoc(entriesRef(uid), {
-    dateISO, dateDisplay, feelingBefore, feelingAfter, reflection,
-    createdAt: new Date().toISOString(),
-  }));
+export async function addJournalEntry(uid, { dateISO, dateDisplay, feelingBefore, feelingAfter, reflection, meditationTitle }) {
+  const data = Object.fromEntries(
+    Object.entries({ dateISO, dateDisplay, feelingBefore, feelingAfter, reflection, meditationTitle })
+      .filter(([, v]) => v !== undefined && v !== null)
+  );
+  if (!uid) return localAddJournalEntry(data);
+  return withTimeout(addDoc(entriesRef(uid), { ...data, createdAt: new Date().toISOString() }));
 }
 
 export async function updateJournalEntry(uid, entryId, { feelingBefore, feelingAfter, reflection }) {

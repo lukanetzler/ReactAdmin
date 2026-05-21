@@ -1401,6 +1401,7 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
           await addJournalEntry(uid, {
             dateISO: entryDateISO,
             dateDisplay: entryDateDisplay,
+            feelingBefore: preFeelingWord,
             feelingAfter: postFeelingWord,
             reflection: journalText,
             ...(isNewMode && activeSession?.title ? { meditationTitle: activeSession.title } : {}),
@@ -2228,7 +2229,7 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
 
         {/* Sticky category chips */}
         <div className="sticky top-0 z-10 bg-[#FDF9F3] pt-3 pb-2">
-          <div className="flex gap-2 overflow-x-auto no-scrollbar px-6">
+          <div className="flex gap-2 overflow-x-auto no-scrollbar px-6 w-full" style={{ WebkitOverflowScrolling: 'touch' }}>
             <button
               onClick={() => setSelectedCategory(null)}
               className={`flex-shrink-0 text-[10px] font-bold tracking-[0.2em] uppercase px-4 py-1.5 rounded-full transition-colors ${selectedCategory === null ? 'bg-[#433422] text-[#FDF9F3]' : 'bg-[#F4EFE6] text-[#433422]/50'}`}

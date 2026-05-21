@@ -48,7 +48,7 @@ export default function BoxBreathing({ onBack }) {
       <div className="min-h-screen bg-[#FDF9F3] flex flex-col items-center justify-center px-6 py-10">
         <div className="w-full max-w-[360px] bg-[#F4EFE6] rounded-[40px] overflow-hidden shadow-sm">
           <div className="bg-[#FDF9F3] px-8 pt-10 pb-16 text-center relative">
-            <p className="text-[9px] font-bold tracking-[0.4em] text-[#D4A373] uppercase mb-3">Prevail</p>
+            <p className="text-[9px] font-bold tracking-[0.4em] text-[#D4A373] uppercase mb-3">Prayvail</p>
             <h1 className="text-3xl font-serif leading-tight">
               Well<br /><em className="italic text-[#D4A373]">Done.</em>
             </h1>
@@ -86,7 +86,7 @@ export default function BoxBreathing({ onBack }) {
           >
             <ArrowLeft size={20} strokeWidth={1.5} />
           </button>
-          <p className="text-[9px] font-bold tracking-[0.4em] text-[#D4A373] uppercase mb-3">Prevail</p>
+          <p className="text-[9px] font-bold tracking-[0.4em] text-[#D4A373] uppercase mb-3">Prayvail</p>
           <h1 className="text-3xl font-serif leading-tight">
             Box<br /><em className="italic text-[#D4A373]">Breathing</em>
           </h1>
