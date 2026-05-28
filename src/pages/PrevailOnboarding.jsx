@@ -8,9 +8,9 @@ import { createUserWithEmailAndPassword, signInAnonymously, linkWithCredential, 
 import { auth } from '../firebase';
 import { createUserProfile } from '../services/userProfile';
 import { enrollSignupCards } from '../services/dailyPath';
-import prayvailLogo from '../assets/prayvail-logo-blank.png';
-import malePathImg from '../assets/male-path.png';
-import femalePathImg from '../assets/female-path.png';
+import prayvailLogo from '../assets/prayvail-logo-blank.webp';
+import malePathImg from '../assets/male-path.webp';
+import femalePathImg from '../assets/female-path.webp';
 
 const TOTAL_PROGRESS_STEPS = 4;
 
@@ -218,9 +218,19 @@ const PrevailOnboarding = ({ onComplete, initialStep = 0, initialName = '' }) =>
               </h2>
             </div>
 
-            {/* Blank — content to be added */}
             <div className="flex-1 relative" style={{ marginLeft: '10%', marginRight: '10%' }}>
               <div className="absolute inset-0 bg-[#F4EFE6] rounded-t-[60px] overflow-hidden" />
+              <div className="relative z-10 pt-10 px-7 pb-32">
+                <p className="text-sm text-[#433422]/70 leading-relaxed">
+                  I created Prayvail because life today is full of noise, stress, and uncertainty. Many of us crave a place to pause, breathe, and feel truly at peace, but it's not always easy to find.
+                </p>
+                <p className="text-sm text-[#433422]/70 leading-relaxed mt-4">
+                  We've brought together visualization, affirmations, and mindful breathing with Christian imagery to create a sanctuary you can carry with you. Whether it's a moment before your day begins or a pause in the middle of chaos, Prayvail is here to help you reconnect with your faith and find sanctuary in everyday life.
+                </p>
+                <p className="text-[10px] font-bold tracking-[0.2em] text-[#D4A373] uppercase mt-6">
+                  AJ, Founder
+                </p>
+              </div>
               <div className="absolute bottom-10 left-0 right-0 flex justify-center">
                 <PrimaryButton onClick={nextStep} label="I'M READY" />
               </div>

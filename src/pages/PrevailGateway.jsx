@@ -6,7 +6,7 @@ import {
   Leaf,
   Sparkles
 } from 'lucide-react';
-import prayvailLogo from '../assets/prayvail-logo-blank.png';
+import prayvailLogo from '../assets/prayvail-logo-blank.webp';
 
 const PrevailGateway = ({ onBeginWalk, onEnterSanctuary }) => {
   const [hoveredPath, setHoveredPath] = useState(null);

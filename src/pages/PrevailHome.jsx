@@ -11,7 +11,8 @@ import { useDailyPath } from '../hooks/useDailyPath';
 import { addJournalEntry, updateJournalEntry, deleteJournalEntry } from '../services/journal';
 import { updateUserProfile } from '../services/userProfile';
 import { addToPath, removeFromPath, completeTrackForDay, dismissBroadcast, completePathItem, recordCompletion, recordStreakDay } from '../services/dailyPath';
-import { checkIsSupporter, presentPaywall, presentCustomerCenter, restorePurchases, isNative } from '../services/purchases';
+import { checkIsSupporter, presentCustomerCenter, restorePurchases, isNative } from '../services/purchases';
+import Paywall from '../components/Paywall';
 import { useTrackCompletions } from '../hooks/useTrackCompletions';
 import { useCompletionHistory } from '../hooks/useCompletionHistory';
 import { useStreakDays } from '../hooks/useStreakDays';
@@ -46,7 +47,7 @@ import {
   List,
   X,
 } from 'lucide-react';
-import prayvailLogo from '../assets/prayvail-logo-blank.png';
+import prayvailLogo from '../assets/prayvail-logo-blank.webp';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const pathContainerVariants = {
@@ -984,6 +985,21 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
   );
 
   // ── Supporter Lock ─────────────────────────────────────
+  if (view === 'paywall') {
+    const handlePurchased = async () => {
+      const isNowSupporter = await checkIsSupporter();
+      setRcIsSupporter(isNowSupporter);
+      if (isNowSupporter) await updateUserProfile(user?.uid, { role: 'supporter' });
+      setView('resources');
+    };
+    return (
+      <Paywall
+        onBack={() => setView(supporterLockCard ? 'supporter-lock' : 'account')}
+        onPurchased={handlePurchased}
+      />
+    );
+  }
+
   if (view === 'supporter-lock') {
     const card = supporterLockCard;
     return (
@@ -1008,17 +1024,7 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
             </p>
           </div>
           <button
-            onClick={async () => {
-              const purchased = await presentPaywall();
-              if (purchased) {
-                const isNowSupporter = await checkIsSupporter();
-                setRcIsSupporter(isNowSupporter);
-                if (isNowSupporter) {
-                  await updateUserProfile(user?.uid, { role: 'supporter' });
-                  setView('resources');
-                }
-              }
-            }}
+            onClick={() => setView('paywall')}
             className="w-full py-4 bg-[#433422] text-[#FDF9F3] rounded-[24px] font-serif text-base active:scale-[0.98] transition-transform"
           >
             {isNative() ? 'Become a Supporter' : 'Supporter Plans Coming Soon'}
@@ -1872,21 +1878,14 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
                 <p className="text-sm text-[#433422]/55 leading-relaxed mb-4">
                   Support the mission and unlock premium sessions, deeper reflection tools, and exclusive content as the sanctuary grows.
                 </p>
-                {isNative() ? (
                   <div className="space-y-2">
                     <button
-                      onClick={async () => {
-                        const purchased = await presentPaywall();
-                        if (purchased) {
-                          const isNowSupporter = await checkIsSupporter();
-                          setRcIsSupporter(isNowSupporter);
-                          if (isNowSupporter) await updateUserProfile(user?.uid, { role: 'supporter' });
-                        }
-                      }}
+                      onClick={() => setView('paywall')}
                       className="w-full py-3.5 bg-[#D4A373] text-white rounded-[16px] text-xs font-bold tracking-widest flex items-center justify-center gap-2 active:scale-[0.98] transition-transform"
                     >
                       <Crown size={13} /> VIEW PLANS
                     </button>
+                    {isNative() && (
                     <button
                       onClick={async () => {
                         const restored = await restorePurchases();
@@ -1897,13 +1896,8 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
                     >
                       RESTORE PURCHASES
                     </button>
+                    )}
                   </div>
-                ) : (
-                  <div className="flex items-center gap-2.5 py-3 px-4 bg-[#433422]/6 rounded-[16px]">
-                    <Lock size={13} className="text-[#433422]/30" />
-                    <span className="text-[11px] font-bold text-[#433422]/30 tracking-widest">AVAILABLE ON DEVICE</span>
-                  </div>
-                )}
               </>
             )}
           </div>
@@ -2434,7 +2428,7 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
 
   // ── Box Breathing ──────────────────────────────────────
   if (view === 'breathe') {
-    return <BoxBreathing onBack={() => setView('explore')} />;
+    return <BoxBreathing onBack={() => setView('explore')} user={user} />;
   }
 
   // ── Grounding Exercise ─────────────────────────────────
@@ -2724,7 +2718,7 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
                     </button>
                     <div className="flex flex-col items-center gap-1 text-center">
                       <p className="font-serif text-base text-[#433422]">Your journey awaits.</p>
-                      <p className="text-[11px] text-[#433422]/40 leading-relaxed">Tap the compass to choose<br />your first module.</p>
+                      <p className="text-[11px] text-[#433422]/40 leading-relaxed">Tap the compass to choose<br />a module.</p>
                     </div>
                   </div>
               )}

@@ -6,7 +6,7 @@ import { signOut } from 'firebase/auth';
 import { auth } from './firebase';
 import { migrateGuestDataIfNeeded } from './services/migrateGuest';
 import { initializePurchases } from './services/purchases';
-import prayvailLogo from './assets/prayvail-logo-blank.png';
+import prayvailLogo from './assets/prayvail-logo-blank.webp';
 import PrevailGateway from './pages/PrevailGateway';
 import PrevailOnboarding from './pages/PrevailOnboarding';
 import PrevailLogin from './pages/PrevailLogin';

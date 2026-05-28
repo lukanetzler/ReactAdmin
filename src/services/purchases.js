@@ -61,6 +61,51 @@ export async function presentCustomerCenter() {
 }
 
 /**
+ * Fetch the current RevenueCat offerings. Returns an array of packages:
+ * [{ identifier, packageType, product: { title, description, priceString, price, currencyCode, subscriptionPeriod } }]
+ * Falls back to [] on error or non-native.
+ */
+const DEV_MOCK_PACKAGES = [
+  {
+    identifier: 'monthly',
+    packageType: 'MONTHLY',
+    product: { title: 'Monthly Supporter', description: 'Full access, billed monthly', priceString: '$4.99', price: 4.99, currencyCode: 'USD', subscriptionPeriod: 'P1M' },
+  },
+  {
+    identifier: 'annual',
+    packageType: 'ANNUAL',
+    product: { title: 'Annual Supporter', description: 'Full access, billed annually', priceString: '$34.99', price: 34.99, currencyCode: 'USD', subscriptionPeriod: 'P1Y' },
+  },
+];
+
+export async function getOfferings() {
+  if (!isNative()) return DEV_MOCK_PACKAGES;
+  try {
+    const { offerings } = await Purchases.getOfferings();
+    const current = offerings.current;
+    if (!current) return [];
+    return current.availablePackages ?? [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Purchase a specific package returned by getOfferings().
+ * Returns true if the purchase completed successfully.
+ */
+export async function purchasePackage(pkg) {
+  if (!isNative()) return false;
+  try {
+    const { customerInfo } = await Purchases.purchasePackage({ aPackage: pkg });
+    return typeof customerInfo.entitlements.active[ENTITLEMENT_ID] !== 'undefined';
+  } catch (e) {
+    if (e?.code === 'PURCHASE_CANCELLED') return false;
+    throw e;
+  }
+}
+
+/**
  * Restore purchases — useful when a user reinstalls or switches devices.
  * Returns true if a supporter entitlement was found after restoring.
  */

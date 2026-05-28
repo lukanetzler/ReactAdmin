@@ -1,5 +1,5 @@
 import { Component } from 'react';
-import prayvailLogo from '../assets/prayvail-logo-blank.png';
+import prayvailLogo from '../assets/prayvail-logo-blank.webp';
 
 class ErrorBoundary extends Component {
   constructor(props) {

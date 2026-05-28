@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { ArrowLeft, Mail, Lock } from 'lucide-react';
 import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 import { auth } from '../firebase';
-import prayvailLogo from '../assets/prayvail-logo-blank.png';
+import prayvailLogo from '../assets/prayvail-logo-blank.webp';
 
 const PrevailLogin = ({ onBack, onLogin }) => {
   const [email, setEmail] = useState('');
