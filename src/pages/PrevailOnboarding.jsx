@@ -102,7 +102,7 @@ const PrevailOnboarding = ({ onComplete, initialStep = 0, initialName = '' }) =>
   }
 
   return (
-    <div className="flex flex-col h-screen bg-[#FDF9F3] text-[#433422] font-sans overflow-hidden relative">
+    <div className="flex flex-col h-dvh bg-[#FDF9F3] text-[#433422] font-sans overflow-hidden relative">
 
       {/* Ambient glow */}
       <div className="absolute top-[-10%] right-[-10%] w-96 h-96 rounded-full bg-[#E9DCC9]/40 blur-3xl -z-10" />
@@ -140,7 +140,7 @@ const PrevailOnboarding = ({ onComplete, initialStep = 0, initialName = '' }) =>
 
         {/* ── Step 1: Welcome ── */}
         {step === 1 && (
-          <div className="flex flex-col h-full animate-fade-in">
+          <div className="flex flex-col flex-1 min-h-0 animate-fade-in">
             <div className="pt-5 pb-3" style={{ paddingLeft: '10%', paddingRight: '10%' }}>
               <span className="text-[10px] font-bold tracking-[0.4em] text-[#8E9775] uppercase mb-2 block">
                 The Invitation
