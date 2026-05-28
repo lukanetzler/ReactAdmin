@@ -9,8 +9,9 @@ import { auth } from '../firebase';
 import { createUserProfile } from '../services/userProfile';
 import { enrollSignupCards } from '../services/dailyPath';
 import prayvailLogo from '../assets/prayvail-logo-blank.webp';
-import malePathImg from '../assets/male-path.webp';
-import femalePathImg from '../assets/female-path.webp';
+import stepsImg from '../assets/steps.webp';
+import malePathImg from '../assets/man-path.webp';
+import femalePathImg from '../assets/woman-path.webp';
 
 const TOTAL_PROGRESS_STEPS = 4;
 
@@ -140,28 +141,56 @@ const PrevailOnboarding = ({ onComplete, initialStep = 0, initialName = '' }) =>
         {/* ── Step 1: Welcome ── */}
         {step === 1 && (
           <div className="flex flex-col h-full animate-fade-in">
-            <div className="pt-8 pb-6" style={{ paddingLeft: '10%', paddingRight: '10%' }}>
-              <span className="text-[10px] font-bold tracking-[0.4em] text-[#8E9775] uppercase mb-4 block">
+            <div className="pt-5 pb-3" style={{ paddingLeft: '10%', paddingRight: '10%' }}>
+              <span className="text-[10px] font-bold tracking-[0.4em] text-[#8E9775] uppercase mb-2 block">
                 The Invitation
               </span>
-              <h2 className="text-5xl font-serif leading-[1.1] mb-5">
+              <h2 className="text-4xl font-serif leading-[1.1] mb-2">
                 Find your{' '}
                 <span className="italic text-[#D4A373]">sacred</span>{' '}
                 center.
               </h2>
-              <p className="text-base text-gray-400 leading-relaxed max-w-[75%]">
-                Where ancient scripture meets present stillness.
+              <p className="text-sm text-gray-400 leading-relaxed max-w-[75%]">
+                Where ancient scripture guides your path.
               </p>
             </div>
 
             <div className="flex-1 relative" style={{ marginLeft: '10%', marginRight: '10%' }}>
               {/* Arched horizon panel */}
               <div className="absolute inset-0 rounded-t-[60px] overflow-hidden">
-                <img src={malePathImg} alt="A path" className={`absolute inset-0 w-full h-full object-cover transition-all duration-[4000ms] ease-in-out ${activeImg === 0 ? 'opacity-100 blur-none' : 'opacity-0 blur-lg'}`} />
-                <img src={femalePathImg} alt="A path" className={`absolute inset-0 w-full h-full object-cover transition-all duration-[4000ms] ease-in-out ${activeImg === 1 ? 'opacity-100 blur-none' : 'opacity-0 blur-lg'}`} />
+                {/* Base landscape — never changes, identical in both images */}
+                <img src={malePathImg} alt="" className="absolute inset-0 w-full h-full object-cover" style={{ objectPosition: 'center 70%' }} />
+                {/* Man figure — masked to figure area, fades out when woman is active */}
+                <img
+                  src={malePathImg} alt=""
+                  className="absolute inset-0 w-full h-full object-cover transition-opacity duration-[5000ms] ease-in-out"
+                  style={{
+                    objectPosition: 'center 70%',
+                    opacity: activeImg === 0 ? 1 : 0,
+                    maskImage: 'radial-gradient(ellipse 58% 52% at 50% 66%, black 55%, transparent 100%)',
+                    WebkitMaskImage: 'radial-gradient(ellipse 58% 52% at 50% 66%, black 55%, transparent 100%)',
+                  }}
+                />
+                {/* Woman figure — masked to figure area, fades in when woman is active */}
+                <img
+                  src={femalePathImg} alt=""
+                  className="absolute inset-0 w-full h-full object-cover transition-opacity duration-[5000ms] ease-in-out"
+                  style={{
+                    objectPosition: 'center 70%',
+                    opacity: activeImg === 1 ? 1 : 0,
+                    maskImage: 'radial-gradient(ellipse 58% 52% at 50% 66%, black 55%, transparent 100%)',
+                    WebkitMaskImage: 'radial-gradient(ellipse 58% 52% at 50% 66%, black 55%, transparent 100%)',
+                  }}
+                />
               </div>
-              <div className="absolute bottom-10 left-0 right-0 flex justify-center">
-                <PrimaryButton onClick={nextStep} label="BEGIN YOUR PATH" />
+              <div className="absolute bottom-10 left-0 right-0 flex justify-center z-10">
+                <button
+                  onClick={nextStep}
+                  className="inline-flex items-center justify-center gap-4 px-10 py-4 rounded-[32px] font-bold text-sm tracking-[0.2em] whitespace-nowrap text-[#FDF9F3] transition-all ease-out duration-300 hover:-translate-y-0.5 active:scale-[0.98]"
+                  style={{ backgroundColor: '#5f4d36', boxShadow: '0 10px 36px -6px rgba(95,77,54,0.45)' }}
+                >
+                  BEGIN YOUR PATH
+                </button>
               </div>
             </div>
           </div>
@@ -209,30 +238,67 @@ const PrevailOnboarding = ({ onComplete, initialStep = 0, initialName = '' }) =>
         {/* ── Step 3: Founders Note ── */}
         {step === 3 && (
           <div className="flex flex-col h-full animate-fade-in">
-            <div className="pt-8 pb-6" style={{ paddingLeft: '10%', paddingRight: '10%' }}>
-              <span className="text-[10px] font-bold tracking-[0.4em] text-[#D4A373] uppercase mb-4 block">
+            <div className="pt-5 pb-3" style={{ paddingLeft: '10%', paddingRight: '10%' }}>
+              <span className="text-[10px] font-bold tracking-[0.4em] text-[#D4A373] uppercase mb-2 block">
                 From Us
               </span>
               <h2 className="text-4xl font-serif leading-tight">
-                A note from <br />the founders.
+                A note from <br />the founder.
               </h2>
             </div>
 
-            <div className="flex-1 relative" style={{ marginLeft: '10%', marginRight: '10%' }}>
-              <div className="absolute inset-0 bg-[#F4EFE6] rounded-t-[60px] overflow-hidden" />
-              <div className="relative z-10 pt-10 px-7 pb-32">
-                <p className="text-sm text-[#433422]/70 leading-relaxed">
-                  I created Prayvail because life today is full of noise, stress, and uncertainty. Many of us crave a place to pause, breathe, and feel truly at peace, but it's not always easy to find.
-                </p>
-                <p className="text-sm text-[#433422]/70 leading-relaxed mt-4">
-                  We've brought together visualization, affirmations, and mindful breathing with Christian imagery to create a sanctuary you can carry with you. Whether it's a moment before your day begins or a pause in the middle of chaos, Prayvail is here to help you reconnect with your faith and find sanctuary in everyday life.
-                </p>
-                <p className="text-[10px] font-bold tracking-[0.2em] text-[#D4A373] uppercase mt-6">
-                  AJ, Founder
-                </p>
-              </div>
-              <div className="absolute bottom-10 left-0 right-0 flex justify-center">
-                <PrimaryButton onClick={nextStep} label="I'M READY" />
+            <div className="flex-1 flex flex-col min-h-0" style={{ marginLeft: '10%', marginRight: '10%' }}>
+              {/* Scrollable content */}
+              <div className="flex-1 relative min-h-0 rounded-t-[60px] overflow-hidden bg-[#F4EFE6]">
+                <div className="h-full overflow-y-auto pt-6 px-7 pb-6 no-scrollbar">
+                  <div className="flex items-center justify-between">
+                    <p className="font-serif text-[72px] leading-none text-[#D4A373]/30 -ml-1" aria-hidden="true">"</p>
+                    <p className="text-[10px] font-bold tracking-[0.2em] text-[#D4A373] uppercase">AJ, Founder</p>
+                  </div>
+                  <p className="font-serif text-[15px] text-[#433422]/75 leading-[1.75] italic">
+                    Prayvail came from a deeply personal need to find a space where faith and mental wellbeing didn't have to exist separately. So many people I spoke to felt the same. They weren't looking for another wellness app. They were looking for something that understood that true peace is rooted in something greater than ourselves. That's what Prayvail was built to offer.
+                  </p>
+                  <p className="font-serif text-[13px] font-bold not-italic text-[#433422]/50 leading-relaxed tracking-wide mt-5 mb-1">
+                    To pray. To prevail.
+                  </p>
+                  <p className="font-serif text-[15px] text-[#433422]/75 leading-[1.75] italic">
+                    The name says it all. To pray: to hold a conversation with the divine. To prevail: to overcome. Prayvail exists at the intersection of those two truths.
+                  </p>
+                  <p className="font-serif text-[15px] text-[#433422]/75 leading-[1.75] italic mt-4">
+                    Life today is full of noise, stress, and uncertainty. Finding a place to pause, breathe, and feel genuinely at peace has never been harder, or mattered more. Prayvail was built to be that place. A sanctuary you can carry with you.
+                  </p>
+                  <p className="font-serif text-[15px] text-[#433422]/75 leading-[1.75] italic mt-4">
+                    Working closely with professionals, Prayvail weaves together the wisdom of timeless scripture and Christian imagery with practices genuinely rooted in how the mind heals and finds rest. Whether it's a quiet moment before the day begins, or a breath of stillness found in the middle of chaos, Prayvail is here to help you reconnect with your faith and find peace in the everyday.
+                  </p>
+                  <p className="font-serif text-[15px] text-[#433422]/60 leading-[1.75] italic mt-4">
+                    Wherever you are on your journey, Prayvail hopes to walk alongside you. Your path to peace is waiting.
+                  </p>
+                  {/* Feature image with organic fade mask */}
+                  <div className="w-full h-52 mt-6 relative">
+                    <img
+                      src={stepsImg} alt=""
+                      className="absolute inset-0 w-full h-full object-cover"
+                      style={{
+                        objectPosition: 'center 20%',
+                        filter: 'brightness(1.08) saturate(0.85)',
+                        maskImage: 'linear-gradient(to right, transparent 0%, black 22%, black 78%, transparent 100%), linear-gradient(to bottom, transparent 0%, black 12%, black 75%, transparent 100%)',
+                        WebkitMaskImage: 'linear-gradient(to right, transparent 0%, black 22%, black 78%, transparent 100%), linear-gradient(to bottom, transparent 0%, black 12%, black 75%, transparent 100%)',
+                        maskComposite: 'intersect',
+                        WebkitMaskComposite: 'source-in',
+                      }}
+                    />
+                    {/* Warm dreamy overlay */}
+                    <div className="absolute inset-0 pointer-events-none" style={{
+                      background: 'radial-gradient(ellipse at 50% 40%, rgba(253,249,243,0.18) 0%, rgba(253,249,243,0.0) 70%)',
+                    }} />
+                  </div>
+                  <div className="h-px w-full bg-[#D4A373]/20 mt-6" />
+                  <div className="h-5" />
+                  {/* Button as part of the message */}
+                  <div className="flex justify-center pt-8 pb-4">
+                    <PrimaryButton onClick={nextStep} label="I'M READY" />
+                  </div>
+                </div>
               </div>
             </div>
           </div>

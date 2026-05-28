@@ -117,6 +117,34 @@
   50%       { opacity: 0.20; }
 }
 
+/* Horizontal wave wipe — left to right */
+@keyframes waveRevealLTR {
+  from {
+    clip-path: polygon(0% 0%, 8% 12.5%, 0% 25%, 8% 37.5%, 0% 50%, 8% 62.5%, 0% 75%, 8% 87.5%, 0% 100%, 0% 100%, 0% 0%);
+  }
+  to {
+    clip-path: polygon(100% 0%, 108% 12.5%, 100% 25%, 108% 37.5%, 100% 50%, 108% 62.5%, 100% 75%, 108% 87.5%, 100% 100%, 0% 100%, 0% 0%);
+  }
+}
+
+/* Horizontal wave wipe — right to left */
+@keyframes waveRevealRTL {
+  from {
+    clip-path: polygon(100% 0%, 92% 12.5%, 100% 25%, 92% 37.5%, 100% 50%, 92% 62.5%, 100% 75%, 92% 87.5%, 100% 100%, 100% 100%, 100% 0%);
+  }
+  to {
+    clip-path: polygon(0% 0%, -8% 12.5%, 0% 25%, -8% 37.5%, 0% 50%, -8% 62.5%, 0% 75%, -8% 87.5%, 0% 100%, 100% 100%, 100% 0%);
+  }
+}
+
+@utility animate-wave-ltr {
+  animation: waveRevealLTR 1.8s cubic-bezier(0.76, 0, 0.24, 1) forwards;
+}
+
+@utility animate-wave-rtl {
+  animation: waveRevealRTL 1.8s cubic-bezier(0.76, 0, 0.24, 1) forwards;
+}
+
 @keyframes fadeSlideUp {
   from { opacity: 0; transform: translateY(14px); }
   to   { opacity: 1; transform: translateY(0); }

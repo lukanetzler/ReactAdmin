@@ -18,7 +18,6 @@ import { useCompletionHistory } from '../hooks/useCompletionHistory';
 import { useStreakDays } from '../hooks/useStreakDays';
 import { doc, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase';
-import meditationTrack from '../assets/Day One - With Archer.mp3';
 import { getDailyVerse } from '../data/getDailyVerse';
 import {
   Compass,
@@ -60,7 +59,6 @@ const pathItemVariants = {
 };
 
 const DAY_LABELS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
-const TRACK_TITLE = 'Day One - With Archer';
 const FEELING_OPTIONS = ['Peaceful', 'Grateful', 'Anxious', 'Hopeful', 'Tired', 'Joyful', 'Unsettled', 'Calm'];
 
 const PATH_CARD_COLORS = ['#E9DCC9', '#D9C9B5', '#D4A373', '#C4B5A0', '#8E9775', '#B0A898'];
@@ -220,7 +218,7 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
   const swipeStartX = useRef(null);
 
   useEffect(() => {
-    const url = activeSession?.audioUrl || meditationTrack;
+    const url = activeSession?.audioUrl;
     const audio = new Audio(url);
     audioRef.current = audio;
     setTrackTime(0);
