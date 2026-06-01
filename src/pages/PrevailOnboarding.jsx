@@ -136,7 +136,7 @@ const PrevailOnboarding = ({ onComplete, initialStep = 0, initialName = '' }) =>
       </header>
 
       {/* Content */}
-      <main className="flex-1 flex flex-col overflow-hidden">
+      <main className={`flex-1 flex flex-col ${step === 3 ? 'overflow-y-auto no-scrollbar' : 'overflow-hidden'}`}>
 
         {/* ── Step 1: Welcome ── */}
         {step === 1 && (
@@ -237,7 +237,7 @@ const PrevailOnboarding = ({ onComplete, initialStep = 0, initialName = '' }) =>
 
         {/* ── Step 3: Founders Note ── */}
         {step === 3 && (
-          <div className="flex flex-col h-full animate-fade-in">
+          <div className="flex flex-col animate-fade-in pb-10">
             <div className="pt-5 pb-3" style={{ paddingLeft: '10%', paddingRight: '10%' }}>
               <span className="text-[10px] font-bold tracking-[0.4em] text-[#D4A373] uppercase mb-2 block">
                 From Us
@@ -247,57 +247,52 @@ const PrevailOnboarding = ({ onComplete, initialStep = 0, initialName = '' }) =>
               </h2>
             </div>
 
-            <div className="flex-1 flex flex-col min-h-0" style={{ marginLeft: '10%', marginRight: '10%' }}>
-              {/* Scrollable content */}
-              <div className="flex-1 relative min-h-0 rounded-t-[60px] overflow-hidden bg-[#F4EFE6]">
-                <div className="h-full overflow-y-auto pt-6 px-7 pb-6 no-scrollbar">
-                  <div className="flex items-center justify-between">
-                    <p className="font-serif text-[72px] leading-none text-[#D4A373]/30 -ml-1" aria-hidden="true">"</p>
-                    <p className="text-[10px] font-bold tracking-[0.2em] text-[#D4A373] uppercase">AJ, Founder</p>
-                  </div>
-                  <p className="font-serif text-[15px] text-[#433422]/75 leading-[1.75] italic">
-                    Prayvail came from a deeply personal need to find a space where faith and mental wellbeing didn't have to exist separately. So many people I spoke to felt the same. They weren't looking for another wellness app. They were looking for something that understood that true peace is rooted in something greater than ourselves. That's what Prayvail was built to offer.
-                  </p>
-                  <p className="font-serif text-[13px] font-bold not-italic text-[#433422]/50 leading-relaxed tracking-wide mt-5 mb-1">
-                    To pray. To prevail.
-                  </p>
-                  <p className="font-serif text-[15px] text-[#433422]/75 leading-[1.75] italic">
-                    The name says it all. To pray: to hold a conversation with the divine. To prevail: to overcome. Prayvail exists at the intersection of those two truths.
-                  </p>
-                  <p className="font-serif text-[15px] text-[#433422]/75 leading-[1.75] italic mt-4">
-                    Life today is full of noise, stress, and uncertainty. Finding a place to pause, breathe, and feel genuinely at peace has never been harder, or mattered more. Prayvail was built to be that place. A sanctuary you can carry with you.
-                  </p>
-                  <p className="font-serif text-[15px] text-[#433422]/75 leading-[1.75] italic mt-4">
-                    Working closely with professionals, Prayvail weaves together the wisdom of timeless scripture and Christian imagery with practices genuinely rooted in how the mind heals and finds rest. Whether it's a quiet moment before the day begins, or a breath of stillness found in the middle of chaos, Prayvail is here to help you reconnect with your faith and find peace in the everyday.
-                  </p>
-                  <p className="font-serif text-[15px] text-[#433422]/60 leading-[1.75] italic mt-4">
-                    Wherever you are on your journey, Prayvail hopes to walk alongside you. Your path to peace is waiting.
-                  </p>
-                  {/* Feature image with organic fade mask */}
-                  <div className="w-full h-52 mt-6 relative">
-                    <img
-                      src={stepsImg} alt=""
-                      className="absolute inset-0 w-full h-full object-cover"
-                      style={{
-                        objectPosition: 'center 20%',
-                        filter: 'brightness(1.08) saturate(0.85)',
-                        maskImage: 'linear-gradient(to right, transparent 0%, black 22%, black 78%, transparent 100%), linear-gradient(to bottom, transparent 0%, black 12%, black 75%, transparent 100%)',
-                        WebkitMaskImage: 'linear-gradient(to right, transparent 0%, black 22%, black 78%, transparent 100%), linear-gradient(to bottom, transparent 0%, black 12%, black 75%, transparent 100%)',
-                        maskComposite: 'intersect',
-                        WebkitMaskComposite: 'source-in',
-                      }}
-                    />
-                    {/* Warm dreamy overlay */}
-                    <div className="absolute inset-0 pointer-events-none" style={{
-                      background: 'radial-gradient(ellipse at 50% 40%, rgba(253,249,243,0.18) 0%, rgba(253,249,243,0.0) 70%)',
-                    }} />
-                  </div>
-                  <div className="h-px w-full bg-[#D4A373]/20 mt-6" />
-                  <div className="h-5" />
-                  {/* Button as part of the message */}
-                  <div className="flex justify-center pt-8 pb-4">
-                    <PrimaryButton onClick={nextStep} label="I'M READY" />
-                  </div>
+            <div style={{ marginLeft: '10%', marginRight: '10%' }}>
+              <div className="rounded-t-[60px] bg-[#F4EFE6] pt-6 px-7 pb-8">
+                <div className="flex items-center justify-between">
+                  <p className="font-serif text-[72px] leading-none text-[#D4A373]/30 -ml-1" aria-hidden="true">"</p>
+                  <p className="text-[10px] font-bold tracking-[0.2em] text-[#D4A373] uppercase">AJ, Founder</p>
+                </div>
+                <p className="font-serif text-[15px] text-[#433422]/75 leading-[1.75] italic">
+                  Prayvail came from a deeply personal need to find a space where faith and mental wellbeing didn't have to exist separately. So many people I spoke to felt the same. They weren't looking for another wellness app. They were looking for something that understood that true peace is rooted in something greater than ourselves. That's what Prayvail was built to offer.
+                </p>
+                <p className="font-serif text-[13px] font-bold not-italic text-[#433422]/50 leading-relaxed tracking-wide mt-5 mb-1">
+                  To pray. To prevail.
+                </p>
+                <p className="font-serif text-[15px] text-[#433422]/75 leading-[1.75] italic">
+                  The name says it all. To pray: to hold a conversation with the divine. To prevail: to overcome. Prayvail exists at the intersection of those two truths.
+                </p>
+                <p className="font-serif text-[15px] text-[#433422]/75 leading-[1.75] italic mt-4">
+                  Life today is full of noise, stress, and uncertainty. Finding a place to pause, breathe, and feel genuinely at peace has never been harder, or mattered more. Prayvail was built to be that place. A sanctuary you can carry with you.
+                </p>
+                <p className="font-serif text-[15px] text-[#433422]/75 leading-[1.75] italic mt-4">
+                  Working closely with professionals, Prayvail weaves together the wisdom of timeless scripture and Christian imagery with practices genuinely rooted in how the mind heals and finds rest. Whether it's a quiet moment before the day begins, or a breath of stillness found in the middle of chaos, Prayvail is here to help you reconnect with your faith and find peace in the everyday.
+                </p>
+                <p className="font-serif text-[15px] text-[#433422]/60 leading-[1.75] italic mt-4">
+                  Wherever you are on your journey, Prayvail hopes to walk alongside you. Your path to peace is waiting.
+                </p>
+                {/* Feature image */}
+                <div className="w-full h-52 mt-6 relative">
+                  <img
+                    src={stepsImg} alt=""
+                    className="absolute inset-0 w-full h-full object-cover"
+                    style={{
+                      objectPosition: 'center 20%',
+                      filter: 'brightness(1.08) saturate(0.85)',
+                      maskImage: 'linear-gradient(to right, transparent 0%, black 22%, black 78%, transparent 100%), linear-gradient(to bottom, transparent 0%, black 12%, black 75%, transparent 100%)',
+                      WebkitMaskImage: 'linear-gradient(to right, transparent 0%, black 22%, black 78%, transparent 100%), linear-gradient(to bottom, transparent 0%, black 12%, black 75%, transparent 100%)',
+                      maskComposite: 'intersect',
+                      WebkitMaskComposite: 'source-in',
+                    }}
+                  />
+                  <div className="absolute inset-0 pointer-events-none" style={{
+                    background: 'radial-gradient(ellipse at 50% 40%, rgba(253,249,243,0.18) 0%, rgba(253,249,243,0.0) 70%)',
+                  }} />
+                </div>
+                <div className="h-px w-full bg-[#D4A373]/20 mt-6" />
+                <div className="h-5" />
+                <div className="flex justify-center pt-8 pb-2">
+                  <PrimaryButton onClick={nextStep} label="I'M READY" />
                 </div>
               </div>
             </div>

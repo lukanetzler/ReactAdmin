@@ -147,6 +147,12 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
     setFocusedStepIndex(activeModule?.trackIndex ?? 0);
   }, [activeModule?.id]);
 
+  useEffect(() => {
+    if (view !== 'twilight-transition') return;
+    const t = setTimeout(() => setView('twilight'), 3000);
+    return () => clearTimeout(t);
+  }, [view]);
+
   const showPathToast = (message) => {
     const id = Date.now();
     setPathToast({ message, id });
@@ -2439,13 +2445,225 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
     return <FishingSim onBack={() => setView('explore')} />;
   }
 
+  // ── Life Box ────────────────────────────────────────────
+  if (view === 'lifebox') {
+    return (
+      <div className="flex flex-col min-h-screen font-sans" style={{ backgroundColor: '#F4F1EC' }}>
+        <div className="animate-view-enter">
+          {/* Header */}
+          <div className="relative px-8 pt-14 pb-10 overflow-hidden" style={{ backgroundColor: '#4A5E42' }}>
+            <div className="absolute top-[-30%] right-[-15%] w-64 h-64 rounded-full opacity-20" style={{ backgroundColor: '#8FAF80', filter: 'blur(40px)' }} />
+            <button onClick={() => setView('explore')} className="flex items-center gap-2 mb-6 relative z-10" style={{ color: 'rgba(255,255,255,0.55)' }}>
+              <ArrowLeft size={18} strokeWidth={1.5} />
+              <span className="text-sm">Explore</span>
+            </button>
+            <div className="relative z-10">
+              <p className="text-[9px] font-bold tracking-[0.4em] mb-2" style={{ color: 'rgba(255,255,255,0.45)' }}>LIFE BOX</p>
+              <h1 className="text-3xl font-serif leading-tight mb-2" style={{ color: '#FDF9F3' }}>Life's chapters,<br /><em className="italic" style={{ color: '#A8C898' }}>guided by faith.</em></h1>
+              <p className="text-sm leading-relaxed" style={{ color: 'rgba(255,255,255,0.45)' }}>Grief · Marriage · Transitions · Purpose</p>
+            </div>
+            <div className="absolute bottom-0 left-0 right-0 pointer-events-none">
+              <svg viewBox="0 0 400 30" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-7">
+                <path d="M0,30 L0,18 C100,4 200,26 300,12 C350,4 380,22 400,16 L400,30 Z" fill="#F4F1EC" />
+              </svg>
+            </div>
+          </div>
+
+          {/* Coming soon body */}
+          <div className="flex flex-col items-center justify-center px-8 py-20 text-center gap-5">
+            <div className="w-16 h-16 rounded-[20px] flex items-center justify-center" style={{ backgroundColor: 'rgba(74,94,66,0.1)' }}>
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#4A5E42" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+              </svg>
+            </div>
+            <div>
+              <p className="text-[9px] font-bold tracking-[0.35em] mb-2" style={{ color: 'rgba(74,94,66,0.5)' }}>COMING SOON</p>
+              <h2 className="text-2xl font-serif mb-3" style={{ color: '#433422' }}>Articles &amp; guidance<br />for life's seasons.</h2>
+              <p className="text-sm leading-relaxed max-w-xs mx-auto" style={{ color: 'rgba(67,52,34,0.5)' }}>
+                Scripture-rooted reflections on grief, marriage, transitions, purpose, and more — written to meet you where you are.
+              </p>
+            </div>
+            <div className="flex flex-wrap justify-center gap-2 mt-2">
+              {['Grief & Loss', 'Marriage', 'New Seasons', 'Finding Purpose', 'Anxiety', 'Forgiveness'].map(tag => (
+                <span key={tag} className="text-[10px] font-bold tracking-wider px-3 py-1.5 rounded-full" style={{ backgroundColor: 'rgba(74,94,66,0.1)', color: 'rgba(74,94,66,0.7)' }}>{tag}</span>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <nav className="fixed bottom-8 left-1/2 -translate-x-1/2 w-[85%] max-w-sm bg-white/90 backdrop-blur-xl rounded-[32px] py-4 px-8 border border-[#E9DCC9] shadow-2xl z-50">
+          <div className="flex items-center justify-between">
+            <NavIcon icon={<User />} active={false} onClick={() => { setActiveTab('user'); setView('account'); }} />
+            <NavIcon icon={<Calendar />} active={false} onClick={() => { setActiveTab('calendar'); setView('calendar-log'); }} />
+            <button onClick={() => { setActiveTab('home'); setView('dashboard'); }} className="w-14 h-14 bg-[#D4A373] rounded-full -mt-10 border-[6px] border-[#FDF9F3] flex items-center justify-center text-white shadow-lg">
+              <Home size={20} strokeWidth={2} />
+            </button>
+            <NavIcon icon={<Wheat />} active={false} onClick={() => { setActiveTab('wheat'); setView('resources'); }} />
+            <NavIcon icon={<Compass />} active={true} onClick={() => {}} />
+          </div>
+        </nav>
+      </div>
+    );
+  }
+
+  // ── Twilight Transition ─────────────────────────────────
+  if (view === 'twilight-transition') {
+    const starField = [
+      [8,12],[22,6],[38,18],[55,8],[70,15],[85,9],[92,24],[78,32],[60,28],[44,35],
+      [28,42],[14,38],[6,55],[18,62],[35,58],[52,65],[68,52],[80,60],[95,48],[75,72],
+      [48,78],[30,72],[12,80],[58,82],[88,75],[40,88],[65,90],[20,90],
+    ];
+    return (
+      <div
+        className="fixed inset-0 flex flex-col items-center justify-center font-sans"
+        style={{ background: 'linear-gradient(160deg, #0a0e1a 0%, #111829 50%, #130f20 100%)' }}
+      >
+        {/* Star field — staggered fade in */}
+        <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
+          {starField.map(([x, y], i) => (
+            <circle
+              key={i} cx={x} cy={y}
+              r={i % 5 === 0 ? 0.9 : i % 3 === 0 ? 0.7 : 0.5}
+              fill="white"
+              style={{
+                opacity: 0,
+                animation: `fade-in 0.8s ease-out ${0.1 + i * 0.06}s forwards`,
+              }}
+            />
+          ))}
+        </svg>
+
+        {/* Moon orb */}
+        <div className="relative flex items-center justify-center mb-10">
+          {/* Outer rings */}
+          <div className="absolute w-32 h-32 rounded-full animate-orb-ring-1" style={{ border: '1px solid rgba(155,143,212,0.15)' }} />
+          <div className="absolute w-32 h-32 rounded-full animate-orb-ring-2" style={{ border: '1px solid rgba(155,143,212,0.12)' }} />
+          {/* Core glow */}
+          <div
+            className="w-16 h-16 rounded-full flex items-center justify-center animate-orb-core"
+            style={{
+              background: 'radial-gradient(circle, rgba(155,143,212,0.35) 0%, rgba(100,90,180,0.15) 60%, transparent 100%)',
+              boxShadow: '0 0 40px 10px rgba(155,143,212,0.12)',
+            }}
+          >
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="rgba(196,185,255,0.7)" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+            </svg>
+          </div>
+        </div>
+
+        {/* Text sequence */}
+        <p
+          className="text-[9px] font-bold tracking-[0.45em] uppercase"
+          style={{
+            color: 'rgba(196,185,255,0.5)',
+            opacity: 0,
+            animation: 'fade-in 1s ease-out 0.6s forwards',
+          }}
+        >
+          Twilight Space
+        </p>
+        <p
+          className="text-2xl font-serif mt-3"
+          style={{
+            color: '#EEE8FF',
+            opacity: 0,
+            animation: 'fade-in 1.2s ease-out 1s forwards',
+          }}
+        >
+          Preparing your space.
+        </p>
+        <p
+          className="text-sm font-serif mt-2"
+          style={{
+            color: 'rgba(196,185,255,0.4)',
+            opacity: 0,
+            animation: 'fade-in 1s ease-out 1.8s forwards',
+          }}
+        >
+          Winding down...
+        </p>
+      </div>
+    );
+  }
+
+  // ── Twilight Space ──────────────────────────────────────
+  if (view === 'twilight') {
+    const stars = Array.from({ length: 28 }, (_, i) => ({
+      x: (i * 37 + 11) % 100,
+      y: (i * 53 + 7) % 55,
+      r: i % 3 === 0 ? 1.5 : 1,
+      delay: (i * 0.31) % 3,
+    }));
+    return (
+      <div className="flex flex-col min-h-screen font-sans" style={{ backgroundColor: '#0E1221' }}>
+        <div className="animate-view-enter">
+          {/* Dark header */}
+          <div className="relative px-8 pt-14 pb-12 overflow-hidden" style={{ background: 'linear-gradient(160deg, #0E1221 0%, #1a2240 60%, #1e1635 100%)' }}>
+            {/* Stars */}
+            <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
+              {stars.map((s, i) => (
+                <circle key={i} cx={s.x} cy={s.y} r={s.r * 0.6} fill="white" opacity="0.5"
+                  style={{ animation: `breathe ${2.5 + s.delay}s ease-in-out ${s.delay}s infinite` }} />
+              ))}
+            </svg>
+            {/* Moon glow */}
+            <div className="absolute top-6 right-8 w-20 h-20 rounded-full pointer-events-none" style={{ background: 'radial-gradient(circle, rgba(196,185,255,0.25) 0%, transparent 70%)' }} />
+
+            <button
+              onClick={() => setView('explore')}
+              className="flex items-center gap-2 mb-6 relative z-10 px-4 py-2 rounded-full active:scale-[0.97] transition-transform"
+              style={{ backgroundColor: 'rgba(155,143,212,0.15)', color: 'rgba(196,185,255,0.8)', backdropFilter: 'blur(8px)', border: '1px solid rgba(155,143,212,0.2)' }}
+            >
+              <ArrowLeft size={16} strokeWidth={1.5} />
+              <span className="text-sm font-medium">Explore</span>
+            </button>
+            <div className="relative z-10">
+              <p className="text-[9px] font-bold tracking-[0.4em] mb-2" style={{ color: 'rgba(196,185,255,0.4)' }}>TWILIGHT SPACE</p>
+              <h1 className="text-3xl font-serif leading-tight mb-2" style={{ color: '#EEE8FF' }}>Wind down.<br /><em className="italic" style={{ color: '#9B8FD4' }}>Rest in peace.</em></h1>
+              <p className="text-sm leading-relaxed" style={{ color: 'rgba(196,185,255,0.4)' }}>Night-mode meditations for the end of your day.</p>
+            </div>
+            <div className="absolute bottom-0 left-0 right-0 pointer-events-none">
+              <svg viewBox="0 0 400 30" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-7">
+                <path d="M0,30 L0,18 C100,4 200,26 300,12 C350,4 380,22 400,16 L400,30 Z" fill="#0E1221" />
+              </svg>
+            </div>
+          </div>
+
+          {/* Coming soon body */}
+          <div className="flex flex-col items-center justify-center px-8 py-20 text-center gap-5">
+            <div className="w-16 h-16 rounded-[20px] flex items-center justify-center" style={{ backgroundColor: 'rgba(155,143,212,0.12)' }}>
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#9B8FD4" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+              </svg>
+            </div>
+            <div>
+              <p className="text-[9px] font-bold tracking-[0.35em] mb-2" style={{ color: 'rgba(155,143,212,0.5)' }}>COMING SOON</p>
+              <h2 className="text-2xl font-serif mb-3" style={{ color: '#EEE8FF' }}>Sleep meditations<br />&amp; night reflections.</h2>
+              <p className="text-sm leading-relaxed max-w-xs mx-auto" style={{ color: 'rgba(196,185,255,0.4)' }}>
+                Faith-rooted content designed to help you release the day, quiet your mind, and rest in the peace that passes understanding.
+              </p>
+            </div>
+            <div className="flex flex-wrap justify-center gap-2 mt-2">
+              {['Sleep Meditations', 'Evening Prayer', 'Gratitude Reflection', 'Breath & Release', 'Night Scripture'].map(tag => (
+                <span key={tag} className="text-[10px] font-bold tracking-wider px-3 py-1.5 rounded-full" style={{ backgroundColor: 'rgba(155,143,212,0.1)', color: 'rgba(196,185,255,0.5)' }}>{tag}</span>
+              ))}
+            </div>
+          </div>
+        </div>
+
+      </div>
+    );
+  }
+
   // ── Explore ─────────────────────────────────────────────
   if (view === 'explore') {
     return (
       <div className="bg-[#FDF9F3] text-[#433422] font-sans min-h-screen">
         <div className="animate-view-enter">
 
-          <header className="relative h-[26vh] bg-[#E9DCC9] flex items-end px-8 pb-14">
+          {/* Compact header */}
+          <header className="relative h-[18vh] bg-[#E9DCC9] flex items-end px-8 pb-8">
             <div className="absolute inset-0 overflow-hidden pointer-events-none">
               <div className="absolute top-[-10%] right-[-10%] w-64 h-64 bg-[#FFF3E0] rounded-full blur-3xl opacity-60" />
             </div>
@@ -2460,74 +2678,154 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
             </div>
           </header>
 
-          <main className="pt-4 pb-32 space-y-10">
+          <main className="pt-4 pb-32 px-5 space-y-4">
 
-            {/* Wellness */}
-            <section className="px-8">
-              <div className="flex items-center justify-between mb-5">
+            {/* ── Mindfulness Tools ── */}
+            <section>
+              <div className="flex items-baseline justify-between mb-3 px-1">
                 <div>
-                  <p className="text-[10px] tracking-[0.3em] font-bold text-[#433422]/40">A MOMENT OF STILLNESS</p>
-                  <h2 className="text-xl font-serif">Breathe & Ground</h2>
+                  <p className="text-[9px] font-bold tracking-[0.3em] text-[#433422]/35">MINDFULNESS TOOLS</p>
+                  <h2 className="text-lg font-serif">Breathe &amp; Ground</h2>
                 </div>
               </div>
-              <div className="space-y-3">
+              <div className="grid grid-cols-3 gap-2.5">
+                {/* Box Breathing */}
                 <button
                   onClick={() => setView('breathe')}
-                  className="w-full bg-white rounded-[24px] p-5 border border-[#E9DCC9] flex items-center gap-4 text-left hover:border-[#D4A373] transition-colors"
+                  className="flex flex-col items-center justify-center gap-2 rounded-[22px] py-5 active:scale-[0.97] transition-transform"
+                  style={{ backgroundColor: 'rgba(212,163,115,0.12)' }}
                 >
-                  <div className="w-12 h-12 rounded-[16px] flex-shrink-0 flex items-center justify-center bg-[#D4A373]/10">
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#D4A373" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <div className="w-10 h-10 rounded-[14px] flex items-center justify-center" style={{ backgroundColor: 'rgba(212,163,115,0.2)' }}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#D4A373" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                       <circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>
                     </svg>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[9px] font-bold tracking-widest text-[#D4A373] mb-0.5">BREATH WORK</p>
-                    <p className="text-sm font-serif text-[#433422]">Box Breathing</p>
-                    <p className="text-[10px] text-[#433422]/40 mt-0.5">4-count inhale, hold, exhale, hold</p>
+                  <div className="text-center px-1">
+                    <p className="text-[8px] font-bold tracking-wider text-[#D4A373]">BREATH</p>
+                    <p className="text-[11px] font-serif text-[#433422] leading-tight mt-0.5">Box<br/>Breathing</p>
                   </div>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#433422" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-[#433422]/20 flex-shrink-0">
-                    <path d="M5 12h14M12 5l7 7-7 7"/>
-                  </svg>
                 </button>
 
+                {/* 5-4-3-2-1 */}
                 <button
                   onClick={() => setView('ground')}
-                  className="w-full bg-white rounded-[24px] p-5 border border-[#E9DCC9] flex items-center gap-4 text-left hover:border-[#8E9775] transition-colors"
+                  className="flex flex-col items-center justify-center gap-2 rounded-[22px] py-5 active:scale-[0.97] transition-transform"
+                  style={{ backgroundColor: 'rgba(142,151,117,0.12)' }}
                 >
-                  <div className="w-12 h-12 rounded-[16px] flex-shrink-0 flex items-center justify-center bg-[#8E9775]/10">
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#8E9775" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <div className="w-10 h-10 rounded-[14px] flex items-center justify-center" style={{ backgroundColor: 'rgba(142,151,117,0.2)' }}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8E9775" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10z"/><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/>
                     </svg>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[9px] font-bold tracking-widest text-[#8E9775] mb-0.5">GROUNDING</p>
-                    <p className="text-sm font-serif text-[#433422]">5-4-3-2-1 Senses</p>
-                    <p className="text-[10px] text-[#433422]/40 mt-0.5">Anchor yourself in the present moment</p>
+                  <div className="text-center px-1">
+                    <p className="text-[8px] font-bold tracking-wider text-[#8E9775]">GROUND</p>
+                    <p className="text-[11px] font-serif text-[#433422] leading-tight mt-0.5">5-4-3-2-1<br/>Senses</p>
                   </div>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#433422" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-[#433422]/20 flex-shrink-0">
-                    <path d="M5 12h14M12 5l7 7-7 7"/>
-                  </svg>
                 </button>
 
+                {/* Calm Fishing */}
                 <button
                   onClick={() => setView('fishing')}
-                  className="w-full bg-white rounded-[24px] p-5 border border-[#E9DCC9] flex items-center gap-4 text-left hover:border-[#5b8fa8] transition-colors"
+                  className="flex flex-col items-center justify-center gap-2 rounded-[22px] py-5 active:scale-[0.97] transition-transform"
+                  style={{ backgroundColor: 'rgba(91,143,168,0.12)' }}
                 >
-                  <div className="w-12 h-12 rounded-[16px] flex-shrink-0 flex items-center justify-center bg-[#5b8fa8]/10">
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#5b8fa8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <div className="w-10 h-10 rounded-[14px] flex items-center justify-center" style={{ backgroundColor: 'rgba(91,143,168,0.2)' }}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5b8fa8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M18 5v8a4 4 0 0 1-4 4H6"/><path d="m6 17-3 3 3 3"/><path d="M21 3h-6"/><path d="M21 3v6"/>
                     </svg>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[9px] font-bold tracking-widest text-[#5b8fa8] mb-0.5">MINDFUL GAME</p>
-                    <p className="text-sm font-serif text-[#433422]">Calm Fishing</p>
-                    <p className="text-[10px] text-[#433422]/40 mt-0.5">Breathe, wait, and be still</p>
+                  <div className="text-center px-1">
+                    <p className="text-[8px] font-bold tracking-wider text-[#5b8fa8]">GAME</p>
+                    <p className="text-[11px] font-serif text-[#433422] leading-tight mt-0.5">Calm<br/>Fishing</p>
                   </div>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#433422" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-[#433422]/20 flex-shrink-0">
-                    <path d="M5 12h14M12 5l7 7-7 7"/>
-                  </svg>
                 </button>
               </div>
+            </section>
+
+            {/* ── Life Box ── */}
+            <section>
+              <button
+                onClick={() => setView('lifebox')}
+                className="w-full rounded-[28px] overflow-hidden active:scale-[0.98] transition-transform text-left"
+                style={{ background: 'linear-gradient(135deg, #4A5E42 0%, #3a4e34 60%, #2e3d28 100%)', minHeight: 150 }}
+              >
+                <div className="relative p-6 h-full flex flex-col justify-between" style={{ minHeight: 150 }}>
+                  {/* Subtle leaf texture glow */}
+                  <div className="absolute top-[-20%] right-[-10%] w-40 h-40 rounded-full pointer-events-none" style={{ backgroundColor: 'rgba(142,175,128,0.2)', filter: 'blur(30px)' }} />
+                  <div className="absolute bottom-[-10%] left-[-5%] w-28 h-28 rounded-full pointer-events-none" style={{ backgroundColor: 'rgba(168,200,152,0.1)', filter: 'blur(20px)' }} />
+
+                  <div className="relative z-10 flex items-start justify-between">
+                    <div>
+                      <p className="text-[9px] font-bold tracking-[0.4em] mb-1" style={{ color: 'rgba(168,200,152,0.6)' }}>LIFE BOX</p>
+                      <h2 className="text-2xl font-serif leading-tight" style={{ color: '#EEF5EC' }}>Life's chapters,<br /><em className="italic" style={{ color: '#A8C898' }}>guided by faith.</em></h2>
+                    </div>
+                    <div className="w-10 h-10 rounded-[14px] flex items-center justify-center flex-shrink-0" style={{ backgroundColor: 'rgba(168,200,152,0.15)' }}>
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#A8C898" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+                      </svg>
+                    </div>
+                  </div>
+
+                  <div className="relative z-10 flex items-end justify-between mt-6">
+                    <div className="flex flex-wrap gap-1.5">
+                      {['Grief', 'Marriage', 'Purpose', 'Transition'].map(t => (
+                        <span key={t} className="text-[8px] font-bold tracking-wider px-2.5 py-1 rounded-full" style={{ backgroundColor: 'rgba(168,200,152,0.15)', color: 'rgba(168,200,152,0.7)' }}>{t}</span>
+                      ))}
+                    </div>
+                    <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: 'rgba(168,200,152,0.15)' }}>
+                      <ArrowRight size={14} style={{ color: '#A8C898' }} />
+                    </div>
+                  </div>
+                </div>
+              </button>
+            </section>
+
+            {/* ── Twilight Space ── */}
+            <section>
+              <button
+                onClick={() => setView('twilight-transition')}
+                className="w-full rounded-[28px] overflow-hidden active:scale-[0.98] transition-transform text-left"
+                style={{ background: 'linear-gradient(160deg, #0E1221 0%, #1a2240 55%, #1e1635 100%)', minHeight: 160 }}
+              >
+                <div className="relative p-6 h-full flex flex-col justify-between overflow-hidden" style={{ minHeight: 160 }}>
+                  {/* Stars */}
+                  <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
+                    {[
+                      [15,12],[28,8],[45,18],[62,6],[78,14],[88,9],[20,30],[55,25],[72,35],[38,40],
+                      [82,28],[10,42],[65,18],[35,10],[90,38]
+                    ].map(([x, y], i) => (
+                      <circle key={i} cx={x} cy={y} r={i % 4 === 0 ? 0.9 : 0.6} fill="white" opacity="0.45" />
+                    ))}
+                  </svg>
+                  {/* Moon */}
+                  <div className="absolute top-4 right-16 w-10 h-10 pointer-events-none" style={{ opacity: 0.15 }}>
+                    <svg viewBox="0 0 24 24" fill="#C4B5F4">
+                      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+                    </svg>
+                  </div>
+                  {/* Glow */}
+                  <div className="absolute top-[-20%] right-[10%] w-32 h-32 rounded-full pointer-events-none" style={{ backgroundColor: 'rgba(155,143,212,0.15)', filter: 'blur(25px)' }} />
+
+                  <div className="relative z-10 flex items-start justify-between">
+                    <div>
+                      <p className="text-[9px] font-bold tracking-[0.4em] mb-1" style={{ color: 'rgba(196,185,255,0.4)' }}>TWILIGHT SPACE</p>
+                      <h2 className="text-2xl font-serif leading-tight" style={{ color: '#EEE8FF' }}>Wind down.<br /><em className="italic" style={{ color: '#9B8FD4' }}>Rest in peace.</em></h2>
+                    </div>
+                    <div className="w-10 h-10 rounded-[14px] flex items-center justify-center flex-shrink-0" style={{ backgroundColor: 'rgba(155,143,212,0.12)' }}>
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9B8FD4" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+                      </svg>
+                    </div>
+                  </div>
+
+                  <div className="relative z-10 flex items-end justify-between mt-6">
+                    <p className="text-[10px] font-serif leading-relaxed" style={{ color: 'rgba(196,185,255,0.4)' }}>Night meditations · Evening prayer · Sleep</p>
+                    <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: 'rgba(155,143,212,0.12)' }}>
+                      <ArrowRight size={14} style={{ color: '#9B8FD4' }} />
+                    </div>
+                  </div>
+                </div>
+              </button>
             </section>
 
           </main>
@@ -2974,10 +3272,11 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
 };
 
 // ResourceCard is imported from src/components/ResourceCard.jsx
-const NavIcon = ({ icon, active, onClick }) => (
+const NavIcon = ({ icon, active, onClick, dark = false }) => (
   <button
     onClick={onClick}
-    className={`p-2 transition-all duration-300 ${active ? 'text-[#D4A373]' : 'text-gray-300 hover:text-gray-500'}`}
+    className="p-2 transition-all duration-300"
+    style={{ color: active ? (dark ? '#9B8FD4' : '#D4A373') : (dark ? 'rgba(196,185,255,0.35)' : '#D1D5DB') }}
   >
     {React.cloneElement(icon, { size: 24, strokeWidth: active ? 2.5 : 1.5 })}
   </button>
