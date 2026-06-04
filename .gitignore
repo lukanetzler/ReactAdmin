@@ -30,3 +30,9 @@ worker-token.md
 .env.local
 .dev.vars
 developer-notes
+
+# Capacitor — generated native project (re-sync with: npx cap sync)
+ios/App/App/public
+ios/App/Pods
+android
+ios

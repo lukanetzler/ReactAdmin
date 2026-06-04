@@ -8,7 +8,7 @@ import { auth } from '../firebase';
 import { useJournalEntries } from '../hooks/useJournalEntries';
 import { usePathSessions, useLibraryCards, useCategories } from '../hooks/useContent';
 import { useDailyPath } from '../hooks/useDailyPath';
-import { addJournalEntry, updateJournalEntry, deleteJournalEntry } from '../services/journal';
+import { addJournalEntry, updateJournalEntry, deleteJournalEntry, addJourneyEvent } from '../services/journal';
 import { updateUserProfile } from '../services/userProfile';
 import { addToPath, removeFromPath, completeTrackForDay, dismissBroadcast, completePathItem, recordCompletion, recordStreakDay } from '../services/dailyPath';
 import { checkIsSupporter, presentCustomerCenter, restorePurchases, isNative } from '../services/purchases';
@@ -105,6 +105,7 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
   const [passwordChanging, setPasswordChanging] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
+  const [showDangerZone, setShowDangerZone] = useState(false);
   const [deletePassword, setDeletePassword] = useState('');
   const [deleteError, setDeleteError] = useState('');
   const [deleting, setDeleting] = useState(false);
@@ -144,6 +145,9 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
   const [pendingCelebration, setPendingCelebration] = useState(false);
   const [focusedStepIndex, setFocusedStepIndex] = useState(0);
   const [pathNavDir, setPathNavDir] = useState(0);
+  const [showLockedDaySheet, setShowLockedDaySheet] = useState(false);
+  const [lockedDayType, setLockedDayType] = useState('future'); // 'future' | 'today'
+  const [pendingRevisitSession, setPendingRevisitSession] = useState(null);
 
   useEffect(() => {
     setFocusedStepIndex(activeModule?.trackIndex ?? 0);
@@ -152,6 +156,22 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
   useEffect(() => {
     if (view !== 'twilight-transition') return;
     const t = setTimeout(() => setView('twilight'), 3000);
+    return () => clearTimeout(t);
+  }, [view]);
+
+  useEffect(() => {
+    if (view !== 'resources-transition') return;
+    const t = setTimeout(() => setView('resources'), 1600);
+    return () => clearTimeout(t);
+  }, [view]);
+
+  useEffect(() => {
+    if (view !== 'revisit-transition') return;
+    const t = setTimeout(() => {
+      setActiveSession(pendingRevisitSession);
+      setPendingRevisitSession(null);
+      setView('meditation');
+    }, 1800);
     return () => clearTimeout(t);
   }, [view]);
 
@@ -292,7 +312,7 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
     if (audioRef.current) audioRef.current.currentTime = 0;
     setIsPlaying(false);
 
-    if (activeSession?.isPlaylistTrack && activeSession?.pathItemId) {
+    if (!activeSession?.isRevisiting && activeSession?.isPlaylistTrack && activeSession?.pathItemId) {
       const isLast = activeSession.trackIndex >= activeSession.totalTracks - 1;
       const nextIndex = activeSession.trackIndex + 1;
       completeTrackForDay(uid, {
@@ -304,10 +324,14 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
         nextIndex: isLast ? activeSession.trackIndex : nextIndex,
         isLast,
       }).catch(() => {});
-      if (isLast) setPendingCelebration(true);
-    } else if (activeSession?.cardId && activeSession?.pathItemId) {
+      if (isLast) {
+        setPendingCelebration(true);
+        addJourneyEvent(uid, { entryType: 'journey-complete', pathTitle: activeSession.cardTitle || activeSession.title }).catch(() => {});
+      }
+    } else if (!activeSession?.isRevisiting && activeSession?.cardId && activeSession?.pathItemId) {
       completePathItem(uid, activeSession.pathItemId).catch(() => {});
       recordCompletion(uid, activeSession.cardId, activeSession.title, 'single').catch(() => {});
+      addJourneyEvent(uid, { entryType: 'journey-complete', pathTitle: activeSession.cardTitle || activeSession.title }).catch(() => {});
     }
 
     if (activeSession?.cardId) {
@@ -530,8 +554,8 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
   };
 
   const openEdit = (entry) => {
-    setPreFeelingWord(entry.feelingBefore || '');
-    setPostFeelingWord(entry.feelingAfter || '');
+    setPreFeelingWord(entry.feelingBefore || entry.feelingAfter || '');
+    setPostFeelingWord('');
     setJournalText(entry.reflection || '');
     setEditingEntryId(entry.id);
     setJournalMode('edit');
@@ -826,6 +850,7 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
                       if (isInPath) {
                         setPendingEndAction(() => async () => {
                           await Promise.all(existingItems.map(i => removeFromPath(uid, i.id)));
+                          addJourneyEvent(uid, { entryType: 'journey-abandoned', pathTitle: card.title }).catch(() => {});
                           showPathToast('Your journey has been released');
                           setLibraryDetailCard(null);
                         });
@@ -840,6 +865,7 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
                         if (activeModule && activeModuleCard) { setPendingJourneyCard(card); setShowJourneyConflict(true); return; }
                         const extra = isPathDoneToday ? { completedToday: todayISO } : {};
                         await addToPath(uid, card.id, pathItems.length, extra);
+                        addJourneyEvent(uid, { entryType: 'journey-start', pathTitle: card.title }).catch(() => {});
                         showPathToast('Added to your path');
                       }
                     }}
@@ -869,20 +895,38 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
                         const isCurrent = pathItem && !allTracksComplete && i === trackIdx && !isLockedToday;
                         const isLocked = !pathItem || (!isDone && !isCurrent && !isLockedToday && i > trackIdx);
                         const canPlay = isCurrent;
+                        const canRevisit = isDone;
                         return (
                           <button
                             key={i}
-                            disabled={!canPlay}
+                            disabled={!canPlay && !canRevisit && !isLockedToday && !isLocked}
                             onClick={() => {
-                              if (!canPlay) return;
-                              setActiveSession({
-                                title: track.title, audioUrl: track.audioUrl,
-                                cardId: card.id, cardTitle: card.title,
-                                pathItemId: pathItem.id, isPlaylistTrack: true,
-                                trackIndex: i, totalTracks: tracks.length, skipCheckin: true,
-                              });
-                              setLibraryDetailCard(null);
-                              setView('meditation');
+                              if (canPlay) {
+                                setActiveSession({
+                                  title: track.title, audioUrl: track.audioUrl,
+                                  cardId: card.id, cardTitle: card.title,
+                                  pathItemId: pathItem.id, isPlaylistTrack: true,
+                                  trackIndex: i, totalTracks: tracks.length, skipCheckin: true,
+                                });
+                                setLibraryDetailCard(null);
+                                setView('meditation');
+                              } else if (canRevisit) {
+                                setPendingRevisitSession({
+                                  title: track.title,
+                                  audioUrl: track.audioUrl,
+                                  cardId: card.id,
+                                  cardTitle: card.title,
+                                  isRevisiting: true,
+                                });
+                                setLibraryDetailCard(null);
+                                setView('revisit-transition');
+                              } else if (isLockedToday) {
+                                setLockedDayType('today');
+                                setShowLockedDaySheet(true);
+                              } else if (isLocked) {
+                                setLockedDayType('future');
+                                setShowLockedDaySheet(true);
+                              }
                             }}
                             className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-[18px] transition-colors text-left ${canPlay ? 'bg-[#F4EFE6] active:bg-[#EDE5D8]' : 'bg-transparent'}`}
                           >
@@ -898,9 +942,11 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
                             {/* Status icon */}
                             <div className="flex-shrink-0">
                               {isDone
-                                ? <div className="w-8 h-8 rounded-full bg-[#8E9775]/15 flex items-center justify-center"><span className="text-[#8E9775] text-xs">✓</span></div>
+                                ? <div className="w-8 h-8 rounded-full bg-[#8E9775]/15 flex items-center justify-center gap-0.5">
+                                    <span className="text-[#8E9775] text-xs">✓</span>
+                                  </div>
                                 : isLockedToday
-                                ? <div className="w-8 h-8 rounded-full bg-[#F0EBE3] flex items-center justify-center"><Lock size={12} className="text-[#D4A373]/60" /></div>
+                                ? <div className="w-8 h-8 rounded-full bg-[#D4A373]/10 flex items-center justify-center"><Lock size={12} className="text-[#D4A373]/60" /></div>
                                 : isLocked
                                 ? <div className="w-8 h-8 rounded-full bg-[#F0EBE3] flex items-center justify-center"><Lock size={12} className="text-[#433422]/20" /></div>
                                 : <div className="w-8 h-8 rounded-full bg-[#433422] flex items-center justify-center"><Play size={12} fill="white" className="text-white ml-0.5" /></div>}
@@ -956,6 +1002,49 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
         </>
       )}
 
+      {/* Locked day sheet */}
+      {showLockedDaySheet && (
+        <>
+          <div className="fixed inset-0 bg-black/40 z-[69]" onClick={() => setShowLockedDaySheet(false)} />
+          <div className="fixed inset-x-0 bottom-0 z-[70] bg-[#FDF9F3] rounded-t-[32px] animate-sheet-enter font-sans text-[#433422]">
+            <div className="flex justify-center pt-3 pb-1">
+              <div className="w-10 h-1 bg-[#433422]/20 rounded-full" />
+            </div>
+            <div className="px-8 pt-4 pb-12">
+              {lockedDayType === 'today' ? (
+                <>
+                  <p className="text-[9px] font-bold tracking-[0.3em] text-[#D4A373] uppercase mb-2">Well Done</p>
+                  <h2 className="text-2xl font-serif mb-4 leading-snug">You've walked today's step.</h2>
+                  <p className="text-sm text-[#433422]/60 leading-relaxed mb-2">
+                    You've already completed a session today. Rest in what you've received, tomorrow's step will be here waiting.
+                  </p>
+                  <p className="text-sm text-[#433422]/60 leading-relaxed mb-8">
+                    You are always welcome to revisit a session you've already completed.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="text-[9px] font-bold tracking-[0.3em] text-[#D4A373] uppercase mb-2">One Day at a Time</p>
+                  <h2 className="text-2xl font-serif mb-4 leading-snug">Give yourself time to arrive.</h2>
+                  <p className="text-sm text-[#433422]/60 leading-relaxed mb-2">
+                    Mindfulness is not a race. Each session is written for a particular moment — skipping ahead takes you out of that moment before you've fully settled into it.
+                  </p>
+                  <p className="text-sm text-[#433422]/60 leading-relaxed mb-8">
+                    Walk this path one day at a time. If your heart needs more today, you are always welcome to revisit a session you've already completed.
+                  </p>
+                </>
+              )}
+              <button
+                onClick={() => setShowLockedDaySheet(false)}
+                className="w-full py-4 rounded-[20px] bg-[#D4A373] text-white text-xs font-bold tracking-[0.15em] uppercase"
+              >
+                I Understand
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
       {/* Journey conflict — mindful redirect */}
       {showJourneyConflict && (
         <>
@@ -982,8 +1071,10 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
               <button
                 onClick={async () => {
                   if (!pendingJourneyCard || !activeModule) return;
+                  addJourneyEvent(uid, { entryType: 'journey-abandoned', pathTitle: activeModuleCard?.title }).catch(() => {});
                   await removeFromPath(uid, activeModule.id);
                   await addToPath(uid, pendingJourneyCard.id, 0);
+                  addJourneyEvent(uid, { entryType: 'journey-start', pathTitle: pendingJourneyCard.title }).catch(() => {});
                   showPathToast('A new journey begins');
                   setShowJourneyConflict(false);
                   setPendingJourneyCard(null);
@@ -1143,6 +1234,37 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
           >
             Return to My Path
           </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Revisit Transition ─────────────────────────────────
+  if (view === 'revisit-transition') {
+    const REVISIT_MESSAGES = [
+      'Every return carries new meaning.',
+      'What you missed before, you may find today.',
+      'Stillness welcomes you back.',
+      'The path is patient. So are you.',
+    ];
+    const msg = REVISIT_MESSAGES[Math.floor(Date.now() / 10000) % REVISIT_MESSAGES.length];
+    return (
+      <div className="flex flex-col h-screen items-center justify-center gap-8 animate-view-enter" style={{ backgroundColor: '#FDF9F3' }}>
+        {/* Pulsing orb rings */}
+        <div className="relative flex items-center justify-center">
+          <div className="absolute w-36 h-36 rounded-full border border-[#D4A373]/15 animate-ping" style={{ animationDuration: '2.4s' }} />
+          <div className="absolute w-28 h-28 rounded-full border border-[#D4A373]/20 animate-ping" style={{ animationDuration: '1.8s', animationDelay: '0.4s' }} />
+          <div className="w-20 h-20 rounded-full bg-[#D4A373]/10 flex items-center justify-center">
+            <img src={prayvailLogo} alt="Prayvail" className="w-12 h-12 object-contain opacity-70" />
+          </div>
+        </div>
+        <div className="text-center px-12">
+          <p className="text-[10px] font-bold tracking-[0.35em] text-[#D4A373] mb-3">REVISITING</p>
+          <p className="text-xl font-serif text-[#433422] leading-snug mb-4">
+            {pendingRevisitSession?.cardTitle && <><span className="text-[#433422]/50">{pendingRevisitSession.cardTitle}</span><br /></>}
+            {pendingRevisitSession?.title || 'This Meditation'}
+          </p>
+          <p className="text-sm text-[#433422]/40 italic leading-relaxed">{msg}</p>
         </div>
       </div>
     );
@@ -1417,7 +1539,7 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
         if (isEditMode) {
           await updateJournalEntry(uid, editingEntryId, {
             feelingBefore: preFeelingWord,
-            feelingAfter: postFeelingWord,
+            feelingAfter: '',
             reflection: journalText,
           });
         } else {
@@ -1427,7 +1549,13 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
             feelingBefore: preFeelingWord,
             feelingAfter: postFeelingWord,
             reflection: journalText,
-            ...(isNewMode && activeSession?.title ? { meditationTitle: activeSession.title } : {}),
+            ...(isNewMode ? {
+              entryType: 'meditation',
+              meditationTitle: activeSession?.title,
+              pathTitle: activeSession?.cardTitle,
+              trackTitle: activeSession?.isPlaylistTrack ? activeSession?.title : undefined,
+              isRevisit: activeSession?.isRevisiting || false,
+            } : {}),
           });
         }
         setJournalMode('new');
@@ -1674,50 +1802,88 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
             </div>
           ) : (
             <div className="space-y-4">
-              {dayEntries.map((entry, i) => (
-                <div key={entry.id} className="bg-white rounded-[28px] p-6 border border-[#E9DCC9]">
-                  <div className="flex items-start justify-between mb-4">
-                    <p className="text-[10px] tracking-widest font-bold text-[#433422]/30 uppercase">
-                      {dayEntries.length > 1 ? `Session ${i + 1}` : 'Reflection'}
-                    </p>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => openEdit(entry)}
-                        className="w-8 h-8 rounded-full bg-[#F9F4EE] flex items-center justify-center text-[#433422]/40 hover:text-[#433422] transition-colors"
-                      >
-                        <PenLine size={14} />
-                      </button>
+              {dayEntries.map((entry, i) => {
+                const isEvent = entry.entryType === 'journey-start' || entry.entryType === 'journey-complete' || entry.entryType === 'journey-abandoned';
+                if (isEvent) {
+                  const eventConfig = {
+                    'journey-start': { label: 'Journey Began', color: '#8E9775', bg: '#8E9775/10', symbol: '✦' },
+                    'journey-complete': { label: 'Journey Complete', color: '#D4A373', bg: '#D4A373/10', symbol: '✓' },
+                    'journey-abandoned': { label: 'Journey Released', color: '#433422', bg: '#433422/6', symbol: '◦' },
+                  }[entry.entryType];
+                  return (
+                    <div key={entry.id} className="flex items-center gap-4 px-2 py-3 border-l-2" style={{ borderColor: eventConfig.color + '40' }}>
+                      <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-base" style={{ backgroundColor: `rgba(${eventConfig.color === '#8E9775' ? '142,151,117' : eventConfig.color === '#D4A373' ? '212,163,115' : '67,52,34'},0.1)`, color: eventConfig.color }}>
+                        {eventConfig.symbol}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[9px] font-bold tracking-[0.25em] uppercase" style={{ color: eventConfig.color }}>{eventConfig.label}</p>
+                        <p className="text-sm font-serif text-[#433422] truncate">{entry.pathTitle || '—'}</p>
+                      </div>
                       <button
                         onClick={() => deleteJournalEntry(uid, entry.id)}
-                        className="w-8 h-8 rounded-full bg-[#F9F4EE] flex items-center justify-center text-[#433422]/40 hover:text-red-400 transition-colors"
+                        className="w-7 h-7 rounded-full bg-[#F9F4EE] flex items-center justify-center text-[#433422]/30 flex-shrink-0"
                       >
-                        <Trash2 size={14} />
+                        <Trash2 size={12} />
                       </button>
                     </div>
-                  </div>
+                  );
+                }
+                // Meditation entry (default)
+                const meditationEntries = dayEntries.filter(e => !['journey-start','journey-complete','journey-abandoned'].includes(e.entryType));
+                const sessionNum = meditationEntries.indexOf(entry);
+                return (
+                  <div key={entry.id} className="bg-white rounded-[28px] p-6 border border-[#E9DCC9]">
+                    <div className="flex items-start justify-between mb-4">
+                      <div>
+                        <p className="text-[10px] tracking-widest font-bold text-[#433422]/30 uppercase">
+                          {meditationEntries.length > 1 ? `Session ${sessionNum + 1}` : 'Reflection'}
+                        </p>
+                        {entry.pathTitle && (
+                          <p className="text-[10px] text-[#433422]/40 mt-0.5 font-medium">{entry.pathTitle}</p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {entry.isRevisit && (
+                          <span className="text-[8px] font-bold tracking-widest text-[#8E9775] bg-[#8E9775]/10 px-2 py-0.5 rounded-full">REVISIT</span>
+                        )}
+                        <button
+                          onClick={() => openEdit(entry)}
+                          className="w-8 h-8 rounded-full bg-[#F9F4EE] flex items-center justify-center text-[#433422]/40 hover:text-[#433422] transition-colors"
+                        >
+                          <PenLine size={14} />
+                        </button>
+                        <button
+                          onClick={() => deleteJournalEntry(uid, entry.id)}
+                          className="w-8 h-8 rounded-full bg-[#F9F4EE] flex items-center justify-center text-[#433422]/40 hover:text-red-400 transition-colors"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </div>
 
-                  <div className="space-y-2 mb-3">
-                    {entry.feelingBefore && (
-                      <div className="flex gap-3">
-                        <span className="text-xs font-bold text-[#433422]/40 w-20 flex-shrink-0">Feeling:</span>
-                        <span className="text-sm text-[#433422]">{entry.feelingBefore}</span>
-                      </div>
-                    )}
-                    {entry.feelingAfter && (
-                      <div className="flex gap-3">
-                        <span className="text-xs font-bold text-[#433422]/40 w-20 flex-shrink-0">Feeling:</span>
-                        <span className="text-sm text-[#433422]">{entry.feelingAfter}</span>
-                      </div>
-                    )}
-                    {entry.reflection && (
-                      <div className="flex gap-3 pt-1">
-                        <span className="text-xs font-bold text-[#433422]/40 w-20 flex-shrink-0">Reflected:</span>
-                        <span className="text-sm text-[#433422] leading-relaxed">{entry.reflection}</span>
-                      </div>
-                    )}
+                    <div className="space-y-2 mb-3">
+                      {entry.meditationTitle && !entry.pathTitle && (
+                        <div className="flex gap-3">
+                          <span className="text-xs font-bold text-[#433422]/40 w-20 flex-shrink-0">Session:</span>
+                          <span className="text-sm text-[#433422]">{entry.meditationTitle}</span>
+                        </div>
+                      )}
+                      {(entry.feelingBefore || entry.feelingAfter) && (
+                        <div className="flex gap-3">
+                          <span className="text-xs font-bold text-[#433422]/40 w-20 flex-shrink-0">Feeling:</span>
+                          <span className="text-sm text-[#433422]">{entry.feelingBefore || entry.feelingAfter}</span>
+                        </div>
+                      )}
+                      {entry.reflection && (
+                        <div className="flex gap-3 pt-1">
+                          <span className="text-xs font-bold text-[#433422]/40 w-20 flex-shrink-0">Reflected:</span>
+                          <span className="text-sm text-[#433422] leading-relaxed">{entry.reflection}</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </main>
@@ -1733,7 +1899,7 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
             >
               <Home size={20} strokeWidth={2} />
             </button>
-            <NavIcon icon={<Wheat />} active={activeTab === 'wheat'} onClick={() => { setActiveTab('wheat'); setView('resources'); }} />
+            <NavIcon icon={<Wheat />} active={activeTab === 'wheat'} onClick={() => { setActiveTab('wheat'); setView('resources-transition'); }} />
             <NavIcon icon={<Compass />} active={false} onClick={() => { setActiveTab('compass'); setView('explore'); }} />
           </div>
         </nav>
@@ -1812,9 +1978,14 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
           <div className="flex items-center justify-between">
             <NavIcon icon={<User />} active={true} onClick={() => {}} />
             <NavIcon icon={<Calendar />} active={false} onClick={() => { setActiveTab('calendar'); setView('calendar-log'); }} />
-            <NavIcon icon={<Home />} active={false} onClick={() => { setActiveTab('home'); setView('dashboard'); }} />
-            <NavIcon icon={<Compass />} active={false} onClick={() => { setActiveTab('resources'); setView('resources'); }} />
-            <NavIcon icon={<PenLine />} active={false} onClick={() => { setActiveTab('journal'); setView('journal'); }} />
+            <button
+              onClick={() => { setActiveTab('home'); setView('dashboard'); }}
+              className="w-14 h-14 bg-[#D4A373] rounded-full -mt-10 border-[6px] border-[#FDF9F3] flex items-center justify-center text-white shadow-lg"
+            >
+              <Home size={20} strokeWidth={2} />
+            </button>
+            <NavIcon icon={<Wheat />} active={false} onClick={() => { setActiveTab('wheat'); setView('resources-transition'); }} />
+            <NavIcon icon={<Compass />} active={false} onClick={() => { setActiveTab('compass'); setView('explore'); }} />
           </div>
         </nav>
       </div>
@@ -1953,96 +2124,26 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
           </div>
 
           {/* Email + Password side by side */}
-          <div className="flex gap-3 items-start">
+          <div className="flex gap-3">
             {/* Email */}
-            <div className="flex-1 bg-white rounded-[28px] p-5">
-              <div className="flex items-center justify-between mb-1">
-                <p className="text-[10px] tracking-[0.3em] font-bold text-[#433422]/40">EMAIL</p>
-                <button
-                  onClick={() => { setShowEmailForm(f => !f); setEmailMsg({ text: '', isError: false }); setNewEmail(''); }}
-                  className="text-[10px] font-bold tracking-widest text-[#D4A373]"
-                >
-                  {showEmailForm ? 'CANCEL' : 'CHANGE'}
-                </button>
-              </div>
-              <p className="text-xs text-[#433422]/60 truncate mb-1">{user.email}</p>
-              {showEmailForm && (
-                <div className="space-y-2 mt-3">
-                  <input
-                    type="email"
-                    value={newEmail}
-                    onChange={e => setNewEmail(e.target.value)}
-                    placeholder="New email"
-                    className="w-full bg-[#F4EFE6] rounded-[14px] px-3 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-[#D4A373]/30 transition-all placeholder:text-[#433422]/30"
-                  />
-                  {emailMsg.text && (
-                    <p className={`text-[10px] leading-relaxed ${emailMsg.isError ? 'text-red-400' : 'text-[#8E9775]'}`}>{emailMsg.text}</p>
-                  )}
-                  <button
-                    onClick={handleEmailChange}
-                    disabled={emailChanging || !newEmail.trim()}
-                    className="w-full py-2.5 bg-[#433422] text-[#FDF9F3] rounded-[16px] text-[10px] font-bold tracking-wide disabled:opacity-40"
-                  >
-                    {emailChanging ? 'Sending...' : 'Send Link'}
-                  </button>
-                </div>
-              )}
-              {!showEmailForm && emailMsg.text && (
-                <p className={`text-[10px] mt-1 leading-relaxed ${emailMsg.isError ? 'text-red-400' : 'text-[#8E9775]'}`}>{emailMsg.text}</p>
-              )}
-            </div>
+            <button
+              onClick={() => { setShowEmailForm(true); setEmailMsg({ text: '', isError: false }); setNewEmail(''); }}
+              className="flex-1 bg-white rounded-[28px] p-5 text-left active:scale-[0.98] transition-transform"
+            >
+              <p className="text-[10px] tracking-[0.3em] font-bold text-[#433422]/40 mb-2">EMAIL</p>
+              <p className="text-sm font-bold text-[#D4A373]">Change</p>
+            </button>
 
             {/* Password */}
-            <div className="flex-1 bg-white rounded-[28px] p-5">
-              <div className="flex items-center justify-between">
-                <p className="text-[10px] tracking-[0.3em] font-bold text-[#433422]/40">PASSWORD</p>
-                <button
-                  onClick={() => { setShowPasswordForm(f => !f); setPasswordMsg({ text: '', isError: false }); setCurrentPassword(''); setNewPassword(''); setConfirmPassword(''); }}
-                  className="text-[10px] font-bold tracking-widest text-[#D4A373]"
-                >
-                  {showPasswordForm ? 'CANCEL' : 'CHANGE'}
-                </button>
-              </div>
-              {!showPasswordForm && (
-                <p className="text-xs text-[#433422]/40 mt-1">••••••••</p>
-              )}
-              {showPasswordForm && (
-                <div className="space-y-2 mt-3">
-                  <input
-                    type="password"
-                    value={currentPassword}
-                    onChange={e => setCurrentPassword(e.target.value)}
-                    placeholder="Current"
-                    className="w-full bg-[#F4EFE6] rounded-[14px] px-3 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-[#D4A373]/30 transition-all placeholder:text-[#433422]/30"
-                  />
-                  <input
-                    type="password"
-                    value={newPassword}
-                    onChange={e => setNewPassword(e.target.value)}
-                    placeholder="New"
-                    className="w-full bg-[#F4EFE6] rounded-[14px] px-3 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-[#D4A373]/30 transition-all placeholder:text-[#433422]/30"
-                  />
-                  <input
-                    type="password"
-                    value={confirmPassword}
-                    onChange={e => setConfirmPassword(e.target.value)}
-                    placeholder="Confirm"
-                    className="w-full bg-[#F4EFE6] rounded-[14px] px-3 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-[#D4A373]/30 transition-all placeholder:text-[#433422]/30"
-                  />
-                  {passwordMsg.text && (
-                    <p className={`text-[10px] leading-relaxed ${passwordMsg.isError ? 'text-red-400' : 'text-[#8E9775]'}`}>{passwordMsg.text}</p>
-                  )}
-                  <button
-                    onClick={handlePasswordChange}
-                    disabled={passwordChanging || !currentPassword || !newPassword || !confirmPassword}
-                    className="w-full py-2.5 bg-[#433422] text-[#FDF9F3] rounded-[16px] text-[10px] font-bold tracking-wide disabled:opacity-40"
-                  >
-                    {passwordChanging ? 'Updating...' : 'Update'}
-                  </button>
-                </div>
-              )}
-            </div>
+            <button
+              onClick={() => { setShowPasswordForm(true); setPasswordMsg({ text: '', isError: false }); setCurrentPassword(''); setNewPassword(''); setConfirmPassword(''); }}
+              className="flex-1 bg-white rounded-[28px] p-5 text-left active:scale-[0.98] transition-transform"
+            >
+              <p className="text-[10px] tracking-[0.3em] font-bold text-[#433422]/40 mb-2">PASSWORD</p>
+              <p className="text-sm font-bold text-[#D4A373]">Change</p>
+            </button>
           </div>
+
 
           {/* Notifications */}
           <div className="bg-white rounded-[28px] p-6">
@@ -2098,17 +2199,31 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
           </button>
 
           {/* Danger Zone */}
-          <div className="bg-[#433422]/[0.04] rounded-[28px] p-6 border border-[#433422]/10">
-            <p className="text-[10px] tracking-[0.3em] font-bold text-[#433422]/30 mb-2">DANGER ZONE</p>
-            <p className="text-xs text-[#433422]/40 mb-4">This action is permanent and cannot be undone.</p>
-            {!showDeleteConfirm ? (
-              <button
-                onClick={() => setShowDeleteConfirm(true)}
-                className="w-full py-3 bg-[#433422] text-[#FDF9F3] rounded-[20px] text-sm font-bold tracking-wide hover:opacity-80 transition-opacity"
-              >
-                Delete Account
-              </button>
-            ) : (
+          <div className="rounded-[28px] border border-[#433422]/8 overflow-hidden">
+            <button
+              onClick={() => { setShowDangerZone(v => !v); setShowDeleteConfirm(false); setDeletePassword(''); setDeleteError(''); }}
+              className="w-full flex items-center justify-between px-6 py-4 transition-colors"
+              style={{ backgroundColor: showDangerZone ? 'rgba(67,52,34,0.06)' : 'rgba(67,52,34,0.03)' }}
+            >
+              <p className="text-[10px] tracking-[0.3em] font-bold text-[#433422]/30">DANGER ZONE</p>
+              <ChevronDown
+                size={14}
+                className="text-[#433422]/25 transition-transform duration-300"
+                style={{ transform: showDangerZone ? 'rotate(180deg)' : 'rotate(0deg)' }}
+              />
+            </button>
+
+            {showDangerZone && (
+              <div className="px-6 pb-6 pt-2" style={{ backgroundColor: 'rgba(67,52,34,0.03)' }}>
+                <p className="text-xs text-[#433422]/40 mb-4">This action is permanent and cannot be undone.</p>
+                {!showDeleteConfirm ? (
+                  <button
+                    onClick={() => setShowDeleteConfirm(true)}
+                    className="w-full py-3 bg-[#433422] text-[#FDF9F3] rounded-[20px] text-sm font-bold tracking-wide hover:opacity-80 transition-opacity"
+                  >
+                    Delete Account
+                  </button>
+                ) : (
               <div className="space-y-3">
                 <p className="text-xs text-[#433422] font-bold">Enter your password to confirm deletion:</p>
                 <input
@@ -2167,7 +2282,9 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
                     {deleting ? 'Deleting...' : 'Delete Forever'}
                   </button>
                 </div>
-              </div>
+                </div>
+              )}
+            </div>
             )}
           </div>
 
@@ -2184,12 +2301,122 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
             >
               <Home size={20} strokeWidth={2} />
             </button>
-            <NavIcon icon={<Wheat />} active={activeTab === 'wheat'} onClick={() => { setActiveTab('wheat'); setView('resources'); }} />
+            <NavIcon icon={<Wheat />} active={activeTab === 'wheat'} onClick={() => { setActiveTab('wheat'); setView('resources-transition'); }} />
             <NavIcon icon={<Compass />} active={false} onClick={() => { setActiveTab('compass'); setView('explore'); }} />
           </div>
         </nav>
 
-      {showPrivacyPolicy && <PrivacyPolicyModal onClose={() => setShowPrivacyPolicy(false)} />}
+      {showEmailForm && (
+        <>
+          <div className="fixed inset-0 bg-black/40 z-[80]" onClick={() => setShowEmailForm(false)} />
+          <div className="fixed inset-x-0 bottom-0 z-[81] bg-[#FDF9F3] rounded-t-[32px] animate-sheet-enter font-sans text-[#433422]">
+            <div className="flex justify-center pt-3 pb-1"><div className="w-10 h-1 bg-[#433422]/20 rounded-full" /></div>
+            <div className="px-7 pt-3 pb-10 space-y-4">
+              <div>
+                <p className="text-[10px] tracking-[0.3em] font-bold text-[#433422]/40 mb-1">CHANGE EMAIL</p>
+                <p className="text-xs text-[#433422]/40">Current: {user.email}</p>
+              </div>
+              <input
+                type="email"
+                value={newEmail}
+                onChange={e => setNewEmail(e.target.value)}
+                placeholder="New email address"
+                className="w-full bg-[#F4EFE6] rounded-[16px] px-4 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#D4A373]/30 transition-all placeholder:text-[#433422]/30"
+              />
+              {emailMsg.text && (
+                <p className={`text-xs leading-relaxed ${emailMsg.isError ? 'text-red-400' : 'text-[#8E9775]'}`}>{emailMsg.text}</p>
+              )}
+              <button
+                onClick={handleEmailChange}
+                disabled={emailChanging || !newEmail.trim()}
+                className="w-full py-4 bg-[#433422] text-[#FDF9F3] rounded-[20px] text-sm font-bold tracking-wide disabled:opacity-40"
+              >
+                {emailChanging ? 'Sending...' : 'Send Verification Link'}
+              </button>
+              <button onClick={() => setShowEmailForm(false)} className="w-full py-2 text-sm font-bold text-[#433422]/35">
+                Cancel
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+      {showPasswordForm && (
+        <>
+          <div className="fixed inset-0 bg-black/40 z-[80]" onClick={() => setShowPasswordForm(false)} />
+          <div className="fixed inset-x-0 bottom-0 z-[81] bg-[#FDF9F3] rounded-t-[32px] animate-sheet-enter font-sans text-[#433422]">
+            <div className="flex justify-center pt-3 pb-1"><div className="w-10 h-1 bg-[#433422]/20 rounded-full" /></div>
+            <div className="px-7 pt-3 pb-10 space-y-3">
+              <p className="text-[10px] tracking-[0.3em] font-bold text-[#433422]/40 mb-1">CHANGE PASSWORD</p>
+              <input
+                type="password"
+                value={currentPassword}
+                onChange={e => setCurrentPassword(e.target.value)}
+                placeholder="Current password"
+                className="w-full bg-[#F4EFE6] rounded-[16px] px-4 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#D4A373]/30 transition-all placeholder:text-[#433422]/30"
+              />
+              <input
+                type="password"
+                value={newPassword}
+                onChange={e => setNewPassword(e.target.value)}
+                placeholder="New password"
+                className="w-full bg-[#F4EFE6] rounded-[16px] px-4 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#D4A373]/30 transition-all placeholder:text-[#433422]/30"
+              />
+              <input
+                type="password"
+                value={confirmPassword}
+                onChange={e => setConfirmPassword(e.target.value)}
+                placeholder="Confirm new password"
+                className="w-full bg-[#F4EFE6] rounded-[16px] px-4 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#D4A373]/30 transition-all placeholder:text-[#433422]/30"
+              />
+              {passwordMsg.text && (
+                <p className={`text-xs leading-relaxed ${passwordMsg.isError ? 'text-red-400' : 'text-[#8E9775]'}`}>{passwordMsg.text}</p>
+              )}
+              <button
+                onClick={handlePasswordChange}
+                disabled={passwordChanging || !currentPassword || !newPassword || !confirmPassword}
+                className="w-full py-4 bg-[#433422] text-[#FDF9F3] rounded-[20px] text-sm font-bold tracking-wide disabled:opacity-40"
+              >
+                {passwordChanging ? 'Updating...' : 'Save Password'}
+              </button>
+              <button onClick={() => setShowPasswordForm(false)} className="w-full py-2 text-sm font-bold text-[#433422]/35">
+                Cancel
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+            {showPrivacyPolicy && <PrivacyPolicyModal onClose={() => setShowPrivacyPolicy(false)} />}
+      </div>
+    );
+  }
+
+  // ── Resources Transition ────────────────────────────────
+  if (view === 'resources-transition') {
+    return (
+      <div className="fixed inset-0 flex flex-col items-center justify-center font-sans" style={{ background: 'linear-gradient(160deg, #FDF9F3 0%, #F4EFE6 60%, #EDE5D8 100%)' }}>
+        {/* Soft ambient glow */}
+        <div className="absolute top-[-10%] right-[-10%] w-80 h-80 rounded-full pointer-events-none" style={{ background: 'radial-gradient(circle, rgba(212,163,115,0.15) 0%, transparent 70%)', filter: 'blur(40px)' }} />
+        <div className="absolute bottom-[-10%] left-[-10%] w-64 h-64 rounded-full pointer-events-none" style={{ background: 'radial-gradient(circle, rgba(142,151,117,0.12) 0%, transparent 70%)', filter: 'blur(40px)' }} />
+
+        {/* Pulsing logo */}
+        <div className="relative flex items-center justify-center mb-10">
+          <div className="absolute w-32 h-32 rounded-full" style={{ border: '1px solid rgba(212,163,115,0.2)', animation: 'orb-ring 3s ease-out infinite' }} />
+          <div className="absolute w-32 h-32 rounded-full" style={{ border: '1px solid rgba(212,163,115,0.15)', animation: 'orb-ring 3s ease-out 1s infinite' }} />
+          <div className="w-20 h-20 rounded-full overflow-hidden border border-[#D4A373]/20 shadow-sm" style={{ animation: 'orb-core 3s ease-in-out infinite' }}>
+            <img src={prayvailLogo} alt="Prayvail" className="w-full h-full object-cover" />
+          </div>
+        </div>
+
+        {/* Sequenced text */}
+        <p className="text-[9px] font-bold tracking-[0.45em] uppercase" style={{ color: 'rgba(67,52,34,0.4)', opacity: 0, animation: 'fade-in 0.8s ease-out 0.3s forwards' }}>
+          Sanctuary
+        </p>
+        <p className="text-2xl font-serif mt-3" style={{ color: '#433422', opacity: 0, animation: 'fade-in 1s ease-out 0.6s forwards' }}>
+          Gathering your journeys.
+        </p>
+        <p className="text-sm font-serif mt-2" style={{ color: 'rgba(67,52,34,0.35)', opacity: 0, animation: 'fade-in 0.8s ease-out 1.1s forwards' }}>
+          Your path is being prepared…
+        </p>
       </div>
     );
   }
@@ -2856,7 +3083,7 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
             >
               <Home size={20} strokeWidth={2} />
             </button>
-            <NavIcon icon={<Wheat />} active={false} onClick={() => { setActiveTab('wheat'); setView('resources'); }} />
+            <NavIcon icon={<Wheat />} active={false} onClick={() => { setActiveTab('wheat'); setView('resources-transition'); }} />
             <NavIcon icon={<Compass />} active={true} onClick={() => {}} />
           </div>
         </nav>
@@ -2941,7 +3168,7 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
             </button>
           ) : (
             <button
-              onClick={() => { setActiveTab('wheat'); setView('resources'); }}
+              onClick={() => { setActiveTab('wheat'); setView('resources-transition'); }}
               className="flex-[2] bg-[#F4EFE6] rounded-[24px] flex flex-col items-center justify-center gap-2 py-4"
             >
               <Compass size={18} className="text-[#433422]/25" />
@@ -3013,23 +3240,38 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
               {!vCard && (
                   <div className="flex flex-col items-center gap-5 py-6">
                     <button
-                      onClick={() => setCompassSpinning(true)}
-                      className="relative flex items-center justify-center"
+                      onClick={() => { setActiveTab('wheat'); setView('resources-transition'); }}
+                      className="relative flex items-center justify-center active:scale-[0.97] transition-transform"
                     >
                       <svg
-                        width="160" height="160"
-                        viewBox="0 0 1024 1024"
+                        width="180" height="140"
+                        viewBox="0 0 512 512"
                         xmlns="http://www.w3.org/2000/svg"
-                        className={compassSpinning ? 'animate-compass-tap' : ''}
-                        onAnimationEnd={() => { setCompassSpinning(false); setActiveTab('wheat'); setView('resources'); }}
                         shapeRendering="geometricPrecision"
                       >
-                        <path d="M528.64 482.56m-396.8 0a396.8 396.8 0 1 0 793.6 0 396.8 396.8 0 1 0-793.6 0Z" fill="#E9DCC9" /><path d="M528.64 892.16c-225.28 0-409.6-184.32-409.6-409.6s184.32-409.6 409.6-409.6 409.6 184.32 409.6 409.6-184.32 409.6-409.6 409.6z m0-793.6c-211.2 0-384 172.8-384 384s172.8 384 384 384 384-172.8 384-384-172.8-384-384-384z" fill="#433422" /><path d="M528.64 482.56m-345.6 0a345.6 345.6 0 1 0 691.2 0 345.6 345.6 0 1 0-691.2 0Z" fill="#FDF9F3" /><path d="M528.64 840.96c-197.12 0-358.4-161.28-358.4-358.4s161.28-358.4 358.4-358.4 358.4 161.28 358.4 358.4-161.28 358.4-358.4 358.4z m0-691.2c-183.04 0-332.8 149.76-332.8 332.8s149.76 332.8 332.8 332.8 332.8-149.76 332.8-332.8-149.76-332.8-332.8-332.8z" fill="#433422" /><path d="M528.64 814.08l-75.52-331.52 75.52-331.52 74.24 331.52z" fill="#D4A373" /><path d="M528.64 826.88c-6.4 0-11.52-3.84-12.8-10.24l-75.52-331.52v-5.12l75.52-331.52c1.28-6.4 6.4-10.24 12.8-10.24s11.52 3.84 12.8 10.24l75.52 331.52v5.12l-75.52 331.52c-2.56 6.4-7.68 10.24-12.8 10.24z m-62.72-344.32l61.44 273.92L588.8 482.56l-61.44-273.92-61.44 273.92z" fill="#433422" /><path d="M195.84 482.56l332.8-75.52 331.52 75.52-331.52 75.52z" fill="#D4A373" /><path d="M528.64 570.88h-2.56l-331.52-75.52c-6.4-1.28-10.24-6.4-10.24-12.8s3.84-11.52 10.24-12.8L524.8 395.52h5.12l331.52 75.52c6.4 1.28 10.24 6.4 10.24 12.8s-3.84 11.52-10.24 12.8l-331.52 75.52c0-2.56-1.28-1.28-1.28-1.28z m-273.92-88.32l273.92 61.44 273.92-61.44-273.92-61.44-273.92 61.44z" fill="#433422" /><path d="M323.84 687.36l158.72-250.88 249.6-158.72-157.44 250.88z" fill="#D4A373" /><path d="M323.84 700.16c-3.84 0-6.4-1.28-8.96-3.84-3.84-3.84-5.12-10.24-1.28-15.36l158.72-250.88 3.84-3.84 250.88-158.72c5.12-2.56 11.52-2.56 15.36 1.28 3.84 3.84 5.12 10.24 1.28 15.36L584.96 535.04l-3.84 3.84-250.88 158.72c-1.28 1.28-3.84 2.56-6.4 2.56z m167.68-254.72l-126.72 199.68 199.68-126.72L691.2 320l-199.68 125.44z" fill="#433422" /><path d="M323.84 277.76l250.88 158.72 157.44 250.88-249.6-158.72z" fill="#D4A373" /><path d="M732.16 700.16c-2.56 0-5.12-1.28-6.4-2.56L474.88 540.16l-3.84-3.84-157.44-250.88c-2.56-5.12-2.56-11.52 1.28-15.36 3.84-3.84 10.24-5.12 15.36-1.28l250.88 158.72 3.84 3.84 158.72 250.88c2.56 5.12 2.56 11.52-1.28 15.36-3.84 1.28-6.4 2.56-10.24 2.56zM491.52 519.68L691.2 646.4l-126.72-199.68L364.8 320l126.72 199.68z" fill="#433422" /><path d="M528.64 482.56m-230.4 0a230.4 230.4 0 1 0 460.8 0 230.4 230.4 0 1 0-460.8 0Z" fill="#E9DCC9" /><path d="M528.64 725.76c-134.4 0-243.2-108.8-243.2-243.2s108.8-243.2 243.2-243.2 243.2 108.8 243.2 243.2-108.8 243.2-243.2 243.2z m0-460.8c-120.32 0-217.6 97.28-217.6 217.6s97.28 217.6 217.6 217.6 217.6-97.28 217.6-217.6-97.28-217.6-217.6-217.6z" fill="#433422" /><path d="M304.64 705.28l172.8-272.64 273.92-172.8-172.8 272.64z" fill="#8E9775" /><path d="M304.64 718.08c-3.84 0-6.4-1.28-8.96-3.84-3.84-3.84-5.12-10.24-1.28-15.36l172.8-273.92 3.84-3.84 273.92-172.8c5.12-2.56 11.52-2.56 15.36 1.28s5.12 10.24 1.28 15.36L590.08 540.16l-3.84 3.84L312.32 716.8c-2.56 1.28-5.12 1.28-7.68 1.28z m183.04-276.48L345.6 664.32l222.72-140.8 140.8-222.72-221.44 140.8z" fill="#433422" /><path d="M528.64 482.56m-38.4 0a38.4 38.4 0 1 0 76.8 0 38.4 38.4 0 1 0-76.8 0Z" fill="#433422" /><path d="M528.64 533.76c-28.16 0-51.2-23.04-51.2-51.2s23.04-51.2 51.2-51.2 51.2 23.04 51.2 51.2-23.04 51.2-51.2 51.2z m0-76.8c-14.08 0-25.6 11.52-25.6 25.6s11.52 25.6 25.6 25.6 25.6-11.52 25.6-25.6-11.52-25.6-25.6-25.6z" fill="#433422" />
+                        {/* Sky / ground base */}
+                        <rect x="0" y="200" width="512" height="312" fill="#F4EFE6" rx="8"/>
+                        {/* Back hill — dark sage */}
+                        <path d="M452.788,230.577c-22.043,16.713-60.603,18.807-60.603,18.807s-60.604,24.382-102.4,103.097s-86.378,138.621-130.264,149.07h342.03V212.464C501.551,212.464,481.959,208.458,452.788,230.577z" fill="#8E9775"/>
+                        <path d="M208.98,303.718c38.814-32.421,79.423-45.685,102.796-50.975l4.481-3.359c0,0-60.604-37.616-119.118-58.514S50.156,202.014,11.147,202.014l-0.697,143.5C10.45,345.514,149.77,353.175,208.98,303.718z" fill="#8E9775"/>
+                        {/* Front hill — lighter sage */}
+                        <path d="M10.45,345.514c0,0,139.32,7.662,198.53-41.796s122.601-54.335,122.601-54.335h60.604c0,0-60.604,24.382-102.4,103.097s-86.378,138.621-130.264,149.07H10.449L10.45,345.514z" fill="#B5C4A8"/>
+                        {/* Cloud — warm gold */}
+                        <path d="M286.684,89.434c0-20.106,15.967-36.472,35.911-37.137c7.988-24.298,30.847-41.848,57.818-41.848c28.442,0,52.322,19.51,59,45.875c0.523-0.024,1.048-0.044,1.578-0.044c18.309,0,33.154,14.844,33.154,33.154H286.684z" fill="#D4A373" opacity="0.5"/>
+                        {/* Tree cluster — sage */}
+                        <path d="M501.551,501.551c0-23.984-19.444-43.427-43.427-43.427c-0.693,0-1.38,0.026-2.066,0.057c-8.747-34.535-40.028-60.091-77.284-60.091c-35.328,0-65.273,22.989-75.735,54.816C276.916,453.777,256,475.215,256,501.552h245.551V501.551z" fill="#8E9775"/>
+                        {/* Outlines */}
+                        <path d="M503.644,202.228c-2.476-0.51-25.152-4.252-57.169,20.022c-18.369,13.927-51.543,16.477-54.617,16.685h-60.276c-0.268,0-0.535,0.01-0.801,0.03c-0.579,0.045-3.961,0.33-9.502,1.239c-6.27-3.861-63.829-38.891-120.625-59.175c-42.218-15.08-97.078-4.769-141.16,3.513c-20.055,3.769-37.377,7.023-49.044,7.023C4.679,191.565,0,196.244,0,202.014v299.536c0,5.771,4.679,10.449,10.449,10.449h491.102c5.77,0,10.449-4.678,10.449-10.449V212.464C512,207.499,508.507,203.221,503.644,202.228z" fill="#433422" opacity="0.18"/>
+                        <path d="M218.123,99.883h256.021c5.77,0,10.449-4.679,10.449-10.449c0-21.931-16.279-40.134-37.387-43.16c-10.305-27.598-36.75-46.273-66.792-46.273c-28.568,0-54.009,16.868-65.29,42.616c-18.878,3.449-33.659,17.844-37.754,36.369h-59.246c-5.771,0-10.449,4.679-10.449,10.449C207.674,95.205,212.353,99.883,218.123,99.883z" fill="#433422" opacity="0.12"/>
+                        {/* Small decorative elements */}
+                        <path d="M163.354,99.883h19.243c5.77,0,10.449-4.679,10.449-10.449s-4.679-10.449-10.449-10.449h-19.243c-5.771,0-10.449,4.679-10.449,10.449C152.905,95.205,157.584,99.883,163.354,99.883z" fill="#433422" opacity="0.12"/>
+                        <path d="M194.88,369.106c1.817,0,3.658-0.474,5.334-1.472c5.653-3.365,10.856-7.022,15.464-10.869c4.429-3.7,5.022-10.289,1.323-14.718c-3.701-4.429-10.289-5.02-14.718-1.323c-3.761,3.141-8.052,6.153-12.756,8.953c-4.959,2.951-6.587,9.363-3.635,14.322C187.845,367.281,191.317,369.106,194.88,369.106z" fill="#433422" opacity="0.25"/>
+                        <path d="M172.426,369.802c-1.844-5.467-7.774-8.408-13.241-6.559c-37.442,12.634-82.19,16.259-113.138,17.076c-5.769,0.153-10.323,4.952-10.169,10.721c0.149,5.676,4.796,10.173,10.44,10.173c0.093,0,0.187-0.001,0.281-0.004c32.383-0.853,79.362-4.698,119.27-18.166C171.335,381.197,174.271,375.269,172.426,369.802z" fill="#433422" opacity="0.25"/>
                       </svg>
                     </button>
                     <div className="flex flex-col items-center gap-1 text-center">
                       <p className="font-serif text-base text-[#433422]">Your journey awaits.</p>
-                      <p className="text-[11px] text-[#433422]/40 leading-relaxed">Tap the compass to choose<br />a module.</p>
+                      <p className="text-[11px] text-[#433422]/40 leading-relaxed">Tap to choose your path.</p>
                     </div>
                   </div>
               )}
@@ -3130,30 +3372,38 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
                               )}
                               <motion.button
                                 onClick={() => {
-                                  if (isLocked) return;
+                                  if (isDone) {
+                                    const isArticle = vCard.type === 'article';
+                                    if (isArticle) {
+                                      setActiveReadingSession({ card: vCard, reading: track, trackIndex: i, totalReadings: tracks.length, pathItemId: null });
+                                    } else {
+                                      setPendingRevisitSession({ title: track.title, audioUrl: track.audioUrl, cardId: vCard.id, cardTitle: vCard.title, isRevisiting: true });
+                                      setView('revisit-transition');
+                                    }
+                                    return;
+                                  }
+                                  if (isLocked) {
+                                    setLockedDayType(i === trackIndex && doneToday ? 'today' : 'future');
+                                    setShowLockedDaySheet(true);
+                                    return;
+                                  }
                                   const isArticle = vCard.type === 'article';
                                   if (isArticle) {
-                                    setActiveReadingSession({ card: vCard, reading: track, trackIndex: i, totalReadings: tracks.length, pathItemId: isCurrent ? vItem.id : null });
+                                    setActiveReadingSession({ card: vCard, reading: track, trackIndex: i, totalReadings: tracks.length, pathItemId: vItem.id });
                                   } else {
-                                    setActiveSession({
-                                      title: track.title,
-                                      audioUrl: track.audioUrl,
-                                      cardId: vCard.id,
-                                      cardTitle: vCard.title,
-                                      ...(isCurrent ? { pathItemId: vItem.id, isPlaylistTrack: true, trackIndex: i, totalTracks: tracks.length } : { skipCheckin: true }),
-                                    });
+                                    setActiveSession({ title: track.title, audioUrl: track.audioUrl, cardId: vCard.id, cardTitle: vCard.title, pathItemId: vItem.id, isPlaylistTrack: true, trackIndex: i, totalTracks: tracks.length });
                                     setView('meditation');
                                   }
                                 }}
                                 animate={{ backgroundColor: isDone ? '#D4A373' : isCurrent ? '#FDF9F3' : '#F4EFE6' }}
                                 transition={{ duration: 0.4 }}
-                                whileTap={!isLocked ? { scale: 0.88 } : undefined}
+                                whileTap={{ scale: 0.88 }}
                                 className={`relative w-20 h-20 rounded-full flex items-center justify-center shadow-lg border-2 flex-shrink-0 ${
                                   isDone
                                     ? 'border-[#D4A373] text-white cursor-pointer'
                                     : isCurrent
                                     ? 'border-[#D4A373] text-[#D4A373] cursor-pointer'
-                                    : 'border-[#E9DCC9] text-[#433422]/20 cursor-default'
+                                    : 'border-[#E9DCC9] text-[#433422]/20 cursor-pointer'
                                 }`}
                               >
                                 {isDone
@@ -3186,7 +3436,7 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
               {!hasActive && allModules.length > 0 && (
                 <div
                   className="flex items-center gap-4 cursor-pointer mt-2"
-                  onClick={() => { setActiveTab('wheat'); setView('resources'); }}
+                  onClick={() => { setActiveTab('wheat'); setView('resources-transition'); }}
                 >
                   <div className="flex-1 bg-white rounded-[24px] px-5 py-4 border border-dashed border-[#E9DCC9] flex items-center justify-between">
                     <span className="text-sm text-[#433422]/30">Begin your next module</span>
@@ -3194,6 +3444,63 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
                   </div>
                 </div>
               )}
+
+              {/* Journey Log — recent events for this path */}
+              {(() => {
+                const pathLog = journalEntries
+                  .filter(e => {
+                    if (vCard && e.pathTitle) return e.pathTitle === vCard.title;
+                    return ['journey-start','journey-complete','journey-abandoned'].includes(e.entryType);
+                  })
+                  .slice(0, 8);
+                if (!pathLog.length) return null;
+                const EVENT_CFG = {
+                  'journey-start':     { label: 'Journey Began',    color: '#8E9775', symbol: '✦' },
+                  'journey-complete':  { label: 'Journey Complete',  color: '#D4A373', symbol: '✓' },
+                  'journey-abandoned': { label: 'Journey Released',  color: '#433422', symbol: '◦' },
+                  'meditation':        { label: 'Session',           color: '#433422', symbol: '◎' },
+                };
+                return (
+                  <div className="mt-6">
+                    <p className="text-[9px] font-bold tracking-[0.3em] text-[#433422]/30 uppercase mb-3">Journey Log</p>
+                    <div className="space-y-1">
+                      {pathLog.map(entry => {
+                        const isEvent = ['journey-start','journey-complete','journey-abandoned'].includes(entry.entryType);
+                        const cfg = EVENT_CFG[entry.entryType || 'meditation'];
+                        const timeStr = entry.createdAt
+                          ? new Date(entry.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+                          : entry.dateDisplay?.split(',')[0] ?? '';
+                        return (
+                          <div key={entry.id} className="flex items-center gap-3 py-2.5 border-b border-[#E9DCC9]/50 last:border-0">
+                            <div
+                              className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-[11px]"
+                              style={{ backgroundColor: cfg.color + '18', color: cfg.color }}
+                            >
+                              {cfg.symbol}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-[9px] font-bold tracking-widest uppercase" style={{ color: cfg.color + 'cc' }}>{cfg.label}</p>
+                              <p className="text-[11px] text-[#433422]/60 truncate">
+                                {isEvent
+                                  ? (entry.pathTitle || '—')
+                                  : entry.meditationTitle || entry.pathTitle || '—'}
+                                {entry.isRevisit && <span className="ml-1.5 text-[8px] font-bold text-[#8E9775]">REVISIT</span>}
+                              </p>
+                            </div>
+                            <span className="text-[9px] text-[#433422]/25 flex-shrink-0">{timeStr}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <button
+                      onClick={() => { setActiveTab('calendar'); setView('calendar-log'); }}
+                      className="mt-3 text-[9px] font-bold tracking-[0.25em] text-[#433422]/30 uppercase"
+                    >
+                      View full log →
+                    </button>
+                  </div>
+                );
+              })()}
             </div>
           );
         })()}
@@ -3211,7 +3518,7 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
           >
             <Home size={20} strokeWidth={2} />
           </button>
-          <NavIcon icon={<Wheat />} active={activeTab === 'wheat'} onClick={() => { setActiveTab('wheat'); setView('resources'); }} />
+          <NavIcon icon={<Wheat />} active={activeTab === 'wheat'} onClick={() => { setActiveTab('wheat'); setView('resources-transition'); }} />
           <NavIcon icon={<Compass />} active={activeTab === 'compass'} onClick={() => { setActiveTab('compass'); setView('explore'); }} />
         </div>
       </nav>

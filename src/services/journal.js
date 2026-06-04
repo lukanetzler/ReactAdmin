@@ -15,13 +15,25 @@ function withTimeout(promise, ms = 5000) {
 
 const entriesRef = (uid) => collection(db, 'users', uid, 'journalEntries');
 
-export async function addJournalEntry(uid, { dateISO, dateDisplay, feelingBefore, feelingAfter, reflection, meditationTitle }) {
+export async function addJournalEntry(uid, { dateISO, dateDisplay, feelingBefore, feelingAfter, reflection, meditationTitle, entryType, pathTitle, trackTitle, isRevisit }) {
   const data = Object.fromEntries(
-    Object.entries({ dateISO, dateDisplay, feelingBefore, feelingAfter, reflection, meditationTitle })
-      .filter(([, v]) => v !== undefined && v !== null)
+    Object.entries({ dateISO, dateDisplay, feelingBefore, feelingAfter, reflection, meditationTitle, entryType, pathTitle, trackTitle, isRevisit })
+      .filter(([, v]) => v !== undefined && v !== null && v !== false)
   );
   if (!uid) return localAddJournalEntry(data);
   return withTimeout(addDoc(entriesRef(uid), { ...data, createdAt: new Date().toISOString() }));
+}
+
+export async function addJourneyEvent(uid, { entryType, pathTitle }) {
+  const now = new Date();
+  const data = {
+    entryType,
+    pathTitle,
+    dateISO: now.toISOString().split('T')[0],
+    dateDisplay: now.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' }),
+  };
+  if (!uid) return localAddJournalEntry(data);
+  return withTimeout(addDoc(entriesRef(uid), { ...data, createdAt: now.toISOString() }));
 }
 
 export async function updateJournalEntry(uid, entryId, { feelingBefore, feelingAfter, reflection }) {
