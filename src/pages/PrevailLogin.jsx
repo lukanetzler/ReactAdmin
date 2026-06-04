@@ -3,6 +3,7 @@ import { ArrowLeft, Mail, Lock } from 'lucide-react';
 import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 import { auth } from '../firebase';
 import prayvailLogo from '../assets/prayvail-logo-blank.webp';
+import PrivacyPolicyModal from '../components/PrivacyPolicyModal';
 
 const PrevailLogin = ({ onBack, onLogin }) => {
   const [email, setEmail] = useState('');
@@ -10,6 +11,7 @@ const PrevailLogin = ({ onBack, onLogin }) => {
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [resetSent, setResetSent] = useState(false);
+  const [showPrivacy, setShowPrivacy] = useState(false);
 
   const handleLogin = async () => {
     setError('');
@@ -128,7 +130,19 @@ const PrevailLogin = ({ onBack, onLogin }) => {
           FORGOT PASSWORD
         </button>
 
+        <p className="mt-auto pt-8 text-center text-[10px] text-[#433422]/30 leading-relaxed">
+          By using Prayvail you agree to our{' '}
+          <button
+            onClick={() => setShowPrivacy(true)}
+            className="underline text-[#433422]/50 hover:text-[#433422]/70 transition-colors"
+          >
+            Privacy Policy
+          </button>
+        </p>
+
       </main>
+
+      {showPrivacy && <PrivacyPolicyModal onClose={() => setShowPrivacy(false)} />}
     </div>
   );
 };

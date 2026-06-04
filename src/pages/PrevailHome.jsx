@@ -13,6 +13,7 @@ import { updateUserProfile } from '../services/userProfile';
 import { addToPath, removeFromPath, completeTrackForDay, dismissBroadcast, completePathItem, recordCompletion, recordStreakDay } from '../services/dailyPath';
 import { checkIsSupporter, presentCustomerCenter, restorePurchases, isNative } from '../services/purchases';
 import Paywall from '../components/Paywall';
+import PrivacyPolicyModal from '../components/PrivacyPolicyModal';
 import { useTrackCompletions } from '../hooks/useTrackCompletions';
 import { useCompletionHistory } from '../hooks/useCompletionHistory';
 import { useStreakDays } from '../hooks/useStreakDays';
@@ -73,7 +74,7 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
   // Dynamic content from Firestore
   const { sessions: pathSessions } = usePathSessions();
   const { categories } = useCategories();
-  const { cards: allCards } = useLibraryCards();
+  const { cards: allCards, loading: cardsLoading } = useLibraryCards();
 
   const isGuest = !user || user.isAnonymous;
   const userName = profile?.name || user?.displayName || guestName || 'Friend';
@@ -103,6 +104,7 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
   const [passwordMsg, setPasswordMsg] = useState({ text: '', isError: false });
   const [passwordChanging, setPasswordChanging] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
   const [deletePassword, setDeletePassword] = useState('');
   const [deleteError, setDeleteError] = useState('');
   const [deleting, setDeleting] = useState(false);
@@ -152,6 +154,17 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
     const t = setTimeout(() => setView('twilight'), 3000);
     return () => clearTimeout(t);
   }, [view]);
+
+  // Prefetch card images as soon as they load from Firestore
+  useEffect(() => {
+    if (!allCards.length) return;
+    allCards.forEach(card => {
+      if (card.imageUrl) {
+        const img = new Image();
+        img.src = card.imageUrl;
+      }
+    });
+  }, [allCards]);
 
   const showPathToast = (message) => {
     const id = Date.now();
@@ -2076,6 +2089,14 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
             SIGN OUT
           </button>
 
+          {/* Privacy Policy */}
+          <button
+            onClick={() => setShowPrivacyPolicy(true)}
+            className="w-full py-3 text-[10px] font-bold tracking-widest text-[#433422]/25 hover:text-[#433422]/50 transition-colors"
+          >
+            PRIVACY POLICY
+          </button>
+
           {/* Danger Zone */}
           <div className="bg-[#433422]/[0.04] rounded-[28px] p-6 border border-[#433422]/10">
             <p className="text-[10px] tracking-[0.3em] font-bold text-[#433422]/30 mb-2">DANGER ZONE</p>
@@ -2168,6 +2189,7 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
           </div>
         </nav>
 
+      {showPrivacyPolicy && <PrivacyPolicyModal onClose={() => setShowPrivacyPolicy(false)} />}
       </div>
     );
   }
@@ -2453,9 +2475,13 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
           {/* Header */}
           <div className="relative px-8 pt-14 pb-10 overflow-hidden" style={{ backgroundColor: '#4A5E42' }}>
             <div className="absolute top-[-30%] right-[-15%] w-64 h-64 rounded-full opacity-20" style={{ backgroundColor: '#8FAF80', filter: 'blur(40px)' }} />
-            <button onClick={() => setView('explore')} className="flex items-center gap-2 mb-6 relative z-10" style={{ color: 'rgba(255,255,255,0.55)' }}>
-              <ArrowLeft size={18} strokeWidth={1.5} />
-              <span className="text-sm">Explore</span>
+            <button
+              onClick={() => setView('explore')}
+              className="flex items-center gap-2 mb-6 relative z-10 px-4 py-2 rounded-full active:scale-[0.97] transition-transform"
+              style={{ backgroundColor: 'rgba(74,94,66,0.35)', color: 'rgba(168,200,152,0.9)', backdropFilter: 'blur(8px)', border: '1px solid rgba(142,175,128,0.25)' }}
+            >
+              <ArrowLeft size={16} strokeWidth={1.5} />
+              <span className="text-sm font-medium">Explore</span>
             </button>
             <div className="relative z-10">
               <p className="text-[9px] font-bold tracking-[0.4em] mb-2" style={{ color: 'rgba(255,255,255,0.45)' }}>LIFE BOX</p>
@@ -2491,17 +2517,6 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
           </div>
         </div>
 
-        <nav className="fixed bottom-8 left-1/2 -translate-x-1/2 w-[85%] max-w-sm bg-white/90 backdrop-blur-xl rounded-[32px] py-4 px-8 border border-[#E9DCC9] shadow-2xl z-50">
-          <div className="flex items-center justify-between">
-            <NavIcon icon={<User />} active={false} onClick={() => { setActiveTab('user'); setView('account'); }} />
-            <NavIcon icon={<Calendar />} active={false} onClick={() => { setActiveTab('calendar'); setView('calendar-log'); }} />
-            <button onClick={() => { setActiveTab('home'); setView('dashboard'); }} className="w-14 h-14 bg-[#D4A373] rounded-full -mt-10 border-[6px] border-[#FDF9F3] flex items-center justify-center text-white shadow-lg">
-              <Home size={20} strokeWidth={2} />
-            </button>
-            <NavIcon icon={<Wheat />} active={false} onClick={() => { setActiveTab('wheat'); setView('resources'); }} />
-            <NavIcon icon={<Compass />} active={true} onClick={() => {}} />
-          </div>
-        </nav>
       </div>
     );
   }

@@ -12,6 +12,7 @@ import prayvailLogo from '../assets/prayvail-logo-blank.webp';
 import stepsImg from '../assets/steps.webp';
 import malePathImg from '../assets/man-path.webp';
 import femalePathImg from '../assets/woman-path.webp';
+import PrivacyPolicyModal from '../components/PrivacyPolicyModal';
 
 const TOTAL_PROGRESS_STEPS = 4;
 
@@ -23,6 +24,7 @@ const PrevailOnboarding = ({ onComplete, initialStep = 0, initialName = '' }) =>
   const [activeImg, setActiveImg] = useState(0);
   const [authError, setAuthError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showPrivacy, setShowPrivacy] = useState(false);
 
   const nextStep = () => setStep(s => Math.min(s + 1, 5));
   const prevStep = () => setStep(s => Math.max(s - 1, 1));
@@ -360,6 +362,16 @@ const PrevailOnboarding = ({ onComplete, initialStep = 0, initialName = '' }) =>
                 MAYBE LATER
               </button>
             </div>
+
+            <p className="mt-6 text-center text-[10px] text-[#433422]/30 leading-relaxed">
+              By creating an account you agree to our{' '}
+              <button
+                onClick={() => setShowPrivacy(true)}
+                className="underline text-[#433422]/50 hover:text-[#433422]/70 transition-colors"
+              >
+                Privacy Policy
+              </button>
+            </p>
           </div>
         )}
 
@@ -381,6 +393,8 @@ const PrevailOnboarding = ({ onComplete, initialStep = 0, initialName = '' }) =>
         )}
 
       </main>
+
+      {showPrivacy && <PrivacyPolicyModal onClose={() => setShowPrivacy(false)} />}
     </div>
   );
 };
