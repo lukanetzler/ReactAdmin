@@ -3445,62 +3445,6 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
                 </div>
               )}
 
-              {/* Journey Log — recent events for this path */}
-              {(() => {
-                const pathLog = journalEntries
-                  .filter(e => {
-                    if (vCard && e.pathTitle) return e.pathTitle === vCard.title;
-                    return ['journey-start','journey-complete','journey-abandoned'].includes(e.entryType);
-                  })
-                  .slice(0, 8);
-                if (!pathLog.length) return null;
-                const EVENT_CFG = {
-                  'journey-start':     { label: 'Journey Began',    color: '#8E9775', symbol: '✦' },
-                  'journey-complete':  { label: 'Journey Complete',  color: '#D4A373', symbol: '✓' },
-                  'journey-abandoned': { label: 'Journey Released',  color: '#433422', symbol: '◦' },
-                  'meditation':        { label: 'Session',           color: '#433422', symbol: '◎' },
-                };
-                return (
-                  <div className="mt-6">
-                    <p className="text-[9px] font-bold tracking-[0.3em] text-[#433422]/30 uppercase mb-3">Journey Log</p>
-                    <div className="space-y-1">
-                      {pathLog.map(entry => {
-                        const isEvent = ['journey-start','journey-complete','journey-abandoned'].includes(entry.entryType);
-                        const cfg = EVENT_CFG[entry.entryType || 'meditation'];
-                        const timeStr = entry.createdAt
-                          ? new Date(entry.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
-                          : entry.dateDisplay?.split(',')[0] ?? '';
-                        return (
-                          <div key={entry.id} className="flex items-center gap-3 py-2.5 border-b border-[#E9DCC9]/50 last:border-0">
-                            <div
-                              className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-[11px]"
-                              style={{ backgroundColor: cfg.color + '18', color: cfg.color }}
-                            >
-                              {cfg.symbol}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-[9px] font-bold tracking-widest uppercase" style={{ color: cfg.color + 'cc' }}>{cfg.label}</p>
-                              <p className="text-[11px] text-[#433422]/60 truncate">
-                                {isEvent
-                                  ? (entry.pathTitle || '—')
-                                  : entry.meditationTitle || entry.pathTitle || '—'}
-                                {entry.isRevisit && <span className="ml-1.5 text-[8px] font-bold text-[#8E9775]">REVISIT</span>}
-                              </p>
-                            </div>
-                            <span className="text-[9px] text-[#433422]/25 flex-shrink-0">{timeStr}</span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                    <button
-                      onClick={() => { setActiveTab('calendar'); setView('calendar-log'); }}
-                      className="mt-3 text-[9px] font-bold tracking-[0.25em] text-[#433422]/30 uppercase"
-                    >
-                      View full log →
-                    </button>
-                  </div>
-                );
-              })()}
             </div>
           );
         })()}
