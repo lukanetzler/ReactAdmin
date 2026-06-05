@@ -14,6 +14,7 @@ import { addToPath, removeFromPath, completeTrackForDay, dismissBroadcast, compl
 import { checkIsSupporter, presentCustomerCenter, restorePurchases, isNative } from '../services/purchases';
 import Paywall from '../components/Paywall';
 import PrivacyPolicyModal from '../components/PrivacyPolicyModal';
+import AppTour from '../components/AppTour';
 import { useTrackCompletions } from '../hooks/useTrackCompletions';
 import { useCompletionHistory } from '../hooks/useCompletionHistory';
 import { useStreakDays } from '../hooks/useStreakDays';
@@ -145,6 +146,9 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
   const [pendingCelebration, setPendingCelebration] = useState(false);
   const [focusedStepIndex, setFocusedStepIndex] = useState(0);
   const [pathNavDir, setPathNavDir] = useState(0);
+  const [showTour, setShowTour] = useState(() => !localStorage.getItem('pv_hasSeenTour'));
+  const [tutorialPending, setTutorialPending] = useState(false);
+  const [tutorialHintVisible, setTutorialHintVisible] = useState(false);
   const [showLockedDaySheet, setShowLockedDaySheet] = useState(false);
   const [lockedDayType, setLockedDayType] = useState('future'); // 'future' | 'today'
   const [pendingRevisitSession, setPendingRevisitSession] = useState(null);
@@ -164,6 +168,10 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
     const t = setTimeout(() => setView('resources'), 1600);
     return () => clearTimeout(t);
   }, [view]);
+
+  useEffect(() => {
+    if (view === 'resources' && tutorialPending) setTutorialHintVisible(true);
+  }, [view, tutorialPending]);
 
   useEffect(() => {
     if (view !== 'revisit-transition') return;
@@ -186,10 +194,10 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
     });
   }, [allCards]);
 
-  const showPathToast = (message) => {
+  const showPathToast = (message, duration = 2200) => {
     const id = Date.now();
     setPathToast({ message, id });
-    setTimeout(() => setPathToast(t => t?.id === id ? null : t), 2200);
+    setTimeout(() => setPathToast(t => t?.id === id ? null : t), duration);
   };
 
   const handleEmailChange = async () => {
@@ -298,7 +306,22 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
 
   const isUserSupporter = profile?.role === 'supporter' || profile?.role === 'admin' || rcIsSupporter;
 
+  const isTutorialStarterCard = (card) => card.title?.toLowerCase().includes('first steps');
+
   const handleCardTap = (card) => {
+    if (tutorialPending) {
+      if (isTutorialStarterCard(card)) {
+        addToPath(uid, card.id, 0).then(() => {
+          addJourneyEvent(uid, { entryType: 'journey-start', pathTitle: card.title }).catch(() => {});
+          localStorage.setItem('pv_hasSeenTour', '1');
+          setTutorialPending(false);
+          setActiveTab('home');
+          setView('dashboard');
+          showPathToast('Your journey begins', 4500);
+        }).catch(() => {});
+      }
+      return;
+    }
     if (card.tier === 'supporter' && !isUserSupporter) {
       setSupporterLockCard(card);
       setView('supporter-lock');
@@ -2190,13 +2213,41 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
             SIGN OUT
           </button>
 
-          {/* Privacy Policy */}
-          <button
-            onClick={() => setShowPrivacyPolicy(true)}
-            className="w-full py-3 text-[10px] font-bold tracking-widest text-[#433422]/25 hover:text-[#433422]/50 transition-colors"
-          >
-            PRIVACY POLICY
-          </button>
+          {/* Privacy Policy + Terms side by side */}
+          <div className="flex gap-3">
+            <button
+              onClick={() => setShowPrivacyPolicy(true)}
+              className="flex-1 bg-white rounded-[28px] p-5 text-left active:scale-[0.98] transition-transform"
+            >
+              <p className="text-[10px] tracking-[0.3em] font-bold text-[#433422]/40 mb-2">PRIVACY</p>
+              <p className="text-sm font-bold text-[#D4A373]">View</p>
+            </button>
+            <button
+              className="flex-1 bg-white rounded-[28px] p-5 text-left active:scale-[0.98] transition-transform opacity-40"
+              disabled
+            >
+              <p className="text-[10px] tracking-[0.3em] font-bold text-[#433422]/40 mb-2">TERMS</p>
+              <p className="text-sm font-bold text-[#433422]/30">Coming soon</p>
+            </button>
+          </div>
+
+          {/* Restart Tutorial */}
+          <div className="rounded-[28px] border border-[#433422]/8 overflow-hidden">
+            <button
+              onClick={() => {
+                localStorage.removeItem('pv_hasSeenTour');
+                setTutorialPending(false);
+                setActiveTab('home');
+                setView('dashboard');
+                setShowTour(true);
+              }}
+              className="w-full flex items-center justify-between px-6 py-4 transition-colors active:bg-[#433422]/5"
+              style={{ backgroundColor: 'rgba(67,52,34,0.03)' }}
+            >
+              <p className="text-[10px] tracking-[0.3em] font-bold text-[#433422]/40">RESTART TUTORIAL</p>
+              <ChevronRight size={16} className="text-[#433422]/25" />
+            </button>
+          </div>
 
           {/* Danger Zone */}
           <div className="rounded-[28px] border border-[#433422]/8 overflow-hidden">
@@ -2543,15 +2594,17 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
                 {filteredCards.map(s => {
                   const existingItems = pathItems.filter(i => i.cardId === s.id);
                   const isInPath = existingItems.length > 0;
+                  const tutorialDimmed = tutorialPending && !isTutorialStarterCard(s);
                   return (
-                    <ResourceCard
-                      key={s.id}
-                      {...s}
-                      horizontal
-                      inPath={isInPath}
-                      completed={completedHistory.has(s.id)}
-                      onClick={() => handleCardTap(s)}
-                    />
+                    <div key={s.id} className={`transition-opacity duration-300 ${tutorialDimmed ? 'opacity-20 pointer-events-none' : ''}`}>
+                      <ResourceCard
+                        {...s}
+                        horizontal
+                        inPath={isInPath}
+                        completed={completedHistory.has(s.id)}
+                        onClick={() => handleCardTap(s)}
+                      />
+                    </div>
                   );
                 })}
               </section>
@@ -2627,8 +2680,9 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
                         {catCards.slice(0, 6).map(s => {
                           const existingItems = pathItems.filter(i => i.cardId === s.id);
                           const isInPath = existingItems.length > 0;
+                          const tutorialDimmed = tutorialPending && !isTutorialStarterCard(s);
                           return (
-                            <div key={s.id} className="flex-shrink-0 w-[130px]">
+                            <div key={s.id} className={`flex-shrink-0 w-[130px] transition-opacity duration-300 ${tutorialDimmed ? 'opacity-20 pointer-events-none' : ''}`}>
                               <ResourceCard
                                 {...s}
                                 inPath={isInPath}
@@ -2655,6 +2709,41 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
 
         </main>
         </div>
+
+        {/* Tutorial prompt — centered dismissable overlay */}
+        <AnimatePresence>
+          {tutorialPending && tutorialHintVisible && (
+            <>
+              <motion.div
+                className="fixed inset-0 z-[55] bg-black/30"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setTutorialHintVisible(false)}
+              />
+              <motion.div
+                className="fixed inset-0 z-[56] flex items-center justify-center px-8 pointer-events-none"
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.9, opacity: 0 }}
+                transition={{ type: 'spring', stiffness: 340, damping: 28 }}
+              >
+                <div className="bg-[#433422] text-[#FDF9F3] rounded-[28px] px-7 py-8 shadow-2xl max-w-sm w-full pointer-events-auto">
+                  <p className="text-[9px] font-bold tracking-[0.3em] text-[#D4A373] mb-3">YOUR FIRST JOURNEY</p>
+                  <h3 className="text-xl font-serif mb-3 leading-snug">Select First Steps to begin your path.</h3>
+                  <p className="text-sm text-[#FDF9F3]/60 leading-relaxed mb-6">Everything else in the library will open once you do.</p>
+                  <button
+                    onClick={() => setTutorialHintVisible(false)}
+                    className="w-full py-3.5 rounded-[20px] text-xs font-bold tracking-[0.15em] uppercase"
+                    style={{ backgroundColor: 'rgba(255,255,255,0.12)', color: '#FDF9F3' }}
+                  >
+                    Got it
+                  </button>
+                </div>
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>
 
         <nav className="fixed bottom-8 left-1/2 -translate-x-1/2 w-[85%] max-w-sm bg-white/90 backdrop-blur-xl rounded-[32px] py-4 px-8 border border-[#E9DCC9] shadow-2xl z-50">
           <div className="flex items-center justify-between">
@@ -3238,7 +3327,7 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
           return (
             <div className="px-6 pb-32">
               {!vCard && (
-                  <div className="flex flex-col items-center gap-5 py-6">
+                  <div className={`bg-[#F4EFE6] rounded-[28px] border flex flex-col items-center gap-5 py-8 px-6 transition-all duration-500 ${tutorialPending ? 'border-[#D4A373]/50 shadow-[0_0_0_4px_rgba(212,163,115,0.12)]' : 'border-[#E9DCC9]'}`}>
                     <button
                       onClick={() => { setActiveTab('wheat'); setView('resources-transition'); }}
                       className="relative flex items-center justify-center active:scale-[0.97] transition-transform"
@@ -3248,16 +3337,17 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
                         viewBox="0 0 512 512"
                         xmlns="http://www.w3.org/2000/svg"
                         shapeRendering="geometricPrecision"
+                        style={{ opacity: 0.45 }}
                       >
                         {/* Sky / ground base */}
                         <rect x="0" y="200" width="512" height="312" fill="#F4EFE6" rx="8"/>
-                        {/* Back hill — dark sage */}
-                        <path d="M452.788,230.577c-22.043,16.713-60.603,18.807-60.603,18.807s-60.604,24.382-102.4,103.097s-86.378,138.621-130.264,149.07h342.03V212.464C501.551,212.464,481.959,208.458,452.788,230.577z" fill="#8E9775"/>
-                        <path d="M208.98,303.718c38.814-32.421,79.423-45.685,102.796-50.975l4.481-3.359c0,0-60.604-37.616-119.118-58.514S50.156,202.014,11.147,202.014l-0.697,143.5C10.45,345.514,149.77,353.175,208.98,303.718z" fill="#8E9775"/>
-                        {/* Front hill — lighter sage */}
-                        <path d="M10.45,345.514c0,0,139.32,7.662,198.53-41.796s122.601-54.335,122.601-54.335h60.604c0,0-60.604,24.382-102.4,103.097s-86.378,138.621-130.264,149.07H10.449L10.45,345.514z" fill="#B5C4A8"/>
-                        {/* Cloud — warm gold */}
-                        <path d="M286.684,89.434c0-20.106,15.967-36.472,35.911-37.137c7.988-24.298,30.847-41.848,57.818-41.848c28.442,0,52.322,19.51,59,45.875c0.523-0.024,1.048-0.044,1.578-0.044c18.309,0,33.154,14.844,33.154,33.154H286.684z" fill="#D4A373" opacity="0.5"/>
+                        {/* Back hill — gold */}
+                        <path d="M452.788,230.577c-22.043,16.713-60.603,18.807-60.603,18.807s-60.604,24.382-102.4,103.097s-86.378,138.621-130.264,149.07h342.03V212.464C501.551,212.464,481.959,208.458,452.788,230.577z" fill="#C8944E"/>
+                        <path d="M208.98,303.718c38.814-32.421,79.423-45.685,102.796-50.975l4.481-3.359c0,0-60.604-37.616-119.118-58.514S50.156,202.014,11.147,202.014l-0.697,143.5C10.45,345.514,149.77,353.175,208.98,303.718z" fill="#C8944E"/>
+                        {/* Front hill — lighter gold */}
+                        <path d="M10.45,345.514c0,0,139.32,7.662,198.53-41.796s122.601-54.335,122.601-54.335h60.604c0,0-60.604,24.382-102.4,103.097s-86.378,138.621-130.264,149.07H10.449L10.45,345.514z" fill="#D4A373"/>
+                        {/* Cloud — soft */}
+                        <path d="M286.684,89.434c0-20.106,15.967-36.472,35.911-37.137c7.988-24.298,30.847-41.848,57.818-41.848c28.442,0,52.322,19.51,59,45.875c0.523-0.024,1.048-0.044,1.578-0.044c18.309,0,33.154,14.844,33.154,33.154H286.684z" fill="#EAC99A" opacity="0.7"/>
                         {/* Tree cluster — sage */}
                         <path d="M501.551,501.551c0-23.984-19.444-43.427-43.427-43.427c-0.693,0-1.38,0.026-2.066,0.057c-8.747-34.535-40.028-60.091-77.284-60.091c-35.328,0-65.273,22.989-75.735,54.816C276.916,453.777,256,475.215,256,501.552h245.551V501.551z" fill="#8E9775"/>
                         {/* Outlines */}
@@ -3532,6 +3622,23 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
       )}
 
       {renderSharedModals()}
+
+      <AnimatePresence>
+        {showTour && (
+          <AppTour
+            onClose={() => {
+              localStorage.setItem('pv_hasSeenTour', '1');
+              setShowTour(false);
+            }}
+            onComplete={() => {
+              setShowTour(false);
+              setActiveTab('home');
+              setView('dashboard');
+              setTutorialPending(true);
+            }}
+          />
+        )}
+      </AnimatePresence>
 
     </div>
   );
