@@ -1,0 +1,1052 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Serenade of the Doves - Prevail Sanctuary</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400..900;1,400..900&family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #FDF9F3; /* Sacred Parchment */
+            color: #433422; /* Deep Earth */
+            overflow: hidden;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        .serif-font {
+            font-family: 'Playfair Display', serif;
+        }
+        .brand-sub {
+            font-family: 'Inter', sans-serif;
+            text-transform: uppercase;
+            letter-spacing: 0.3em;
+            font-weight: 700;
+        }
+        /* Custom Wing Flap Animations (Preserved shape mechanics) */
+        @keyframes flap-left {
+            0%, 100% {
+                transform: rotate(0deg) scaleY(1);
+            }
+            50% {
+                transform: rotate(-32deg) scaleY(0.4) skewX(10deg);
+            }
+        }
+        @keyframes flap-right {
+            0%, 100% {
+                transform: rotate(0deg) scaleY(1);
+            }
+            50% {
+                transform: rotate(32deg) scaleY(0.4) skewX(-10deg);
+            }
+        }
+        .left-wing {
+            transform-origin: 52px 42px;
+            animation: flap-left 0.9s ease-in-out infinite;
+        }
+        .right-wing {
+            transform-origin: 68px 42px;
+            animation: flap-right 0.9s ease-in-out infinite;
+        }
+        /* The Arched Horizon - Brand Signature Element styling */
+        .arched-horizon {
+            border-top-left-radius: 100% 60px;
+            border-top-right-radius: 100% 60px;
+            background: linear-gradient(to bottom, #F4EFE6 0%, #FDF9F3 100%);
+            border-top: 1.5px solid rgba(212, 163, 115, 0.25);
+        }
+        /* Sun-Up Entrance effect */
+        .sun-up-entrance {
+            animation: sunUp 1.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+            opacity: 0;
+        }
+        @keyframes sunUp {
+            0% {
+                opacity: 0;
+                transform: translateY(24px);
+            }
+            100% {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        /* Slow Breathing Pulse for Primary Actions */
+        .breathing-pulse {
+            animation: breathe 4s ease-in-out infinite;
+        }
+        @keyframes breathe {
+            0%, 100% {
+                opacity: 0.75;
+                transform: scale(1);
+            }
+            50% {
+                opacity: 1;
+                transform: scale(1.04);
+            }
+        }
+        /* Soft Organic Glassmorphism */
+        .organic-glass {
+            background: rgba(244, 239, 230, 0.85); /* Morning Cream */
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(67, 52, 34, 0.08); /* Deep Earth subtle border */
+        }
+        .organic-card {
+            background: rgba(244, 239, 230, 0.95);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border: 1px solid rgba(212, 163, 115, 0.2); /* Terracotta subtle trace */
+            box-shadow: 0 16px 40px rgba(67, 52, 34, 0.06);
+        }
+        /* Scrollbar styling matching natural parchment aesthetics */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(67, 52, 34, 0.03);
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(142, 151, 117, 0.3); /* Sage peace */
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(212, 163, 115, 0.5); /* Terracotta */
+        }
+    </style>
+</head>
+<body class="h-screen w-screen flex flex-col justify-between relative overflow-hidden">
+
+    <canvas id="skyCanvas" class="absolute inset-0 z-0 pointer-events-none"></canvas>
+
+    <!-- Warm Divine Light Glows background-placed (Style Guide Atmosphere) -->
+    <div class="absolute top-[20%] left-[30%] w-72 h-72 rounded-full bg-[#D4A373]/5 blur-[120px] pointer-events-none z-0"></div>
+    <div class="absolute bottom-[30%] right-[25%] w-80 h-80 rounded-full bg-[#8E9775]/5 blur-[120px] pointer-events-none z-0"></div>
+
+    <header class="relative z-20 w-full px-6 py-6 flex justify-between items-center bg-gradient-to-b from-[#FDF9F3]/80 to-transparent">
+        <div class="flex items-center space-x-3">
+            <div class="w-11 h-11 rounded-full organic-glass flex items-center justify-center text-[#D4A373] shadow-sm animate-pulse">
+                <i data-lucide="feather" class="w-5 h-5" style="stroke-width: 2;"></i>
+            </div>
+            <div>
+                <h1 class="text-sm font-bold tracking-[0.25em] uppercase text-[#433422]/90">Prevail</h1>
+                <p class="text-[10px] brand-sub text-[#8E9775]">Sacred Stillness</p>
+            </div>
+        </div>
+        
+        <!-- Controls styled with natural parameters -->
+        <div class="flex items-center space-x-2">
+            <!-- Audio Controller (Silent by Default to promote digital sabbath) -->
+            <button id="audioToggle" onclick="toggleAudio()" class="w-10 h-10 rounded-full organic-glass hover:bg-[#F4EFE6] transition-all flex items-center justify-center text-[#433422]/70 shadow-sm" title="Toggle Sound">
+                <i id="audioIcon" data-lucide="volume-x" class="w-4 h-4 transition-transform active:scale-90" style="stroke-width: 1.5;"></i>
+            </button>
+            <!-- Whisper Modal trigger -->
+            <button onclick="toggleWhisperModal(true)" class="w-10 h-10 rounded-full organic-glass hover:bg-[#F4EFE6] transition-all flex items-center justify-center text-[#D4A373] shadow-sm" title="Whisper to the Heavens">
+                <i data-lucide="sun" class="w-4 h-4 transition-transform active:scale-90" style="stroke-width: 1.5;"></i>
+            </button>
+            <!-- Journal Panel trigger -->
+            <button onclick="toggleJournal(true)" class="px-4 h-10 rounded-full organic-glass hover:bg-[#F4EFE6] transition-all flex items-center space-x-2 text-[#433422]/80 shadow-sm">
+                <i data-lucide="compass" class="w-4 h-4 text-[#8E9775]" style="stroke-width: 1.5;"></i>
+                <span class="text-xs brand-sub tracking-widest hidden sm:inline">My Walk</span>
+                <span id="journalCount" class="bg-[#D4A373] text-[#FDF9F3] text-[10px] px-2 py-0.5 rounded-full font-bold ml-1">0</span>
+            </button>
+        </div>
+    </header>
+
+    <main id="gameArea" class="relative z-10 flex-1 w-full h-full cursor-pointer overflow-hidden flex flex-col justify-between">
+        
+        <!-- Centered Intro Instructions -->
+        <div id="introInstructions" class="sun-up-entrance absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none transition-all duration-1000 max-w-sm px-6">
+            <p class="brand-sub text-[11px] text-[#8E9775] mb-2">Present Awareness</p>
+            <p class="serif-font text-2xl text-[#433422] italic mb-4 leading-relaxed">"The air is thick with gentle wishes."</p>
+            <p class="text-[11px] text-[#433422]/60 animate-bounce tracking-wider">Tap the glowing dove to begin your walk</p>
+        </div>
+
+        <!-- Spacer to allow layout structure to separate -->
+        <div></div>
+
+        <!-- The Arched Horizon Transition Signature Container -->
+        <div class="arched-horizon w-full h-24 pointer-events-none relative z-0 flex items-center justify-center">
+            <span class="text-[10px] brand-sub text-[#8E9775]/50 tracking-[0.4em] translate-y-3">The Arched Horizon</span>
+        </div>
+    </main>
+
+    <div id="complimentOverlay" class="absolute inset-0 z-30 pointer-events-none flex flex-col justify-end items-center pb-28 md:pb-24 px-6 transition-all duration-700 opacity-0 scale-95 translate-y-6">
+        <!-- Presenter Container Card (Rounded extreme 32px as guide) -->
+        <div class="w-full max-w-md organic-card rounded-[32px] p-8 text-center pointer-events-auto relative overflow-hidden flex flex-col items-center">
+            
+            <!-- Radiant light glow -->
+            <div id="cardGlow" class="absolute -top-16 left-1/2 -translate-x-1/2 w-48 h-48 rounded-full bg-[#D4A373]/10 blur-3xl pointer-events-none transition-all duration-1000"></div>
+
+            <!-- Accent Feather Icon -->
+            <div class="mb-5 w-12 h-12 rounded-full bg-[#F4EFE6] flex items-center justify-center border border-[#D4A373]/30 shadow-sm">
+                <i data-lucide="feather" class="w-5 h-5 text-[#D4A373]" style="stroke-width: 2;"></i>
+            </div>
+
+            <!-- Main Affirmation Content -->
+            <p id="complimentText" class="serif-font text-xl md:text-2xl text-[#433422] font-medium leading-relaxed mb-6 tracking-wide"></p>
+
+            <!-- Metadata signature tag -->
+            <div class="flex items-center space-x-2 mb-8 bg-[#F4EFE6] px-4 py-1.5 rounded-full border border-[#D4A373]/15">
+                <div id="doveDot" class="w-2.5 h-2.5 rounded-full animate-pulse"></div>
+                <span id="doveTypeName" class="text-[9px] brand-sub text-[#8E9775]">Pearl Spirit</span>
+            </div>
+
+            <!-- Actions mapped to Guide rules -->
+            <div class="flex w-full space-x-3">
+                <button onclick="keepCompliment()" class="flex-1 py-3 px-4 rounded-full bg-[#D4A373] hover:bg-[#c39162] text-[#FDF9F3] font-semibold text-xs tracking-wider uppercase transition-all duration-300 transform active:scale-95 shadow-md flex items-center justify-center space-x-2">
+                    <i data-lucide="sun" class="w-4 h-4" style="stroke-width: 2;"></i>
+                    <span>Keep in Sanctuary</span>
+                </button>
+                <button onclick="dismissCompliment()" class="py-3 px-6 rounded-full bg-[#F4EFE6] hover:bg-[#ebe5da] text-[#433422]/80 font-semibold text-xs tracking-wider uppercase transition-all duration-300 transform active:scale-95 border border-[#433422]/10 flex items-center justify-center space-x-2">
+                    <span>Release</span>
+                    <i data-lucide="wind" class="w-4 h-4" style="stroke-width: 1.5;"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="journalDrawer" class="absolute inset-y-0 left-0 w-full sm:w-[420px] bg-[#FDF9F3] border-r border-[#D4A373]/20 z-40 transform -translate-x-full transition-transform duration-500 ease-out shadow-xl flex flex-col">
+        <div class="p-6 border-b border-[#433422]/10 bg-[#F4EFE6]/50 flex justify-between items-center">
+            <div class="flex items-center space-x-3">
+                <div class="w-9 h-9 rounded-full bg-[#8E9775]/10 flex items-center justify-center text-[#8E9775] border border-[#8E9775]/20">
+                    <i data-lucide="compass" class="w-5 h-5" style="stroke-width: 2;"></i>
+                </div>
+                <div>
+                    <h2 class="font-bold text-sm tracking-wider uppercase text-[#433422]">Sanctuary Journal</h2>
+                    <p class="text-[10px] brand-sub text-[#8E9775]">Your Gathered Truths</p>
+                </div>
+            </div>
+            <button onclick="toggleJournal(false)" class="w-8 h-8 rounded-full bg-[#F4EFE6] hover:bg-[#ebe5da] flex items-center justify-center text-[#433422]/60 hover:text-[#433422] transition-all border border-[#433422]/5">
+                <i data-lucide="x" class="w-4 h-4" style="stroke-width: 1.5;"></i>
+            </button>
+        </div>
+
+        <!-- Journal Scroll Container -->
+        <div id="journalItems" class="flex-1 overflow-y-auto p-6 space-y-4">
+            <!-- Blank State screen -->
+            <div id="journalEmptyState" class="h-full flex flex-col items-center justify-center text-center px-4 py-12">
+                <div class="w-16 h-16 rounded-full border-2 border-dashed border-[#8E9775]/30 flex items-center justify-center text-[#8E9775]/40 mb-4">
+                    <i data-lucide="wind" class="w-6 h-6" style="stroke-width: 1.5;"></i>
+                </div>
+                <h3 class="serif-font italic text-lg text-[#433422] mb-2">A Silent Journey</h3>
+                <p class="text-xs text-[#433422]/60 max-w-xs leading-relaxed">As you summon the dove and keep its gentle words, they will populate here to look back on during your sanctuary sessions.</p>
+            </div>
+        </div>
+
+        <!-- Drawer actions -->
+        <div class="p-6 border-t border-[#433422]/10 bg-[#F4EFE6]/50 flex space-x-3">
+            <button onclick="exportJournal()" class="flex-1 py-3 px-4 rounded-full bg-[#8E9775] hover:bg-[#7e8766] text-[#FDF9F3] font-semibold text-xs tracking-wider uppercase transition-all flex items-center justify-center space-x-2">
+                <i data-lucide="download" class="w-4 h-4" style="stroke-width: 2;"></i>
+                <span>Export Walk</span>
+            </button>
+            <button onclick="clearJournal()" class="py-3 px-4 rounded-full text-[#433422]/50 hover:text-red-800 hover:bg-red-500/5 font-semibold text-xs tracking-wider uppercase transition-all flex items-center justify-center space-x-2">
+                <i data-lucide="trash-2" class="w-4 h-4" style="stroke-width: 1.5;"></i>
+                <span>Clear</span>
+            </button>
+        </div>
+    </div>
+
+    <div id="whisperModal" class="absolute inset-0 bg-[#433422]/15 backdrop-blur-md z-50 flex items-center justify-center p-6 opacity-0 pointer-events-none transition-all duration-300">
+        <div class="w-full max-w-md organic-card rounded-[32px] p-8 transform scale-95 transition-all duration-300 relative">
+            <button onclick="toggleWhisperModal(false)" class="absolute top-6 right-6 w-8 h-8 rounded-full bg-[#F4EFE6] hover:bg-[#ebe5da] flex items-center justify-center text-[#433422]/60 hover:text-[#433422] transition-all border border-[#433422]/5">
+                <i data-lucide="x" class="w-4 h-4" style="stroke-width: 1.5;"></i>
+            </button>
+
+            <div class="text-center mb-6">
+                <div class="w-12 h-12 rounded-full bg-[#F4EFE6] flex items-center justify-center border border-[#D4A373]/30 mx-auto mb-3">
+                    <i data-lucide="sun" class="w-6 h-6 text-[#D4A373]" style="stroke-width: 2;"></i>
+                </div>
+                <h3 class="serif-font text-2xl text-[#433422] font-medium">Whisper to the Heavens</h3>
+                <p class="text-xs text-[#8E9775] mt-1.5 tracking-wide">Write down a validation, custom hope, or truth. The dove will carry it and cycle it back during your walk.</p>
+            </div>
+
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-[10px] brand-sub text-[#433422]/70 mb-2">Your Whisper</label>
+                    <textarea id="customWhisperInput" rows="3" placeholder="e.g., You are doing a magnificent job navigating this wild, beautiful life." class="w-full rounded-2xl bg-[#F4EFE6] border border-[#D4A373]/20 focus:border-[#D4A373] p-4 text-sm text-[#433422] placeholder-[#433422]/40 outline-none resize-none transition-all"></textarea>
+                </div>
+
+                <div class="flex space-x-3 pt-2">
+                    <button onclick="saveWhisper()" class="flex-1 py-3 px-4 rounded-full bg-[#D4A373] hover:bg-[#c39162] text-[#FDF9F3] font-bold text-xs tracking-wider uppercase transition-all duration-300 transform active:scale-95 shadow-md flex items-center justify-center space-x-2">
+                        <i data-lucide="sun-up" class="w-4 h-4" style="stroke-width: 2;"></i>
+                        <span>Release Upward</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="relative z-10 w-full px-6 py-4 flex justify-between items-center text-[10px] brand-sub text-[#8E9775]/60 bg-gradient-to-t from-[#FDF9F3]/60 to-transparent">
+        <div>Digital Sabbath. Breathe deeply.</div>
+        <div class="flex items-center space-x-2">
+            <span>Walk Active</span>
+            <div class="w-2 h-2 bg-[#8E9775] rounded-full animate-ping"></div>
+        </div>
+    </footer>
+
+    <script>
+        // Custom Audio Synthesizer configured for calm digital sabbath tones
+        class CalmSoundSynth {
+            constructor() {
+                this.ctx = null;
+                this.isMuted = true;
+                this.ambientOsc1 = null;
+                this.ambientOsc2 = null;
+                this.masterGain = null;
+            }
+
+            async init() {
+                if (this.ctx) return;
+                const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+                this.ctx = new AudioContextClass();
+
+                // Master gain mapped gently
+                this.masterGain = this.ctx.createGain();
+                this.masterGain.gain.setValueAtTime(0.0, this.ctx.currentTime);
+                this.masterGain.connect(this.ctx.destination);
+
+                this.startAmbientDrone();
+                this.fadeMasterGain(0.25, 2.0); // Soft master volume
+            }
+
+            fadeMasterGain(targetValue, duration) {
+                if (!this.masterGain || !this.ctx) return;
+                this.masterGain.gain.exponentialRampToValueAtTime(Math.max(0.001, targetValue), this.ctx.currentTime + duration);
+            }
+
+            startAmbientDrone() {
+                if (!this.ctx) return;
+
+                // Create deeply grounded organ drone A2 frequency
+                this.ambientOsc1 = this.ctx.createOscillator();
+                this.ambientOsc1.type = 'triangle';
+                this.ambientOsc1.frequency.setValueAtTime(110, this.ctx.currentTime); 
+
+                // Secondary pure warmth tone E3
+                this.ambientOsc2 = this.ctx.createOscillator();
+                this.ambientOsc2.type = 'sine';
+                this.ambientOsc2.frequency.setValueAtTime(165, this.ctx.currentTime); 
+
+                this.lowpass = this.ctx.createBiquadFilter();
+                this.lowpass.type = 'lowpass';
+                this.lowpass.frequency.setValueAtTime(280, this.ctx.currentTime); // Deep warm cutoff
+
+                this.lfo = this.ctx.createOscillator();
+                this.lfo.frequency.setValueAtTime(0.1, this.ctx.currentTime); 
+                this.lfoGain = this.ctx.createGain();
+                this.lfoGain.gain.setValueAtTime(80, this.ctx.currentTime);
+
+                this.droneGain = this.ctx.createGain();
+                this.droneGain.gain.setValueAtTime(0.06, this.ctx.currentTime);
+
+                this.lfo.connect(this.lfoGain);
+                this.lfoGain.connect(this.lowpass.frequency);
+
+                this.ambientOsc1.connect(this.lowpass);
+                this.ambientOsc2.connect(this.lowpass);
+                this.lowpass.connect(this.droneGain);
+                this.droneGain.connect(this.masterGain);
+
+                this.ambientOsc1.start(0);
+                this.ambientOsc2.start(0);
+                this.lfo.start(0);
+            }
+
+            playDoveChime() {
+                if (!this.ctx || this.isMuted) return;
+
+                const now = this.ctx.currentTime;
+                // Soft acoustic bell chords (A4, D5, E5, G5)
+                const pitches = [440, 587.33, 659.25, 783.99];
+                const selectedPitches = [
+                    pitches[Math.floor(Math.random() * pitches.length)],
+                    pitches[Math.floor(Math.random() * pitches.length)]
+                ];
+
+                selectedPitches.forEach((freq, idx) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(freq, now + (idx * 0.15));
+
+                    gain.gain.setValueAtTime(0.06, now + (idx * 0.15));
+                    gain.gain.exponentialRampToValueAtTime(0.0001, now + (idx * 0.15) + 2.2);
+
+                    const delay = this.ctx.createDelay();
+                    delay.delayTime.setValueAtTime(0.4, now);
+                    const delayGain = this.ctx.createGain();
+                    delayGain.gain.setValueAtTime(0.3, now);
+
+                    osc.connect(gain);
+                    gain.connect(this.masterGain);
+
+                    gain.connect(delay);
+                    delay.connect(delayGain);
+                    delayGain.connect(this.masterGain);
+
+                    osc.start(now + (idx * 0.15));
+                    osc.stop(now + (idx * 0.15) + 2.5);
+                });
+            }
+
+            playFlapSound() {
+                if (!this.ctx || this.isMuted) return;
+
+                const now = this.ctx.currentTime;
+                const bufferSize = this.ctx.sampleRate * 0.25;
+                const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+                const data = buffer.getChannelData(0);
+                
+                for (let i = 0; i < bufferSize; i++) {
+                    data[i] = Math.random() * 2 - 1;
+                }
+
+                const noise = this.ctx.createBufferSource();
+                noise.buffer = buffer;
+
+                const filter = this.ctx.createBiquadFilter();
+                filter.type = 'bandpass';
+                filter.frequency.setValueAtTime(100, now);
+                filter.Q.setValueAtTime(1.5, now);
+
+                const gain = this.ctx.createGain();
+                gain.gain.setValueAtTime(0.08, now);
+                gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.22);
+
+                noise.connect(filter);
+                filter.connect(gain);
+                gain.connect(this.masterGain);
+
+                noise.start(now);
+                noise.stop(now + 0.25);
+            }
+
+            toggleMute() {
+                this.isMuted = !this.isMuted;
+                if (!this.isMuted) {
+                    if (this.ctx && this.ctx.state === 'suspended') {
+                        this.ctx.resume();
+                    }
+                    this.fadeMasterGain(0.25, 1.0);
+                } else {
+                    this.fadeMasterGain(0.0, 1.0);
+                }
+                return this.isMuted;
+            }
+        }
+
+        const DEFAULT_COMPLIMENTS = [
+            "Your presence has a beautiful way of grounding those around you.",
+            "You are doing much better than your anxious thoughts let you believe.",
+            "You bring a quiet, unique light into every room you step into.",
+            "Your resilience is gentle, elegant, and incredibly powerful.",
+            "It is completely okay to pause, take a deep breath, and just exist right here.",
+            "Your kindness is a healing balm in a world that can sometimes feel harsh.",
+            "The universe is glad you are here, creating your own quiet rhythm.",
+            "You have survived every single one of your hardest, heaviest days.",
+            "You don't need to earn rest; you are allowed to simply breathe and be.",
+            "There is a deep, quiet pool of courage living right inside your heart.",
+            "The softness in your eyes is proof of the strength in your spirit.",
+            "Your journey is uniquely yours—it is perfectly paced and unfolding beautifully.",
+            "You are a magnificent work of art in continuous, gorgeous motion.",
+            "Your vulnerability is not weakness; it is the raw truth of your courage.",
+            "You are thoroughly, deeply, and unconditionally worthy of love.",
+            "Slow down. You are exactly where you need to be in this precious moment.",
+            "Your voice carries a soothing warmth that makes people feel truly heard.",
+            "Even when you feel fragile, remember that water is soft and can carve canyons.",
+            "You are a stellar composition of stardust, mystery, and brilliant grace.",
+            "Be patient with yourself; you are continuously blooming, petal by petal."
+        ];
+
+        let customWhispers = JSON.parse(localStorage.getItem('custom_whispers') || '[]');
+
+        function getShuffledCompliments() {
+            return [...DEFAULT_COMPLIMENTS, ...customWhispers];
+        }
+
+        const DOVE_TYPES = [
+            { name: "Sacred Alabaster", wingColor: "#F4EFE6", bodyColor: "#FDF9F3", glow: "rgba(212, 163, 115, 0.4)", complimentCategory: "Divine Light" },
+            { name: "Sage Peace", wingColor: "#A3AF85", bodyColor: "#8E9775", glow: "rgba(142, 151, 117, 0.4)", complimentCategory: "Grounded Presence" },
+            { name: "Terracotta Grace", wingColor: "#E3B689", bodyColor: "#D4A373", glow: "rgba(212, 163, 115, 0.5)", complimentCategory: "Grace & Walk" },
+            { name: "Morning Cream", wingColor: "#F4EFE6", bodyColor: "#EADFC9", glow: "rgba(212, 163, 115, 0.3)", complimentCategory: "Stillness" }
+        ];
+
+        // Global Variables
+        const canvas = document.getElementById('skyCanvas');
+        const ctx = canvas.getContext('2d');
+        const gameArea = document.getElementById('gameArea');
+        const soundEngine = new CalmSoundSynth();
+
+        let doves = [];
+        let particles = [];
+        let currentActiveDove = null;
+        let savedCompliments = JSON.parse(localStorage.getItem('saved_compliments') || '[]');
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        class BackgroundStar {
+            constructor() {
+                this.reset();
+                this.y = Math.random() * canvas.height;
+            }
+
+            reset() {
+                this.x = Math.random() * canvas.width;
+                this.y = canvas.height + 20;
+                this.size = Math.random() * 2.5 + 0.8;
+                this.speed = Math.random() * 0.12 + 0.04;
+                this.opacity = Math.random() * 0.35 + 0.1;
+                this.wiggle = Math.random() * 100;
+                this.wiggleSpeed = Math.random() * 0.008 + 0.002;
+            }
+
+            update() {
+                this.y -= this.speed;
+                this.wiggle += this.wiggleSpeed;
+                this.x += Math.sin(this.wiggle) * 0.08;
+
+                if (this.y < -10) {
+                    this.reset();
+                }
+            }
+
+            draw() {
+                ctx.save();
+                ctx.shadowBlur = 6;
+                // Subtle warm solar flare color matching Terracotta
+                ctx.shadowColor = 'rgba(212, 163, 115, 0.2)';
+                ctx.fillStyle = `rgba(212, 163, 115, ${this.opacity})`;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        class TrailParticle {
+            constructor(x, y, color) {
+                this.x = x;
+                this.y = y;
+                this.color = color;
+                this.vx = (Math.random() - 0.5) * 1.2;
+                this.vy = (Math.random() - 0.5) * 1.2 + 0.3; 
+                this.size = Math.random() * 3 + 1;
+                this.alpha = 1;
+                this.decay = Math.random() * 0.012 + 0.006;
+            }
+
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                this.alpha -= this.decay;
+            }
+
+            draw() {
+                if (this.alpha <= 0) return;
+                ctx.save();
+                ctx.shadowBlur = 8;
+                ctx.shadowColor = this.color;
+                // Convert rgba format cleanly
+                const traceColor = this.color.replace(')', `, ${this.alpha})`).replace('rgb', 'rgba');
+                ctx.fillStyle = traceColor;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        const backgroundStars = Array.from({ length: 60 }, () => new BackgroundStar());
+
+        class CelestialDove {
+            constructor(id) {
+                this.id = id;
+                this.type = DOVE_TYPES[Math.floor(Math.random() * DOVE_TYPES.length)];
+                this.width = 90;
+                this.height = 90;
+
+                // Flight track parametric configurations
+                this.trackParam = Math.random() * Math.PI * 2;
+                this.trackSpeed = 0.0035; // Calmer speed for a Digital Sabbath
+
+                this.x = window.innerWidth / 2;
+                this.y = window.innerHeight / 2;
+                this.headingAngle = 0;
+
+                this.state = 'roaming';
+                
+                this.startX = 0;
+                this.startY = 0;
+                this.startAngle = 0;
+                this.transitionProgress = 0;
+                this.targetX = 0;
+                this.targetY = 0;
+
+                this.domElement = this.createDOMElement();
+                gameArea.appendChild(this.domElement);
+
+                this.updateFlapSpeed();
+            }
+
+            createDOMElement() {
+                const el = document.createElement('div');
+                el.className = 'absolute z-10 transition-shadow duration-500 rounded-full cursor-pointer touch-none select-none';
+                el.style.width = `${this.width}px`;
+                el.style.height = `${this.height}px`;
+                el.style.left = `${this.x}px`;
+                el.style.top = `${this.y}px`;
+                el.id = `dove-${this.id}`;
+
+                // Apply soft drop shadow matching natural glow principles
+                el.style.filter = `drop-shadow(0 4px 12px ${this.type.glow})`;
+
+                el.innerHTML = `
+                    <svg viewBox="0 0 120 120" width="100%" height="100%" class="select-none pointer-events-none">
+                        <!-- Left Wing -->
+                        <path class="left-wing" d="M52 42 C40 22, 10 25, 5 45 C2 54, 20 62, 52 42 Z" fill="${this.type.wingColor}" stroke="rgba(67, 52, 34, 0.15)" stroke-width="0.7" />
+                        <!-- Right Wing -->
+                        <path class="right-wing" d="M68 42 C80 22, 110 25, 115 45 C118 54, 100 62, 68 42 Z" fill="${this.type.wingColor}" stroke="rgba(67, 52, 34, 0.15)" stroke-width="0.7" />
+                        <!-- Golden Aura Spark -->
+                        <circle cx="60" cy="50" r="3" fill="#D4A373" opacity="0.65" />
+                        <!-- Main Graceful Dove Body -->
+                        <path class="dove-body" d="M60 25 C50 35, 54 48, 56 60 C58 68, 48 85, 42 90 C50 88, 55 85, 60 80 C65 85, 70 88, 78 90 C72 85, 62 68, 64 60 C66 48, 70 35, 60 25 Z" fill="${this.type.bodyColor}" />
+                        <!-- Beak -->
+                        <polygon points="60,21 58,25 62,25" fill="#D4A373" />
+                    </svg>
+                `;
+
+                const svgEl = el.querySelector('svg');
+                svgEl.style.transformOrigin = 'center';
+
+                const triggerAction = (e) => {
+                    e.stopPropagation();
+                    if (this.state === 'roaming' || this.state === 'returning_to_track') {
+                        this.callToCenter();
+                    }
+                };
+
+                el.addEventListener('mousedown', triggerAction);
+                el.addEventListener('touchstart', triggerAction, { passive: false });
+
+                return el;
+            }
+
+            updateFlapSpeed() {
+                const wingLeft = this.domElement.querySelector('.left-wing');
+                const wingRight = this.domElement.querySelector('.right-wing');
+                if (!wingLeft || !wingRight) return;
+
+                let duration = 1.0; 
+                if (this.state === 'flying_to_center') {
+                    duration = 0.45; 
+                } else if (this.state === 'hovering') {
+                    duration = 2.0; 
+                }
+
+                wingLeft.style.animationDuration = `${duration}s`;
+                wingRight.style.animationDuration = `${duration}s`;
+            }
+
+            callToCenter() {
+                soundEngine.init();
+                soundEngine.playDoveChime();
+
+                currentActiveDove = this;
+                this.state = 'flying_to_center';
+                
+                this.startX = this.x;
+                this.startY = this.y;
+                this.startAngle = this.headingAngle;
+                this.transitionProgress = 0;
+
+                this.targetX = window.innerWidth / 2 - this.width / 2;
+                this.targetY = window.innerHeight * 0.35 - this.height / 2;
+
+                soundEngine.playFlapSound();
+
+                document.getElementById('introInstructions').style.opacity = '0';
+
+                this.domElement.style.transform = 'scale(1.15)';
+                this.domElement.style.transition = 'filter 0.5s';
+
+                for (let i = 0; i < 15; i++) {
+                    particles.push(new TrailParticle(this.x + 45, this.y + 45, this.type.glow));
+                }
+            }
+
+            release() {
+                this.state = 'returning_to_track';
+                
+                this.startX = this.x;
+                this.startY = this.y;
+                this.startAngle = this.headingAngle;
+                this.transitionProgress = 0;
+
+                // Cycle a beautifully matching alternative color configuration on return
+                this.type = DOVE_TYPES[Math.floor(Math.random() * DOVE_TYPES.length)];
+                
+                const wingLeft = this.domElement.querySelector('.left-wing');
+                const wingRight = this.domElement.querySelector('.right-wing');
+                const body = this.domElement.querySelector('.dove-body');
+                if (wingLeft && wingRight && body) {
+                    wingLeft.setAttribute('fill', this.type.wingColor);
+                    wingRight.setAttribute('fill', this.type.wingColor);
+                    body.setAttribute('fill', this.type.bodyColor);
+                }
+                this.domElement.style.filter = `drop-shadow(0 4px 12px ${this.type.glow})`;
+
+                this.domElement.style.transform = 'scale(1)';
+                this.domElement.style.opacity = '0';
+                setTimeout(() => {
+                    this.domElement.style.opacity = '1';
+                }, 150);
+
+                for (let i = 0; i < 8; i++) {
+                    particles.push(new TrailParticle(this.x + 45, this.y + 45, this.type.glow));
+                }
+            }
+
+            update() {
+                const centerOffset = 45;
+                const cubicEaseOut = (t) => 1 - Math.pow(1 - t, 3);
+
+                // Parametric bounds configured softly
+                const A = window.innerWidth * 0.32;
+                const B = window.innerHeight * 0.16;
+                const centerX = window.innerWidth / 2;
+                const centerY = window.innerHeight * 0.52; 
+
+                if (this.state === 'roaming') {
+                    this.trackParam += this.trackSpeed;
+                    if (this.trackParam > Math.PI * 2) {
+                        this.trackParam -= Math.PI * 2;
+                    }
+
+                    this.x = centerX + A * Math.sin(this.trackParam) - this.width / 2;
+                    this.y = centerY + B * Math.sin(2 * this.trackParam) - this.height / 2;
+
+                    const vx = A * Math.cos(this.trackParam);
+                    const vy = 2 * B * Math.cos(2 * this.trackParam);
+                    this.headingAngle = Math.atan2(vy, vx) + Math.PI / 2;
+
+                    if (Math.random() < 0.08) {
+                        particles.push(new TrailParticle(this.x + centerOffset, this.y + centerOffset, this.type.glow));
+                    }
+                    this.updateFlapSpeed();
+
+                } else if (this.state === 'flying_to_center') {
+                    this.transitionProgress += 0.015; // Slow deliberate transit
+                    
+                    if (this.transitionProgress < 1) {
+                        const tEase = cubicEaseOut(this.transitionProgress);
+                        
+                        this.x = this.startX + (this.targetX - this.startX) * tEase;
+                        this.y = this.startY + (this.targetY - this.startY) * tEase;
+                        this.headingAngle = this.startAngle + (0 - this.startAngle) * tEase;
+
+                        if (Math.random() < 0.4) {
+                            particles.push(new TrailParticle(this.x + centerOffset, this.y + centerOffset, this.type.glow));
+                        }
+                    } else {
+                        this.state = 'hovering';
+                        this.x = this.targetX;
+                        this.y = this.targetY;
+                        this.headingAngle = 0;
+                        revealComplimentForDove(this);
+                    }
+                    this.updateFlapSpeed();
+
+                } else if (this.state === 'hovering') {
+                    this.trackParam += 0.025;
+                    this.y = (window.innerHeight * 0.35 - this.height / 2) + Math.sin(this.trackParam) * 8;
+                    
+                    if (Math.random() < 0.06) {
+                        particles.push(new TrailParticle(this.x + centerOffset, this.y + centerOffset + 12, this.type.glow));
+                    }
+                    this.updateFlapSpeed();
+
+                } else if (this.state === 'returning_to_track') {
+                    this.trackParam += this.trackSpeed;
+                    if (this.trackParam > Math.PI * 2) {
+                        this.trackParam -= Math.PI * 2;
+                    }
+
+                    const targetTrackX = centerX + A * Math.sin(this.trackParam) - this.width / 2;
+                    const targetTrackY = centerY + B * Math.sin(2 * this.trackParam) - this.height / 2;
+
+                    const vx = A * Math.cos(this.trackParam);
+                    const vy = 2 * B * Math.cos(2 * this.trackParam);
+                    const targetTrackAngle = Math.atan2(vy, vx) + Math.PI / 2;
+
+                    this.transitionProgress += 0.02; 
+
+                    if (this.transitionProgress < 1) {
+                        const tEase = cubicEaseOut(this.transitionProgress);
+                        this.x = this.startX + (targetTrackX - this.startX) * tEase;
+                        this.y = this.startY + (targetTrackY - this.startY) * tEase;
+                        this.headingAngle = this.startAngle + (targetTrackAngle - this.startAngle) * tEase;
+                    } else {
+                        this.state = 'roaming';
+                    }
+                }
+
+                this.domElement.style.left = `${this.x}px`;
+                this.domElement.style.top = `${this.y}px`;
+                
+                const svg = this.domElement.querySelector('svg');
+                if (svg) {
+                    svg.style.transform = `rotate(${this.headingAngle}rad)`;
+                }
+            }
+        }
+
+        function spawnDoves() {
+            doves.forEach(d => d.domElement.remove());
+            doves = [];
+            doves.push(new CelestialDove(0));
+        }
+
+        function revealComplimentForDove(dove) {
+            const overlay = document.getElementById('complimentOverlay');
+            const compText = document.getElementById('complimentText');
+            const typeName = document.getElementById('doveTypeName');
+            const dot = document.getElementById('doveDot');
+            const glow = document.getElementById('cardGlow');
+
+            const affirmations = getShuffledCompliments();
+            const chosenMsg = affirmations[Math.floor(Math.random() * affirmations.length)];
+
+            compText.innerHTML = `"${chosenMsg}"`;
+            typeName.textContent = `${dove.type.name} • ${dove.type.complimentCategory}`;
+            dot.style.backgroundColor = dove.type.wingColor;
+            glow.style.backgroundColor = dove.type.wingColor;
+
+            // Fade dove while revealed so focus stays strictly on content words
+            dove.domElement.style.opacity = '0';
+            dove.domElement.style.pointerEvents = 'none';
+
+            overlay.classList.remove('opacity-0', 'scale-95', 'translate-y-6');
+            overlay.classList.add('opacity-100', 'scale-100', 'translate-y-0');
+        }
+
+        function keepCompliment() {
+            const compText = document.getElementById('complimentText').innerText;
+            const rawText = compText.replace(/^"|"$/g, '');
+
+            if (!savedCompliments.includes(rawText)) {
+                savedCompliments.push(rawText);
+                localStorage.setItem('saved_compliments', JSON.stringify(savedCompliments));
+                updateJournalCount();
+                renderJournalItems();
+            }
+
+            // Keep in Sanctuary particle blast matching Sage Peace
+            const targetX = window.innerWidth / 2;
+            const targetY = window.innerHeight * 0.6;
+            for (let i = 0; i < 20; i++) {
+                particles.push(new TrailParticle(targetX, targetY, 'rgba(142, 151, 117, 0.7)'));
+            }
+
+            soundEngine.playDoveChime();
+            dismissCompliment();
+        }
+
+        function dismissCompliment() {
+            const overlay = document.getElementById('complimentOverlay');
+            overlay.classList.add('opacity-0', 'scale-95', 'translate-y-6');
+            overlay.classList.remove('opacity-100', 'scale-100', 'translate-y-0');
+
+            if (currentActiveDove) {
+                currentActiveDove.domElement.style.opacity = '1';
+                currentActiveDove.domElement.style.pointerEvents = 'auto';
+                currentActiveDove.release();
+                currentActiveDove = null;
+            }
+        }
+
+        function toggleAudio() {
+            const icon = document.getElementById('audioIcon');
+            const btn = document.getElementById('audioToggle');
+            
+            soundEngine.init();
+            const isMuted = soundEngine.toggleMute();
+
+            if (isMuted) {
+                icon.setAttribute('data-lucide', 'volume-x');
+                btn.classList.remove('bg-[#D4A373]/15', 'text-[#D4A373]');
+                btn.classList.add('text-[#433422]/70');
+            } else {
+                icon.setAttribute('data-lucide', 'volume-2');
+                btn.classList.add('bg-[#D4A373]/15', 'text-[#D4A373]');
+                btn.classList.remove('text-[#433422]/70');
+            }
+            lucide.createIcons();
+        }
+
+        function toggleJournal(show) {
+            const drawer = document.getElementById('journalDrawer');
+            if (show) {
+                drawer.classList.remove('-translate-x-full');
+                renderJournalItems();
+            } else {
+                drawer.classList.add('-translate-x-full');
+            }
+        }
+
+        function renderJournalItems() {
+            const container = document.getElementById('journalItems');
+            const emptyState = document.getElementById('journalEmptyState');
+
+            const cards = container.querySelectorAll('.journal-card-item');
+            cards.forEach(c => c.remove());
+
+            if (savedCompliments.length === 0) {
+                emptyState.style.display = 'flex';
+                return;
+            }
+            emptyState.style.display = 'none';
+
+            savedCompliments.forEach((text, index) => {
+                const card = document.createElement('div');
+                card.className = 'journal-card-item organic-glass rounded-3xl p-5 relative border-l-4 border-[#8E9775] shadow-sm flex justify-between items-start space-x-2';
+                card.innerHTML = `
+                    <div class="flex-1">
+                        <p class="serif-font text-[#433422] text-sm leading-relaxed italic">"${text}"</p>
+                    </div>
+                    <button onclick="deleteJournalItem(${index})" class="text-[#433422]/40 hover:text-red-800 p-1.5 rounded-full hover:bg-[#F4EFE6] transition-all self-center border border-[#433422]/5">
+                        <i data-lucide="trash" class="w-3.5 h-3.5"></i>
+                    </button>
+                `;
+                container.appendChild(card);
+            });
+
+            lucide.createIcons();
+        }
+
+        function deleteJournalItem(index) {
+            savedCompliments.splice(index, 1);
+            localStorage.setItem('saved_compliments', JSON.stringify(savedCompliments));
+            updateJournalCount();
+            renderJournalItems();
+        }
+
+        function clearJournal() {
+            savedCompliments = [];
+            localStorage.setItem('saved_compliments', JSON.stringify(savedCompliments));
+            updateJournalCount();
+            renderJournalItems();
+        }
+
+        function updateJournalCount() {
+            document.getElementById('journalCount').textContent = savedCompliments.length;
+        }
+
+        function exportJournal() {
+            if (savedCompliments.length === 0) return;
+            const content = savedCompliments.map((c, i) => `${i + 1}. "${c}"`).join('\n\n');
+            const blob = new Blob([`PREVAIL SANCTUARY JOURNAL\n==============================================\n\n${content}`], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `prevail-walk-journal-${new Date().toISOString().split('T')[0]}.txt`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function toggleWhisperModal(show) {
+            const modal = document.getElementById('whisperModal');
+            const input = document.getElementById('customWhisperInput');
+            if (show) {
+                modal.classList.remove('opacity-0', 'pointer-events-none');
+                modal.querySelector('div').classList.add('scale-100');
+                modal.querySelector('div').classList.remove('scale-95');
+                input.focus();
+            } else {
+                modal.classList.add('opacity-0', 'pointer-events-none');
+                modal.querySelector('div').classList.remove('scale-100');
+                modal.querySelector('div').classList.add('scale-95');
+                input.value = '';
+            }
+        }
+
+        function saveWhisper() {
+            const input = document.getElementById('customWhisperInput');
+            const text = input.value.trim();
+            if (text.length > 5) {
+                customWhispers.push(text);
+                localStorage.setItem('custom_whispers', JSON.stringify(customWhispers));
+                
+                const targetX = window.innerWidth / 2;
+                const targetY = window.innerHeight * 0.5;
+                for (let i = 0; i < 15; i++) {
+                    particles.push(new TrailParticle(targetX, targetY, 'rgba(212, 163, 115, 0.7)'));
+                }
+
+                soundEngine.playDoveChime();
+                toggleWhisperModal(false);
+            }
+        }
+
+        // Tap background ripples
+        gameArea.addEventListener('click', (e) => {
+            for (let i = 0; i < 6; i++) {
+                particles.push(new TrailParticle(e.clientX, e.clientY, 'rgba(212, 163, 115, 0.35)'));
+            }
+        });
+
+        function tick(timestamp) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Sacred Parchment warm primary background blending softly with Morning Cream
+            const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            gradient.addColorStop(0, '#FDF9F3'); 
+            gradient.addColorStop(0.6, '#F4EFE6'); 
+            gradient.addColorStop(1, '#FDF9F3'); 
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            backgroundStars.forEach(star => {
+                star.update();
+                star.draw();
+            });
+
+            particles.forEach((p, idx) => {
+                p.update();
+                p.draw();
+                if (p.alpha <= 0) {
+                    particles.splice(idx, 1);
+                }
+            });
+
+            doves.forEach(dove => {
+                dove.update();
+            });
+
+            requestAnimationFrame(tick);
+        }
+
+        // Initiate walks
+        window.onload = function() {
+            lucide.createIcons();
+            updateJournalCount();
+            spawnDoves();
+            requestAnimationFrame(tick);
+        };
+    </script>
+</body>
+</html>

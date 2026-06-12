@@ -2,7 +2,6 @@ import React, { useState, useRef, useEffect } from 'react';
 import ResourceCard from '../components/ResourceCard';
 import BoxBreathing from '../components/BoxBreathing';
 import GroundingExercise from '../components/GroundingExercise';
-import FishingSim from '../components/FishingSim';
 import { signOut, verifyBeforeUpdateEmail, updatePassword, updateProfile, deleteUser, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
 import { auth } from '../firebase';
 import { useJournalEntries } from '../hooks/useJournalEntries';
@@ -15,6 +14,8 @@ import { checkIsSupporter, presentCustomerCenter, restorePurchases, isNative } f
 import Paywall from '../components/Paywall';
 import PrivacyPolicyModal from '../components/PrivacyPolicyModal';
 import AppTour from '../components/AppTour';
+import DovesSanctuary from '../components/DovesSanctuary';
+import homepageImg from '../assets/home-page.webp';
 import { useTrackCompletions } from '../hooks/useTrackCompletions';
 import { useCompletionHistory } from '../hooks/useCompletionHistory';
 import { useStreakDays } from '../hooks/useStreakDays';
@@ -160,6 +161,12 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
   useEffect(() => {
     if (view !== 'twilight-transition') return;
     const t = setTimeout(() => setView('twilight'), 3000);
+    return () => clearTimeout(t);
+  }, [view]);
+
+  useEffect(() => {
+    if (view !== 'lifebox-transition') return;
+    const t = setTimeout(() => setView('lifebox'), 3000);
     return () => clearTimeout(t);
   }, [view]);
 
@@ -502,6 +509,7 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [journalMode, setJournalMode] = useState('new'); // 'new' | 'add' | 'edit'
   const [editingEntryId, setEditingEntryId] = useState(null);
+  const [viewingEntry, setViewingEntry] = useState(null);
   const [journalStep, setJournalStep] = useState(0); // 0 = word card, 1 = reflection card
   const [journalSlideDir, setJournalSlideDir] = useState(1); // 1 = forward, -1 = backward
   const [touchStartX, setTouchStartX] = useState(null);
@@ -1851,58 +1859,83 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
                     </div>
                   );
                 }
-                // Meditation entry (default)
-                const meditationEntries = dayEntries.filter(e => !['journey-start','journey-complete','journey-abandoned'].includes(e.entryType));
-                const sessionNum = meditationEntries.indexOf(entry);
-                return (
-                  <div key={entry.id} className="bg-white rounded-[28px] p-6 border border-[#E9DCC9]">
-                    <div className="flex items-start justify-between mb-4">
-                      <div>
-                        <p className="text-[10px] tracking-widest font-bold text-[#433422]/30 uppercase">
-                          {meditationEntries.length > 1 ? `Session ${sessionNum + 1}` : 'Reflection'}
-                        </p>
-                        {entry.pathTitle && (
-                          <p className="text-[10px] text-[#433422]/40 mt-0.5 font-medium">{entry.pathTitle}</p>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {entry.isRevisit && (
-                          <span className="text-[8px] font-bold tracking-widest text-[#8E9775] bg-[#8E9775]/10 px-2 py-0.5 rounded-full">REVISIT</span>
-                        )}
-                        <button
-                          onClick={() => openEdit(entry)}
-                          className="w-8 h-8 rounded-full bg-[#F9F4EE] flex items-center justify-center text-[#433422]/40 hover:text-[#433422] transition-colors"
-                        >
-                          <PenLine size={14} />
-                        </button>
-                        <button
-                          onClick={() => deleteJournalEntry(uid, entry.id)}
-                          className="w-8 h-8 rounded-full bg-[#F9F4EE] flex items-center justify-center text-[#433422]/40 hover:text-red-400 transition-colors"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </div>
+                // Detect activity type from content
+                const r = entry.reflection || '';
+                const isBoxBreathing = r.startsWith('🌬️');
+                const isGrounding = r.startsWith('🌿');
 
-                    <div className="space-y-2 mb-3">
-                      {entry.meditationTitle && !entry.pathTitle && (
-                        <div className="flex gap-3">
-                          <span className="text-xs font-bold text-[#433422]/40 w-20 flex-shrink-0">Session:</span>
-                          <span className="text-sm text-[#433422]">{entry.meditationTitle}</span>
+                let activityTitle, activitySubtitle, activityDetail, isEditable;
+
+                let hasMore = false;
+
+                if (isBoxBreathing) {
+                  const cycles = r.match(/Cycles completed: (\d+)/);
+                  const duration = r.match(/Duration: ([^\n]+)/);
+                  activityTitle = 'Box Breathing';
+                  activityDetail = [cycles ? `${cycles[1]} cycle${cycles[1] === '1' ? '' : 's'}` : null, duration ? duration[1] : null].filter(Boolean).join(' · ');
+                  isEditable = false;
+                } else if (isGrounding) {
+                  activityTitle = '5·4·3·2·1 Grounding';
+                  const allLines = r.split('\n').filter(l => l && !l.startsWith('🌿') && !l.startsWith('\n'));
+                  const lines = allLines.slice(0, 2);
+                  activityDetail = lines.join(' · ');
+                  hasMore = allLines.length > 2;
+                  isEditable = false;
+                } else {
+                  activityTitle = entry.meditationTitle || entry.pathTitle || 'Reflection';
+                  activitySubtitle = entry.meditationTitle && entry.pathTitle ? entry.pathTitle : null;
+                  const feeling = entry.feelingBefore || entry.feelingAfter;
+                  const note = r ? `"${r.length > 70 ? r.slice(0, 70) + '…' : r}"` : null;
+                  activityDetail = [feeling, note].filter(Boolean).join(' · ');
+                  hasMore = r.length > 70;
+                  isEditable = true;
+                }
+
+                // Doves entries
+                const isDoves = r.startsWith('🕊️');
+                if (isDoves) {
+                  activityTitle = 'The Doves';
+                  const kept = r.split('\n').filter(l => l.startsWith('•'));
+                  activityDetail = kept.length ? `${kept.length} affirmation${kept.length > 1 ? 's' : ''} kept` : 'A walk with the doves.';
+                  hasMore = kept.length > 0;
+                  isEditable = false;
+                }
+
+                return (
+                  <div key={entry.id} className="bg-white rounded-[20px] px-5 py-4 border border-[#E9DCC9]">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-sm font-serif text-[#433422]">{activityTitle}</p>
+                          {entry.isRevisit && (
+                            <span className="text-[7px] font-bold tracking-widest text-[#8E9775] bg-[#8E9775]/10 px-2 py-0.5 rounded-full">REVISIT</span>
+                          )}
                         </div>
-                      )}
-                      {(entry.feelingBefore || entry.feelingAfter) && (
-                        <div className="flex gap-3">
-                          <span className="text-xs font-bold text-[#433422]/40 w-20 flex-shrink-0">Feeling:</span>
-                          <span className="text-sm text-[#433422]">{entry.feelingBefore || entry.feelingAfter}</span>
-                        </div>
-                      )}
-                      {entry.reflection && (
-                        <div className="flex gap-3 pt-1">
-                          <span className="text-xs font-bold text-[#433422]/40 w-20 flex-shrink-0">Reflected:</span>
-                          <span className="text-sm text-[#433422] leading-relaxed">{entry.reflection}</span>
-                        </div>
-                      )}
+                        {activitySubtitle && (
+                          <p className="text-[10px] text-[#433422]/40 mt-0.5">{activitySubtitle}</p>
+                        )}
+                        {activityDetail ? (
+                          <p className="text-xs text-[#433422]/50 mt-1.5 leading-relaxed">{activityDetail}</p>
+                        ) : null}
+                      </div>
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        {hasMore && (
+                          <button onClick={() => setViewingEntry({ entry, activityTitle, activitySubtitle })}
+                            className="h-7 px-2.5 rounded-full bg-[#F9F4EE] flex items-center justify-center text-[#433422]/40 text-[9px] font-bold tracking-wider">
+                            VIEW
+                          </button>
+                        )}
+                        {isEditable && (
+                          <button onClick={() => openEdit(entry)}
+                            className="w-7 h-7 rounded-full bg-[#F9F4EE] flex items-center justify-center text-[#433422]/35">
+                            <PenLine size={12} />
+                          </button>
+                        )}
+                        <button onClick={() => deleteJournalEntry(uid, entry.id)}
+                          className="w-7 h-7 rounded-full bg-[#F9F4EE] flex items-center justify-center text-[#433422]/35">
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 );
@@ -1926,6 +1959,76 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
             <NavIcon icon={<Compass />} active={false} onClick={() => { setActiveTab('compass'); setView('explore'); }} />
           </div>
         </nav>
+
+        {/* ── Entry viewer sheet ─────────────────────────────────────────── */}
+        <AnimatePresence>
+          {viewingEntry && (() => {
+            const { entry, activityTitle, activitySubtitle } = viewingEntry;
+            const r = entry.reflection || '';
+            const isDoves = r.startsWith('🕊️');
+            const isGrounding = r.startsWith('🌿');
+
+            let bodyLines = [];
+            if (isDoves) {
+              bodyLines = r.split('\n').filter(l => l.startsWith('•')).map(l => l.replace(/^•\s*/, ''));
+            } else if (isGrounding) {
+              bodyLines = r.split('\n').filter(l => l && !l.startsWith('🌿'));
+            } else {
+              if (entry.feelingBefore || entry.feelingAfter) bodyLines.push(`Feeling: ${entry.feelingBefore || entry.feelingAfter}`);
+              if (r) bodyLines.push(r);
+            }
+
+            return (
+              <motion.div
+                key="entry-viewer"
+                className="fixed inset-0 z-[200]"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+              >
+                <div className="absolute inset-0 bg-black/40" onClick={() => setViewingEntry(null)} />
+                <motion.div
+                  className="absolute inset-x-0 bottom-0 bg-[#FDF9F3] rounded-t-[32px] overflow-hidden"
+                  initial={{ y: '100%' }}
+                  animate={{ y: 0 }}
+                  exit={{ y: '100%' }}
+                  transition={{ type: 'spring', stiffness: 320, damping: 34 }}
+                  onClick={e => e.stopPropagation()}
+                >
+                  <div className="w-10 h-1 bg-[#433422]/10 rounded-full mx-auto mt-4 mb-5" />
+                  <div className="px-6 pb-2 flex items-start justify-between">
+                    <div>
+                      <p className="font-serif text-lg text-[#433422]">{activityTitle}</p>
+                      {activitySubtitle && <p className="text-[10px] text-[#433422]/40 mt-0.5">{activitySubtitle}</p>}
+                    </div>
+                    <button onClick={() => setViewingEntry(null)}
+                      className="w-8 h-8 rounded-full bg-[#F4EFE6] flex items-center justify-center text-[#433422]/40 mt-0.5">
+                      <X size={14} strokeWidth={1.5} />
+                    </button>
+                  </div>
+                  <div className="px-6 pb-12 pt-4 max-h-[60vh] overflow-y-auto space-y-3">
+                    {isDoves ? bodyLines.map((line, i) => (
+                      <div key={i} className="rounded-[16px] px-4 py-3 border-l-[3px] border-[#D4A373]"
+                        style={{ backgroundColor: 'rgba(212,163,115,0.06)' }}>
+                        <p className="font-serif text-sm text-[#433422] italic leading-relaxed">"{line}"</p>
+                      </div>
+                    )) : isGrounding ? bodyLines.map((line, i) => (
+                      <div key={i} className="rounded-[16px] px-4 py-3"
+                        style={{ backgroundColor: 'rgba(142,151,117,0.08)' }}>
+                        <p className="text-sm text-[#433422]/80 leading-relaxed">{line}</p>
+                      </div>
+                    )) : bodyLines.map((line, i) => (
+                      <div key={i} className="rounded-[16px] px-4 py-3 bg-[#F4EFE6]">
+                        <p className="text-sm text-[#433422] leading-relaxed">{line}</p>
+                      </div>
+                    ))}
+                  </div>
+                </motion.div>
+              </motion.div>
+            );
+          })()}
+        </AnimatePresence>
       </div>
     );
   }
@@ -2017,7 +2120,7 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
 
   if (view === 'account') {
     const notifRows = [
-      { label: 'Daily Verse', desc: 'Morning verse to start your day', state: notifDailyVerse, key: 'notifDailyVerse' },
+      { label: 'Daily Bread', desc: 'Morning verse to start your day', state: notifDailyVerse, key: 'notifDailyVerse' },
       { label: 'Reflection Reminder', desc: 'Gentle nudge to journal each evening', state: notifReflection, key: 'notifReflection' },
     ];
 
@@ -2778,9 +2881,89 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
     return <GroundingExercise onBack={() => setView('explore')} user={user} />;
   }
 
-  // ── Calm Fishing ───────────────────────────────────────
-  if (view === 'fishing') {
-    return <FishingSim onBack={() => setView('explore')} />;
+  // ── Doves Sanctuary ────────────────────────────────────
+  if (view === 'doves') {
+    return <DovesSanctuary onBack={() => setView('explore')} user={user} />;
+  }
+
+
+  // ── Life Box Transition ──────────────────────────────────
+  if (view === 'lifebox-transition') {
+    const leafField = [
+      [10,15],[25,8],[42,20],[58,10],[74,18],[88,12],[18,35],[50,28],[70,38],[35,45],
+      [80,30],[8,48],[60,22],[30,12],[92,42],[15,60],[45,55],[68,65],[22,72],[55,80],
+      [85,58],[38,85],[72,78],[5,88],[50,92],[90,70],
+    ];
+    return (
+      <div
+        className="fixed inset-0 flex flex-col items-center justify-center font-sans"
+        style={{ background: 'linear-gradient(160deg, #1a2418 0%, #253320 50%, #1e2b1a 100%)' }}
+      >
+        {/* Particle field — soft dots suggesting leaves/seeds */}
+        <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
+          {leafField.map(([x, y], i) => (
+            <circle
+              key={i} cx={x} cy={y}
+              r={i % 5 === 0 ? 0.8 : i % 3 === 0 ? 0.6 : 0.4}
+              fill="#A8C898"
+              style={{
+                opacity: 0,
+                animation: `fade-in 0.8s ease-out ${0.1 + i * 0.06}s forwards`,
+              }}
+            />
+          ))}
+        </svg>
+
+        {/* Book orb */}
+        <div className="relative flex items-center justify-center mb-10">
+          <div className="absolute w-32 h-32 rounded-full animate-orb-ring-1" style={{ border: '1px solid rgba(168,200,152,0.15)' }} />
+          <div className="absolute w-32 h-32 rounded-full animate-orb-ring-2" style={{ border: '1px solid rgba(168,200,152,0.12)' }} />
+          <div
+            className="w-16 h-16 rounded-full flex items-center justify-center animate-orb-core"
+            style={{
+              background: 'radial-gradient(circle, rgba(168,200,152,0.35) 0%, rgba(74,94,66,0.2) 60%, transparent 100%)',
+              boxShadow: '0 0 40px 10px rgba(168,200,152,0.1)',
+            }}
+          >
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="rgba(168,200,152,0.8)" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+            </svg>
+          </div>
+        </div>
+
+        {/* Text sequence */}
+        <p
+          className="text-[9px] font-bold tracking-[0.45em] uppercase"
+          style={{
+            color: 'rgba(168,200,152,0.5)',
+            opacity: 0,
+            animation: 'fade-in 1s ease-out 0.6s forwards',
+          }}
+        >
+          Life Box
+        </p>
+        <p
+          className="text-2xl font-serif mt-3"
+          style={{
+            color: '#EEF5EC',
+            opacity: 0,
+            animation: 'fade-in 1.2s ease-out 1s forwards',
+          }}
+        >
+          Preparing your space.
+        </p>
+        <p
+          className="text-sm font-serif mt-2"
+          style={{
+            color: 'rgba(168,200,152,0.4)',
+            opacity: 0,
+            animation: 'fade-in 1s ease-out 1.8s forwards',
+          }}
+        >
+          Opening the chapters...
+        </p>
+      </div>
+    );
   }
 
   // ── Life Box ────────────────────────────────────────────
@@ -3054,29 +3237,30 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
                   </div>
                 </button>
 
-                {/* Calm Fishing */}
+                {/* Doves Sanctuary */}
                 <button
-                  onClick={() => setView('fishing')}
+                  onClick={() => setView('doves')}
                   className="flex flex-col items-center justify-center gap-2 rounded-[22px] py-5 active:scale-[0.97] transition-transform"
-                  style={{ backgroundColor: 'rgba(91,143,168,0.12)' }}
+                  style={{ backgroundColor: 'rgba(212,163,115,0.10)' }}
                 >
-                  <div className="w-10 h-10 rounded-[14px] flex items-center justify-center" style={{ backgroundColor: 'rgba(91,143,168,0.2)' }}>
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5b8fa8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M18 5v8a4 4 0 0 1-4 4H6"/><path d="m6 17-3 3 3 3"/><path d="M21 3h-6"/><path d="M21 3v6"/>
+                  <div className="w-10 h-10 rounded-[14px] flex items-center justify-center" style={{ backgroundColor: 'rgba(212,163,115,0.18)' }}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#D4A373" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z"/><line x1="16" y1="8" x2="2" y2="22"/><line x1="17.5" y1="15" x2="9" y2="15"/>
                     </svg>
                   </div>
                   <div className="text-center px-1">
-                    <p className="text-[8px] font-bold tracking-wider text-[#5b8fa8]">GAME</p>
-                    <p className="text-[11px] font-serif text-[#433422] leading-tight mt-0.5">Calm<br/>Fishing</p>
+                    <p className="text-[8px] font-bold tracking-wider text-[#D4A373]">PEACE</p>
+                    <p className="text-[11px] font-serif text-[#433422] leading-tight mt-0.5">The<br/>Doves</p>
                   </div>
                 </button>
+
               </div>
             </section>
 
             {/* ── Life Box ── */}
             <section>
               <button
-                onClick={() => setView('lifebox')}
+                onClick={() => setView('lifebox-transition')}
                 className="w-full rounded-[28px] overflow-hidden active:scale-[0.98] transition-transform text-left"
                 style={{ background: 'linear-gradient(135deg, #4A5E42 0%, #3a4e34 60%, #2e3d28 100%)', minHeight: 150 }}
               >
@@ -3327,43 +3511,21 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
           return (
             <div className="px-6 pb-32">
               {!vCard && (
-                  <div className={`bg-[#F4EFE6] rounded-[28px] border flex flex-col items-center gap-5 py-8 px-6 transition-all duration-500 ${tutorialPending ? 'border-[#D4A373]/50 shadow-[0_0_0_4px_rgba(212,163,115,0.12)]' : 'border-[#E9DCC9]'}`}>
-                    <button
-                      onClick={() => { setActiveTab('wheat'); setView('resources-transition'); }}
-                      className="relative flex items-center justify-center active:scale-[0.97] transition-transform"
-                    >
-                      <svg
-                        width="180" height="140"
-                        viewBox="0 0 512 512"
-                        xmlns="http://www.w3.org/2000/svg"
-                        shapeRendering="geometricPrecision"
-                        style={{ opacity: 0.45 }}
-                      >
-                        {/* Sky / ground base */}
-                        <rect x="0" y="200" width="512" height="312" fill="#F4EFE6" rx="8"/>
-                        {/* Back hill — gold */}
-                        <path d="M452.788,230.577c-22.043,16.713-60.603,18.807-60.603,18.807s-60.604,24.382-102.4,103.097s-86.378,138.621-130.264,149.07h342.03V212.464C501.551,212.464,481.959,208.458,452.788,230.577z" fill="#C8944E"/>
-                        <path d="M208.98,303.718c38.814-32.421,79.423-45.685,102.796-50.975l4.481-3.359c0,0-60.604-37.616-119.118-58.514S50.156,202.014,11.147,202.014l-0.697,143.5C10.45,345.514,149.77,353.175,208.98,303.718z" fill="#C8944E"/>
-                        {/* Front hill — lighter gold */}
-                        <path d="M10.45,345.514c0,0,139.32,7.662,198.53-41.796s122.601-54.335,122.601-54.335h60.604c0,0-60.604,24.382-102.4,103.097s-86.378,138.621-130.264,149.07H10.449L10.45,345.514z" fill="#D4A373"/>
-                        {/* Cloud — soft */}
-                        <path d="M286.684,89.434c0-20.106,15.967-36.472,35.911-37.137c7.988-24.298,30.847-41.848,57.818-41.848c28.442,0,52.322,19.51,59,45.875c0.523-0.024,1.048-0.044,1.578-0.044c18.309,0,33.154,14.844,33.154,33.154H286.684z" fill="#EAC99A" opacity="0.7"/>
-                        {/* Tree cluster — sage */}
-                        <path d="M501.551,501.551c0-23.984-19.444-43.427-43.427-43.427c-0.693,0-1.38,0.026-2.066,0.057c-8.747-34.535-40.028-60.091-77.284-60.091c-35.328,0-65.273,22.989-75.735,54.816C276.916,453.777,256,475.215,256,501.552h245.551V501.551z" fill="#8E9775"/>
-                        {/* Outlines */}
-                        <path d="M503.644,202.228c-2.476-0.51-25.152-4.252-57.169,20.022c-18.369,13.927-51.543,16.477-54.617,16.685h-60.276c-0.268,0-0.535,0.01-0.801,0.03c-0.579,0.045-3.961,0.33-9.502,1.239c-6.27-3.861-63.829-38.891-120.625-59.175c-42.218-15.08-97.078-4.769-141.16,3.513c-20.055,3.769-37.377,7.023-49.044,7.023C4.679,191.565,0,196.244,0,202.014v299.536c0,5.771,4.679,10.449,10.449,10.449h491.102c5.77,0,10.449-4.678,10.449-10.449V212.464C512,207.499,508.507,203.221,503.644,202.228z" fill="#433422" opacity="0.18"/>
-                        <path d="M218.123,99.883h256.021c5.77,0,10.449-4.679,10.449-10.449c0-21.931-16.279-40.134-37.387-43.16c-10.305-27.598-36.75-46.273-66.792-46.273c-28.568,0-54.009,16.868-65.29,42.616c-18.878,3.449-33.659,17.844-37.754,36.369h-59.246c-5.771,0-10.449,4.679-10.449,10.449C207.674,95.205,212.353,99.883,218.123,99.883z" fill="#433422" opacity="0.12"/>
-                        {/* Small decorative elements */}
-                        <path d="M163.354,99.883h19.243c5.77,0,10.449-4.679,10.449-10.449s-4.679-10.449-10.449-10.449h-19.243c-5.771,0-10.449,4.679-10.449,10.449C152.905,95.205,157.584,99.883,163.354,99.883z" fill="#433422" opacity="0.12"/>
-                        <path d="M194.88,369.106c1.817,0,3.658-0.474,5.334-1.472c5.653-3.365,10.856-7.022,15.464-10.869c4.429-3.7,5.022-10.289,1.323-14.718c-3.701-4.429-10.289-5.02-14.718-1.323c-3.761,3.141-8.052,6.153-12.756,8.953c-4.959,2.951-6.587,9.363-3.635,14.322C187.845,367.281,191.317,369.106,194.88,369.106z" fill="#433422" opacity="0.25"/>
-                        <path d="M172.426,369.802c-1.844-5.467-7.774-8.408-13.241-6.559c-37.442,12.634-82.19,16.259-113.138,17.076c-5.769,0.153-10.323,4.952-10.169,10.721c0.149,5.676,4.796,10.173,10.44,10.173c0.093,0,0.187-0.001,0.281-0.004c32.383-0.853,79.362-4.698,119.27-18.166C171.335,381.197,174.271,375.269,172.426,369.802z" fill="#433422" opacity="0.25"/>
-                      </svg>
-                    </button>
+                  <button
+                    onClick={() => { setActiveTab('wheat'); setView('resources-transition'); }}
+                    className={`w-full bg-[#F4EFE6] rounded-[28px] border flex flex-col items-center gap-5 py-8 px-6 transition-all duration-500 active:scale-[0.98] ${tutorialPending ? 'border-[#D4A373]/50 shadow-[0_0_0_4px_rgba(212,163,115,0.12)]' : 'border-[#E9DCC9]'}`}
+                  >
+                    <img
+                      src={homepageImg}
+                      alt="Choose your path"
+                      className="w-full rounded-[20px] object-cover"
+                      style={{ maxHeight: 180, opacity: 0.75, marginTop: -3 }}
+                    />
                     <div className="flex flex-col items-center gap-1 text-center">
                       <p className="font-serif text-base text-[#433422]">Your journey awaits.</p>
                       <p className="text-[11px] text-[#433422]/40 leading-relaxed">Tap to choose your path.</p>
                     </div>
-                  </div>
+                  </button>
               )}
 
 
