@@ -15,6 +15,8 @@ import Paywall from '../components/Paywall';
 import PrivacyPolicyModal from '../components/PrivacyPolicyModal';
 import AppTour from '../components/AppTour';
 import DovesSanctuary from '../components/DovesSanctuary';
+import TwilightSpaceView from '../components/TwilightSpaceView';
+import LifeBoxView from '../components/LifeBoxView';
 import homepageImg from '../assets/home-page.webp';
 import { useTrackCompletions } from '../hooks/useTrackCompletions';
 import { useCompletionHistory } from '../hooks/useCompletionHistory';
@@ -1901,6 +1903,26 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
                   isEditable = false;
                 }
 
+                // Twilight Space entries
+                const isTwilight = r.startsWith('🌙');
+                if (isTwilight) {
+                  activityTitle = 'Twilight Space';
+                  const lines = r.split('\n').filter(l => l && !l.startsWith('🌙'));
+                  activityDetail = lines[0] || '';
+                  hasMore = false;
+                  isEditable = false;
+                }
+
+                // Life Box entries
+                const isLifeBox = r.startsWith('📖');
+                if (isLifeBox) {
+                  activityTitle = 'Life Box';
+                  const lines = r.split('\n').filter(l => l && !l.startsWith('📖'));
+                  activityDetail = lines[0] || '';
+                  hasMore = false;
+                  isEditable = false;
+                }
+
                 return (
                   <div key={entry.id} className="bg-white rounded-[20px] px-5 py-4 border border-[#E9DCC9]">
                     <div className="flex items-start justify-between gap-3">
@@ -2889,33 +2911,14 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
 
   // ── Life Box Transition ──────────────────────────────────
   if (view === 'lifebox-transition') {
-    const leafField = [
-      [10,15],[25,8],[42,20],[58,10],[74,18],[88,12],[18,35],[50,28],[70,38],[35,45],
-      [80,30],[8,48],[60,22],[30,12],[92,42],[15,60],[45,55],[68,65],[22,72],[55,80],
-      [85,58],[38,85],[72,78],[5,88],[50,92],[90,70],
-    ];
     return (
       <div
         className="fixed inset-0 flex flex-col items-center justify-center font-sans"
         style={{ background: 'linear-gradient(160deg, #1a2418 0%, #253320 50%, #1e2b1a 100%)' }}
       >
-        {/* Particle field — soft dots suggesting leaves/seeds */}
-        <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
-          {leafField.map(([x, y], i) => (
-            <circle
-              key={i} cx={x} cy={y}
-              r={i % 5 === 0 ? 0.8 : i % 3 === 0 ? 0.6 : 0.4}
-              fill="#A8C898"
-              style={{
-                opacity: 0,
-                animation: `fade-in 0.8s ease-out ${0.1 + i * 0.06}s forwards`,
-              }}
-            />
-          ))}
-        </svg>
 
         {/* Book orb */}
-        <div className="relative flex items-center justify-center mb-10">
+        <div className="relative flex items-center justify-center mb-24">
           <div className="absolute w-32 h-32 rounded-full animate-orb-ring-1" style={{ border: '1px solid rgba(168,200,152,0.15)' }} />
           <div className="absolute w-32 h-32 rounded-full animate-orb-ring-2" style={{ border: '1px solid rgba(168,200,152,0.12)' }} />
           <div
@@ -2968,56 +2971,7 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
 
   // ── Life Box ────────────────────────────────────────────
   if (view === 'lifebox') {
-    return (
-      <div className="flex flex-col min-h-screen font-sans" style={{ backgroundColor: '#F4F1EC' }}>
-        <div className="animate-view-enter">
-          {/* Header */}
-          <div className="relative px-8 pt-14 pb-10 overflow-hidden" style={{ backgroundColor: '#4A5E42' }}>
-            <div className="absolute top-[-30%] right-[-15%] w-64 h-64 rounded-full opacity-20" style={{ backgroundColor: '#8FAF80', filter: 'blur(40px)' }} />
-            <button
-              onClick={() => setView('explore')}
-              className="flex items-center gap-2 mb-6 relative z-10 px-4 py-2 rounded-full active:scale-[0.97] transition-transform"
-              style={{ backgroundColor: 'rgba(74,94,66,0.35)', color: 'rgba(168,200,152,0.9)', backdropFilter: 'blur(8px)', border: '1px solid rgba(142,175,128,0.25)' }}
-            >
-              <ArrowLeft size={16} strokeWidth={1.5} />
-              <span className="text-sm font-medium">Explore</span>
-            </button>
-            <div className="relative z-10">
-              <p className="text-[9px] font-bold tracking-[0.4em] mb-2" style={{ color: 'rgba(255,255,255,0.45)' }}>LIFE BOX</p>
-              <h1 className="text-3xl font-serif leading-tight mb-2" style={{ color: '#FDF9F3' }}>Life's chapters,<br /><em className="italic" style={{ color: '#A8C898' }}>guided by faith.</em></h1>
-              <p className="text-sm leading-relaxed" style={{ color: 'rgba(255,255,255,0.45)' }}>Grief · Marriage · Transitions · Purpose</p>
-            </div>
-            <div className="absolute bottom-0 left-0 right-0 pointer-events-none">
-              <svg viewBox="0 0 400 30" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-7">
-                <path d="M0,30 L0,18 C100,4 200,26 300,12 C350,4 380,22 400,16 L400,30 Z" fill="#F4F1EC" />
-              </svg>
-            </div>
-          </div>
-
-          {/* Coming soon body */}
-          <div className="flex flex-col items-center justify-center px-8 py-20 text-center gap-5">
-            <div className="w-16 h-16 rounded-[20px] flex items-center justify-center" style={{ backgroundColor: 'rgba(74,94,66,0.1)' }}>
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#4A5E42" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
-              </svg>
-            </div>
-            <div>
-              <p className="text-[9px] font-bold tracking-[0.35em] mb-2" style={{ color: 'rgba(74,94,66,0.5)' }}>COMING SOON</p>
-              <h2 className="text-2xl font-serif mb-3" style={{ color: '#433422' }}>Articles &amp; guidance<br />for life's seasons.</h2>
-              <p className="text-sm leading-relaxed max-w-xs mx-auto" style={{ color: 'rgba(67,52,34,0.5)' }}>
-                Scripture-rooted reflections on grief, marriage, transitions, purpose, and more — written to meet you where you are.
-              </p>
-            </div>
-            <div className="flex flex-wrap justify-center gap-2 mt-2">
-              {['Grief & Loss', 'Marriage', 'New Seasons', 'Finding Purpose', 'Anxiety', 'Forgiveness'].map(tag => (
-                <span key={tag} className="text-[10px] font-bold tracking-wider px-3 py-1.5 rounded-full" style={{ backgroundColor: 'rgba(74,94,66,0.1)', color: 'rgba(74,94,66,0.7)' }}>{tag}</span>
-              ))}
-            </div>
-          </div>
-        </div>
-
-      </div>
-    );
+    return <LifeBoxView onBack={() => setView('explore')} user={user} />;
   }
 
   // ── Twilight Transition ─────────────────────────────────
@@ -3048,7 +3002,7 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
         </svg>
 
         {/* Moon orb */}
-        <div className="relative flex items-center justify-center mb-10">
+        <div className="relative flex items-center justify-center mb-24">
           {/* Outer rings */}
           <div className="absolute w-32 h-32 rounded-full animate-orb-ring-1" style={{ border: '1px solid rgba(155,143,212,0.15)' }} />
           <div className="absolute w-32 h-32 rounded-full animate-orb-ring-2" style={{ border: '1px solid rgba(155,143,212,0.12)' }} />
@@ -3103,71 +3057,7 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
 
   // ── Twilight Space ──────────────────────────────────────
   if (view === 'twilight') {
-    const stars = Array.from({ length: 28 }, (_, i) => ({
-      x: (i * 37 + 11) % 100,
-      y: (i * 53 + 7) % 55,
-      r: i % 3 === 0 ? 1.5 : 1,
-      delay: (i * 0.31) % 3,
-    }));
-    return (
-      <div className="flex flex-col min-h-screen font-sans" style={{ backgroundColor: '#0E1221' }}>
-        <div className="animate-view-enter">
-          {/* Dark header */}
-          <div className="relative px-8 pt-14 pb-12 overflow-hidden" style={{ background: 'linear-gradient(160deg, #0E1221 0%, #1a2240 60%, #1e1635 100%)' }}>
-            {/* Stars */}
-            <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
-              {stars.map((s, i) => (
-                <circle key={i} cx={s.x} cy={s.y} r={s.r * 0.6} fill="white" opacity="0.5"
-                  style={{ animation: `breathe ${2.5 + s.delay}s ease-in-out ${s.delay}s infinite` }} />
-              ))}
-            </svg>
-            {/* Moon glow */}
-            <div className="absolute top-6 right-8 w-20 h-20 rounded-full pointer-events-none" style={{ background: 'radial-gradient(circle, rgba(196,185,255,0.25) 0%, transparent 70%)' }} />
-
-            <button
-              onClick={() => setView('explore')}
-              className="flex items-center gap-2 mb-6 relative z-10 px-4 py-2 rounded-full active:scale-[0.97] transition-transform"
-              style={{ backgroundColor: 'rgba(155,143,212,0.15)', color: 'rgba(196,185,255,0.8)', backdropFilter: 'blur(8px)', border: '1px solid rgba(155,143,212,0.2)' }}
-            >
-              <ArrowLeft size={16} strokeWidth={1.5} />
-              <span className="text-sm font-medium">Explore</span>
-            </button>
-            <div className="relative z-10">
-              <p className="text-[9px] font-bold tracking-[0.4em] mb-2" style={{ color: 'rgba(196,185,255,0.4)' }}>TWILIGHT SPACE</p>
-              <h1 className="text-3xl font-serif leading-tight mb-2" style={{ color: '#EEE8FF' }}>Wind down.<br /><em className="italic" style={{ color: '#9B8FD4' }}>Rest in peace.</em></h1>
-              <p className="text-sm leading-relaxed" style={{ color: 'rgba(196,185,255,0.4)' }}>Night-mode meditations for the end of your day.</p>
-            </div>
-            <div className="absolute bottom-0 left-0 right-0 pointer-events-none">
-              <svg viewBox="0 0 400 30" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-7">
-                <path d="M0,30 L0,18 C100,4 200,26 300,12 C350,4 380,22 400,16 L400,30 Z" fill="#0E1221" />
-              </svg>
-            </div>
-          </div>
-
-          {/* Coming soon body */}
-          <div className="flex flex-col items-center justify-center px-8 py-20 text-center gap-5">
-            <div className="w-16 h-16 rounded-[20px] flex items-center justify-center" style={{ backgroundColor: 'rgba(155,143,212,0.12)' }}>
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#9B8FD4" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
-              </svg>
-            </div>
-            <div>
-              <p className="text-[9px] font-bold tracking-[0.35em] mb-2" style={{ color: 'rgba(155,143,212,0.5)' }}>COMING SOON</p>
-              <h2 className="text-2xl font-serif mb-3" style={{ color: '#EEE8FF' }}>Sleep meditations<br />&amp; night reflections.</h2>
-              <p className="text-sm leading-relaxed max-w-xs mx-auto" style={{ color: 'rgba(196,185,255,0.4)' }}>
-                Faith-rooted content designed to help you release the day, quiet your mind, and rest in the peace that passes understanding.
-              </p>
-            </div>
-            <div className="flex flex-wrap justify-center gap-2 mt-2">
-              {['Sleep Meditations', 'Evening Prayer', 'Gratitude Reflection', 'Breath & Release', 'Night Scripture'].map(tag => (
-                <span key={tag} className="text-[10px] font-bold tracking-wider px-3 py-1.5 rounded-full" style={{ backgroundColor: 'rgba(155,143,212,0.1)', color: 'rgba(196,185,255,0.5)' }}>{tag}</span>
-              ))}
-            </div>
-          </div>
-        </div>
-
-      </div>
-    );
+    return <TwilightSpaceView onBack={() => setView('explore')} user={user} />;
   }
 
   // ── Explore ─────────────────────────────────────────────
@@ -3262,9 +3152,9 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
               <button
                 onClick={() => setView('lifebox-transition')}
                 className="w-full rounded-[28px] overflow-hidden active:scale-[0.98] transition-transform text-left"
-                style={{ background: 'linear-gradient(135deg, #4A5E42 0%, #3a4e34 60%, #2e3d28 100%)', minHeight: 150 }}
+                style={{ background: 'linear-gradient(135deg, #4A5E42 0%, #3a4e34 60%, #2e3d28 100%)', minHeight: 100 }}
               >
-                <div className="relative p-6 h-full flex flex-col justify-between" style={{ minHeight: 150 }}>
+                <div className="relative p-6 h-full flex flex-col justify-between" style={{ minHeight: 100 }}>
                   {/* Subtle leaf texture glow */}
                   <div className="absolute top-[-20%] right-[-10%] w-40 h-40 rounded-full pointer-events-none" style={{ backgroundColor: 'rgba(142,175,128,0.2)', filter: 'blur(30px)' }} />
                   <div className="absolute bottom-[-10%] left-[-5%] w-28 h-28 rounded-full pointer-events-none" style={{ backgroundColor: 'rgba(168,200,152,0.1)', filter: 'blur(20px)' }} />
@@ -3281,12 +3171,7 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
                     </div>
                   </div>
 
-                  <div className="relative z-10 flex items-end justify-between mt-6">
-                    <div className="flex flex-wrap gap-1.5">
-                      {['Grief', 'Marriage', 'Purpose', 'Transition'].map(t => (
-                        <span key={t} className="text-[8px] font-bold tracking-wider px-2.5 py-1 rounded-full" style={{ backgroundColor: 'rgba(168,200,152,0.15)', color: 'rgba(168,200,152,0.7)' }}>{t}</span>
-                      ))}
-                    </div>
+                  <div className="relative z-10 flex items-end justify-end mt-6">
                     <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: 'rgba(168,200,152,0.15)' }}>
                       <ArrowRight size={14} style={{ color: '#A8C898' }} />
                     </div>
@@ -3300,9 +3185,9 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
               <button
                 onClick={() => setView('twilight-transition')}
                 className="w-full rounded-[28px] overflow-hidden active:scale-[0.98] transition-transform text-left"
-                style={{ background: 'linear-gradient(160deg, #0E1221 0%, #1a2240 55%, #1e1635 100%)', minHeight: 160 }}
+                style={{ background: 'linear-gradient(160deg, #0E1221 0%, #1a2240 55%, #1e1635 100%)', minHeight: 100 }}
               >
-                <div className="relative p-6 h-full flex flex-col justify-between overflow-hidden" style={{ minHeight: 160 }}>
+                <div className="relative p-6 h-full flex flex-col justify-between overflow-hidden" style={{ minHeight: 100 }}>
                   {/* Stars */}
                   <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
                     {[
@@ -3333,8 +3218,7 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
                     </div>
                   </div>
 
-                  <div className="relative z-10 flex items-end justify-between mt-6">
-                    <p className="text-[10px] font-serif leading-relaxed" style={{ color: 'rgba(196,185,255,0.4)' }}>Night meditations · Evening prayer · Sleep</p>
+                  <div className="relative z-10 flex items-end justify-end mt-6">
                     <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: 'rgba(155,143,212,0.12)' }}>
                       <ArrowRight size={14} style={{ color: '#9B8FD4' }} />
                     </div>
