@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+@keyframes fadeUp { from { opacity:0; transform: translateY(16px); } to { opacity:1; transform: translateY(0); } }
+@keyframes sheetUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+@keyframes breathe { 0%,100% { opacity:0.62; } 50% { opacity:1; } }
+</style>
+</helmet>
+<div style="width:390px;height:844px;border-radius:40px;overflow:hidden;position:relative;background:#FDF9F3;font-family:'Inter',sans-serif;box-shadow:0 24px 60px rgba(67,52,34,0.28);">
+
+  <sc-if value="{{ isEntry }}" hint-placeholder-val="{{ true }}">
+    <div style="position:absolute;inset:0;overflow:hidden;">
+      <div onClick="{{ goDay }}" style="position:absolute;inset:0;background:linear-gradient(180deg,#FDF9F3 0%,#F4EFE6 100%);clip-path:polygon(0 0,100% 0,100% 40%,0 60%);display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding-top:88px;cursor:pointer;animation:fadeUp 0.7s ease-out both;">
+        <svg width="64" height="64" viewBox="0 0 64 64" style="margin-bottom:22px">
+          <circle cx="32" cy="32" r="14" fill="#D4A373"></circle>
+          <g stroke="#D4A373" stroke-width="2.5" stroke-linecap="round">
+            <line x1="32" y1="4" x2="32" y2="12"></line>
+            <line x1="32" y1="52" x2="32" y2="60"></line>
+            <line x1="4" y1="32" x2="12" y2="32"></line>
+            <line x1="52" y1="32" x2="60" y2="32"></line>
+            <line x1="11.5" y1="11.5" x2="17" y2="17"></line>
+            <line x1="47" y1="47" x2="52.5" y2="52.5"></line>
+            <line x1="52.5" y1="11.5" x2="47" y2="17"></line>
+            <line x1="17" y1="47" x2="11.5" y2="52.5"></line>
+          </g>
+        </svg>
+        <div style="font-family:'Inter',sans-serif;font-size:11px;letter-spacing:0.35em;text-transform:uppercase;color:#D4A373;font-weight:700;">Life's Chapters</div>
+      </div>
+      <div onClick="{{ goNight }}" style="position:absolute;inset:0;background:linear-gradient(180deg,#4a3a26 0%,#433422 100%);clip-path:polygon(0 60%,100% 40%,100% 100%,0 100%);display:flex;flex-direction:column;align-items:center;justify-content:flex-end;padding-bottom:112px;cursor:pointer;animation:fadeUp 0.9s ease-out both;">
+        <div style="width:8px;height:8px;border-radius:50%;background:#FDF9F3;opacity:0.85;position:absolute;left:64px;bottom:260px;"></div>
+        <div style="width:5px;height:5px;border-radius:50%;background:#FDF9F3;opacity:0.7;position:absolute;left:280px;bottom:300px;"></div>
+        <div style="width:6px;height:6px;border-radius:50%;background:#FDF9F3;opacity:0.75;position:absolute;left:200px;bottom:340px;"></div>
+        <svg width="60" height="60" viewBox="0 0 60 60" style="margin-bottom:22px">
+          <path d="M38 8 C26 10 17 21 17 34 C17 47 27 57 40 58 C29 60 17 55 10 45 C2 33 5 17 17 8 C23 4 31 3 38 8 Z" fill="#FDF9F3"></path>
+        </svg>
+        <div style="font-family:'Inter',sans-serif;font-size:11px;letter-spacing:0.35em;text-transform:uppercase;color:#D4A373;font-weight:700;">Twilight Space</div>
+      </div>
+      <div style="position:absolute;top:50%;left:-10%;right:-10%;height:1px;background:rgba(67,52,34,0.18);transform:translateY(-50%) rotate(-11deg);pointer-events:none;"></div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isCanvas }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;inset:0;display:flex;flex-direction:column;background:{{ canvasBg }};">
+      <div style="display:flex;align-items:center;gap:12px;padding:22px 20px 14px;flex:none;">
+        <div onClick="{{ goBack }}" style="width:36px;height:36px;border-radius:50%;background:{{ backBtnBg }};display:flex;align-items:center;justify-content:center;cursor:pointer;color:#FDF9F3;font-size:16px;">&#8592;</div>
+      </div>
+      <div style="flex:1;overflow-y:auto;overflow-x:hidden;position:relative;-webkit-overflow-scrolling:touch;">
+        <div style="position:relative;width:100%;height:{{ canvasHeight }}px;">
+          <sc-if value="{{ isDayCanvas }}" hint-placeholder-val="{{ true }}">
+            <sc-for list="{{ items }}" as="it" hint-placeholder-count="10">
+              <div onClick="{{ it.onClick }}" style="position:absolute;left:{{ it.x }}px;top:{{ it.y }}px;width:{{ it.size }}px;display:flex;flex-direction:column;align-items:center;gap:5px;cursor:pointer;animation:fadeUp 0.6s ease-out both;animation-delay:{{ it.delay }}ms;">
+                <svg viewBox="0 0 100 100" width="{{ it.size }}" height="{{ it.size }}" style="transform:rotate({{ it.rot }}deg);overflow:visible;filter:drop-shadow(0 3px 6px rgba(67,52,34,0.18));flex:none;">
+                  <g opacity="0.92">
+                    <ellipse cx="50" cy="23" rx="13" ry="27" fill="{{ it.petalOuter }}" transform="rotate(0 50 50)"></ellipse>
+                    <ellipse cx="50" cy="23" rx="13" ry="27" fill="{{ it.petalOuter }}" transform="rotate(72 50 50)"></ellipse>
+                    <ellipse cx="50" cy="23" rx="13" ry="27" fill="{{ it.petalOuter }}" transform="rotate(144 50 50)"></ellipse>
+                    <ellipse cx="50" cy="23" rx="13" ry="27" fill="{{ it.petalOuter }}" transform="rotate(216 50 50)"></ellipse>
+                    <ellipse cx="50" cy="23" rx="13" ry="27" fill="{{ it.petalOuter }}" transform="rotate(288 50 50)"></ellipse>
+                  </g>
+                  <g>
+                    <ellipse cx="50" cy="28" rx="10" ry="20" fill="{{ it.petalInner }}" transform="rotate(36 50 50)"></ellipse>
+                    <ellipse cx="50" cy="28" rx="10" ry="20" fill="{{ it.petalInner }}" transform="rotate(108 50 50)"></ellipse>
+                    <ellipse cx="50" cy="28" rx="10" ry="20" fill="{{ it.petalInner }}" transform="rotate(180 50 50)"></ellipse>
+                    <ellipse cx="50" cy="28" rx="10" ry="20" fill="{{ it.petalInner }}" transform="rotate(252 50 50)"></ellipse>
+                    <ellipse cx="50" cy="28" rx="10" ry="20" fill="{{ it.petalInner }}" transform="rotate(324 50 50)"></ellipse>
+                  </g>
+                  <circle cx="50" cy="53" r="9" fill="{{ it.center }}"></circle>
+                </svg>
+                <div style="font-family:'Inter',sans-serif;font-size:8.5px;line-height:1.35;letter-spacing:0.08em;text-transform:uppercase;font-weight:600;color:#FDF9F3;opacity:0.68;width:76px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;text-align:center;">{{ it.ref }}</div>
+              </div>
+            </sc-for>
+          </sc-if>
+          <sc-if value="{{ isNightCanvas }}" hint-placeholder-val="{{ false }}">
+            <sc-for list="{{ items }}" as="it" hint-placeholder-count="10">
+              <div onClick="{{ it.onClick }}" style="position:absolute;left:{{ it.x }}px;top:{{ it.y }}px;width:{{ it.size }}px;display:flex;flex-direction:column;align-items:center;gap:5px;cursor:pointer;animation:fadeUp 0.6s ease-out both;animation-delay:{{ it.delay }}ms;">
+                <svg viewBox="0 0 100 100" width="{{ it.size }}" height="{{ it.size }}" style="opacity:{{ it.opacity }};filter:drop-shadow(0 0 {{ it.glow }}px rgba(253,249,243,0.85));flex:none;">
+                  <path d="M50 2 C54 40 60 46 98 50 C60 54 54 60 50 98 C46 60 40 54 2 50 C40 46 46 40 50 2 Z" fill="#FDF9F3"></path>
+                </svg>
+                <div style="font-family:'Inter',sans-serif;font-size:8.5px;line-height:1.35;letter-spacing:0.08em;text-transform:uppercase;font-weight:600;color:#FDF9F3;opacity:{{ it.labelOpacity }};width:76px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;text-align:center;">{{ it.ref }}</div>
+              </div>
+            </sc-for>
+          </sc-if>
+          <div style="position:absolute;bottom:24px;left:0;right:0;text-align:center;font-family:'Inter',sans-serif;font-size:10px;letter-spacing:0.2em;text-transform:uppercase;color:#FDF9F3;opacity:0.35;">Scroll to explore more</div>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isPlayer }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;inset:0;background:#FDF9F3;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px;">
+      <div onClick="{{ closePlayer }}" style="position:absolute;top:26px;right:26px;width:36px;height:36px;border-radius:50%;background:#F4EFE6;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#433422;font-size:16px;">&#215;</div>
+      <div style="font-family:'Inter',sans-serif;font-size:11px;letter-spacing:0.35em;text-transform:uppercase;font-weight:700;color:#8E9775;margin-bottom:14px;">{{ playerItem.eyebrow }}</div>
+      <div style="font-family:'Playfair Display',serif;font-size:27px;color:#433422;text-align:center;margin-bottom:56px;max-width:280px;">{{ playerItem.title }}</div>
+      <div onClick="{{ togglePlay }}" style="width:120px;height:120px;border-radius:50%;background:#433422;display:flex;align-items:center;justify-content:center;cursor:pointer;animation:breathe 4s ease-in-out infinite;">
+        <div style="color:#FDF9F3;font-size:13px;font-family:'Inter',sans-serif;letter-spacing:0.15em;font-weight:600;">{{ playIcon }}</div>
+      </div>
+      <div style="font-family:'Inter',sans-serif;font-size:13px;color:rgba(67,52,34,0.5);margin-top:28px;">{{ playerItem.duration }} min</div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ selectedItem }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ closeModal }}" style="position:absolute;inset:0;background:rgba(67,52,34,0.4);display:flex;align-items:flex-end;z-index:10;">
+      <div onClick="{{ stopProp }}" style="width:100%;background:#FDF9F3;border-top-left-radius:40px;border-top-right-radius:40px;padding:36px 28px 40px;animation:sheetUp 0.35s ease-out;">
+        <div style="width:40px;height:4px;border-radius:2px;background:rgba(67,52,34,0.15);margin:0 auto 24px;"></div>
+        <div style="font-family:'Inter',sans-serif;font-size:11px;letter-spacing:0.35em;text-transform:uppercase;font-weight:700;color:#8E9775;margin-bottom:10px;">{{ selectedItem.eyebrow }}</div>
+        <div style="font-family:'Playfair Display',serif;font-size:28px;color:#433422;margin-bottom:8px;">{{ selectedItem.title }}</div>
+        <div style="font-family:'Inter',sans-serif;font-size:14px;color:rgba(67,52,34,0.6);margin-bottom:28px;">{{ selectedItem.duration }} minute meditation</div>
+        <div onClick="{{ beginMeditation }}" style="background:#433422;color:#FDF9F3;text-align:center;padding:16px;border-radius:24px;font-family:'Inter',sans-serif;font-weight:600;font-size:15px;cursor:pointer;">Begin your walk</div>
+      </div>
+    </div>
+  </sc-if>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;: {&quot;width&quot;: 390, &quot;height&quot;: 844}, &quot;variant&quot;: {&quot;editor&quot;: &quot;enum&quot;, &quot;default&quot;: &quot;scatter&quot;, &quot;options&quot;: [&quot;scatter&quot;, &quot;radial&quot;, &quot;rows&quot;], &quot;tsType&quot;: &quot;string&quot;}}">
+class Component extends DCLogic {
+  state = { screen: 'entry', selectedId: null, originScreen: 'day', isPlaying: true };
+
+  DATA = {
+    day: [
+      { title: 'Be Still', ref: 'Psalm 46:10', duration: 6 },
+      { title: 'Green Pastures', ref: 'Psalm 23:2', duration: 10 },
+      { title: 'Living Water', ref: 'John 4:14', duration: 8 },
+      { title: 'Perfect Peace', ref: 'Isaiah 26:3', duration: 5 },
+      { title: 'The Lord Is My Shepherd', ref: 'Psalm 23:1', duration: 12 },
+      { title: 'Rivers of Joy', ref: 'Psalm 46:4', duration: 7 },
+      { title: 'Quiet Waters', ref: 'Psalm 23:2', duration: 9 },
+      { title: 'New Mercies', ref: 'Lamentations 3:22-23', duration: 6 },
+      { title: 'Streams in the Desert', ref: 'Isaiah 43:19', duration: 11 },
+      { title: 'A Time to Rest', ref: 'Exodus 33:14', duration: 8 },
+      { title: 'Cast Your Cares', ref: '1 Peter 5:7', duration: 5 },
+      { title: 'Fruit of the Spirit', ref: 'Galatians 5:22', duration: 10 },
+      { title: 'Springs of Living Water', ref: 'Revelation 7:17', duration: 9 },
+      { title: 'Abide in the Vine', ref: 'John 15:5', duration: 7 },
+      { title: 'An Olive Branch', ref: '', duration: 8 },
+      { title: 'Sitting with Grief', ref: '', duration: 11 },
+      { title: 'Gratitude in Small Things', ref: '', duration: 6 },
+      { title: 'Letting Go', ref: '', duration: 9 }
+    ],
+    night: [
+      { title: 'Count the Stars', ref: 'Genesis 15:5', duration: 8 },
+      { title: 'He Calls Them by Name', ref: 'Isaiah 40:26', duration: 10 },
+      { title: 'Sleep in Peace', ref: 'Psalm 4:8', duration: 6 },
+      { title: 'The Heavens Declare', ref: 'Psalm 19:1', duration: 9 },
+      { title: 'Fear Not', ref: 'Isaiah 41:10', duration: 7 },
+      { title: 'Underneath Are His Arms', ref: 'Deuteronomy 33:27', duration: 12 },
+      { title: 'In the Night I Will Sing', ref: 'Psalm 42:8', duration: 8 },
+      { title: 'Rest for the Weary', ref: 'Matthew 11:28', duration: 5 },
+      { title: 'A Light in Darkness', ref: 'Psalm 18:28', duration: 9 },
+      { title: 'He Gives Sleep', ref: 'Psalm 127:2', duration: 6 },
+      { title: 'Watching Over You', ref: 'Psalm 121:3-4', duration: 11 },
+      { title: 'The Lord Is Near', ref: 'Philippians 4:5-6', duration: 7 },
+      { title: 'Wonderfully Made', ref: 'Psalm 139:14', duration: 10 },
+      { title: 'Morning Will Come', ref: 'Psalm 30:5', duration: 8 },
+      { title: 'Holding Uncertainty', ref: '', duration: 10 },
+      { title: 'A Prayer for Those We Miss', ref: '', duration: 12 },
+      { title: 'Stillness After a Hard Day', ref: '', duration: 7 },
+      { title: 'Releasing Worry', ref: '', duration: 6 }
+    ]
+  };
+
+  computePos(i, total, variant) {
+    const W = 350;
+    const FRAME_W = 390;
+    if (variant === 'radial') {
+      const ringSizes = [1, 4, 6, 8, 10, 12, 14];
+      let ring = 0, idxInRing = i, count = 0;
+      for (let r = 0; r < ringSizes.length; r++) {
+        if (i < count + ringSizes[r]) { ring = r; idxInRing = i - count; break; }
+        count += ringSizes[r];
+      }
+      const size = ringSizes[ring] || 14;
+      const angle = (idxInRing / size) * Math.PI * 2 + ring * 0.35;
+      const radius = 34 + ring * 66;
+      const cx = 195, cy = 120 + ring * 130;
+      return { x: cx + Math.cos(angle) * radius - 23, y: cy + Math.sin(angle) * radius * 0.55 };
+    }
+    if (variant === 'rows') {
+      const perRow = 3;
+      const row = Math.floor(i / perRow);
+      const col = i % perRow;
+      const rowOffset = row % 2 === 0 ? 0 : 45;
+      const x = 30 + col * 110 + rowOffset;
+      const y = 50 + row * 130;
+      return { x: Math.min(x, W - 20), y };
+    }
+    const seed = i * 137.51;
+    const jitterX = Math.sin(seed) * 60;
+    const jitterY = Math.cos(seed * 1.3) * 26;
+    const col = i % 3;
+    const row = Math.floor(i / 3);
+    const cx = 85 + col * 110 + jitterX * 0.55;
+    const y = 55 + row * 145 + jitterY;
+    const margin = 35;
+    return { cx: Math.max(margin, Math.min(cx, FRAME_W - margin)), y };
+  }
+
+  canvasHeightFor(total, variant) {
+    if (variant === 'radial') return Math.max(700, 260 + Math.ceil(total / 6) * 160);
+    const rows = Math.ceil(total / 3);
+    return Math.max(700, rows * 150 + 220);
+  }
+
+  renderVals() {
+    const screen = this.state.screen;
+    const isEntry = screen === 'entry';
+    const isCanvas = screen === 'day' || screen === 'night';
+    const isPlayer = screen === 'player';
+    const mode = screen === 'night' ? 'night' : (screen === 'player' ? this.state.originScreen : screen);
+    const variant = this.props.variant || 'scatter';
+    const dataArr = this.DATA[mode] || this.DATA.day;
+    const isNight = mode === 'night';
+
+    const petalPairs = [
+      ['#C98F5C', '#D4A373'],
+      ['#D4A373', '#E0B88A'],
+      ['#C2895A', '#D9AC7C']
+    ];
+
+    const items = isCanvas ? dataArr.map((d, i) => {
+      const pos = this.computePos(i, dataArr.length, variant);
+      const seed = i * 137.51;
+      const size = isNight ? (22 + (i % 4) * 8) : (50 + (i % 3) * 6);
+      const [petalOuter, petalInner] = petalPairs[i % petalPairs.length];
+      return {
+        id: i,
+        x: pos.cx - size / 2,
+        y: pos.y,
+        size,
+        rot: Math.round(((seed * 7) % 40) - 20),
+        petalOuter,
+        petalInner,
+        center: '#F6E9C9',
+        opacity: isNight ? (0.55 + (i % 4) * 0.15) : 1,
+        glow: isNight ? (2 + (i % 4) * 2) : 0,
+        labelOpacity: isNight ? (0.3 + (i % 4) * 0.08) : 0.4,
+        ref: d.title,
+        scripture: d.ref,
+        delay: i * 35,
+        onClick: () => this.setState({ selectedId: i })
+      };
+    }) : [];
+
+    const withEyebrow = (d) => d ? { ...d, eyebrow: d.ref || 'A Time of Reflection' } : null;
+    const selectedItem = withEyebrow((isCanvas && this.state.selectedId != null) ? dataArr[this.state.selectedId] : null);
+    const playerItem = withEyebrow((isPlayer && this.state.selectedId != null) ? dataArr[this.state.selectedId] : null);
+
+    return {
+      isEntry, isCanvas, isPlayer,
+      isDayCanvas: isCanvas && !isNight,
+      isNightCanvas: isCanvas && isNight,
+      canvasBg: isNight ? '#433422' : '#8FA377',
+      backBtnBg: 'rgba(253,249,243,0.16)',
+      headerLabel: isNight ? 'Under Open Heaven' : 'By the Still Water',
+      items,
+      canvasHeight: this.canvasHeightFor(dataArr.length, variant),
+      selectedItem,
+      playerItem,
+      playIcon: this.state.isPlaying ? 'PAUSE' : 'PLAY',
+      goDay: () => this.setState({ screen: 'day', selectedId: null }),
+      goNight: () => this.setState({ screen: 'night', selectedId: null }),
+      goBack: () => this.setState({ screen: 'entry', selectedId: null }),
+      closeModal: () => this.setState({ selectedId: null }),
+      stopProp: (e) => e.stopPropagation(),
+      beginMeditation: (e) => {
+        e.stopPropagation();
+        this.setState({ screen: 'player', originScreen: mode, isPlaying: true });
+      },
+      togglePlay: () => this.setState(s => ({ isPlaying: !s.isPlaying })),
+      closePlayer: () => this.setState({ screen: this.state.originScreen, selectedId: null })
+    };
+  }
+}
+</script>
+</body>
+</html>
