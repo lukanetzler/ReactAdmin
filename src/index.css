@@ -73,6 +73,11 @@
   50% { transform: translateY(-14px); }
 }
 
+@keyframes shimmer {
+  0% { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+
 @utility animate-breathe {
   animation: breathe 4s ease-in-out infinite;
 }

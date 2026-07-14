@@ -65,17 +65,22 @@ function App() {
 
   if ((loading || (user && profileLoading)) && page !== 'onboarding') {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-8" style={{ background: '#FDF9F3' }}>
-        <div className="relative flex items-center justify-center">
-          <div className="absolute w-28 h-28 rounded-full bg-[#D4A373]/20 animate-ping" style={{ animationDuration: '2s' }} />
-          <div className="absolute w-20 h-20 rounded-full bg-[#D4A373]/15 animate-pulse" />
-          <div className="w-16 h-16 rounded-full overflow-hidden border border-[#D4A373]/30 relative z-10">
-            <img src={prayvailLogo} alt="Prayvail" className="w-full h-full object-cover" />
-          </div>
+      <div className="min-h-screen flex flex-col items-center justify-center gap-6" style={{ background: '#FDF9F3' }}>
+        <div className="w-16 h-16 rounded-full overflow-hidden" style={{ boxShadow: '0 0 0 1px rgba(212,163,115,0.25)' }}>
+          <img src={prayvailLogo} alt="Prayvail" className="w-full h-full object-cover" />
         </div>
-        <div className="flex flex-col items-center gap-2">
-          <p style={{ fontFamily: "'Playfair Display', serif", color: '#433422', fontSize: '1.25rem', letterSpacing: '0.15em' }}>PRAYVAIL</p>
-          <p style={{ color: '#D4A373', fontSize: '0.65rem', letterSpacing: '0.35em', fontWeight: 700 }}>GETTING YOUR SANCTUARY READY</p>
+        <div className="flex flex-col items-center gap-1.5">
+          <p style={{ fontFamily: "'Playfair Display', serif", color: '#433422', fontSize: '1.1rem', letterSpacing: '0.15em' }}>PRAYVAIL</p>
+          <div className="flex gap-1.5 mt-1">
+            {[0, 1, 2].map(i => (
+              <div key={i} style={{
+                width: 5, height: 5, borderRadius: '50%', backgroundColor: '#D4A373',
+                animation: 'breathe 1.4s ease-in-out infinite',
+                animationDelay: `${i * 0.22}s`,
+                opacity: 0.5,
+              }} />
+            ))}
+          </div>
         </div>
       </div>
     );

@@ -2570,31 +2570,75 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
 
   // ── Resources Transition ────────────────────────────────
   if (view === 'resources-transition') {
+    const sk = (w, h, delay = 0, radius = 6) => ({
+      width: w, height: h, borderRadius: radius, flexShrink: 0,
+      background: 'linear-gradient(90deg,#F4EFE6 25%,#EDE4D6 50%,#F4EFE6 75%)',
+      backgroundSize: '800px 100%',
+      animation: `shimmer 1.4s ease-in-out ${delay}s infinite`,
+    });
     return (
-      <div className="fixed inset-0 flex flex-col items-center justify-center font-sans" style={{ background: 'linear-gradient(160deg, #FDF9F3 0%, #F4EFE6 60%, #EDE5D8 100%)' }}>
-        {/* Soft ambient glow */}
-        <div className="absolute top-[-10%] right-[-10%] w-80 h-80 rounded-full pointer-events-none" style={{ background: 'radial-gradient(circle, rgba(212,163,115,0.15) 0%, transparent 70%)', filter: 'blur(40px)' }} />
-        <div className="absolute bottom-[-10%] left-[-10%] w-64 h-64 rounded-full pointer-events-none" style={{ background: 'radial-gradient(circle, rgba(142,151,117,0.12) 0%, transparent 70%)', filter: 'blur(40px)' }} />
-
-        {/* Pulsing logo */}
-        <div className="relative flex items-center justify-center mb-10">
-          <div className="absolute w-32 h-32 rounded-full" style={{ border: '1px solid rgba(212,163,115,0.2)', animation: 'orb-ring 3s ease-out infinite' }} />
-          <div className="absolute w-32 h-32 rounded-full" style={{ border: '1px solid rgba(212,163,115,0.15)', animation: 'orb-ring 3s ease-out 1s infinite' }} />
-          <div className="w-20 h-20 rounded-full overflow-hidden border border-[#D4A373]/20 shadow-sm" style={{ animation: 'orb-core 3s ease-in-out infinite' }}>
-            <img src={prayvailLogo} alt="Prayvail" className="w-full h-full object-cover" />
+      <div className="fixed inset-0 font-sans overflow-hidden" style={{ background: '#FDF9F3' }}>
+        {/* Header */}
+        <div className="relative flex items-end px-8 pb-10" style={{ height: '18vh', backgroundColor: '#EDE5D8' }}>
+          <div className="absolute bottom-0 left-0 right-0 z-20 pointer-events-none">
+            <svg viewBox="0 0 400 50" preserveAspectRatio="none" className="w-full h-10">
+              <path d="M0,50 L0,28 C80,8 160,42 240,22 C300,6 360,38 400,26 L400,50 Z" fill="#FDF9F3" />
+            </svg>
+          </div>
+          <div className="relative z-10 space-y-2">
+            <div style={sk(52, 8)} />
+            <div style={sk(160, 20, 0.05)} />
           </div>
         </div>
 
-        {/* Sequenced text */}
-        <p className="text-[9px] font-bold tracking-[0.45em] uppercase" style={{ color: 'rgba(67,52,34,0.4)', opacity: 0, animation: 'fade-in 0.8s ease-out 0.3s forwards' }}>
-          Sanctuary
-        </p>
-        <p className="text-2xl font-serif mt-3" style={{ color: '#433422', opacity: 0, animation: 'fade-in 1s ease-out 0.6s forwards' }}>
-          Gathering your journeys.
-        </p>
-        <p className="text-sm font-serif mt-2" style={{ color: 'rgba(67,52,34,0.35)', opacity: 0, animation: 'fade-in 0.8s ease-out 1.1s forwards' }}>
-          Your path is being prepared…
-        </p>
+        <div className="pt-4 space-y-5 overflow-hidden">
+          {/* Current journey strip — only when user has an active journey */}
+          {activeModuleCard && (
+            <div className="px-6">
+              <div style={sk(110, 8, 0, 4)} className="mb-2" />
+              <div className="w-full flex items-center gap-3 bg-[#F4EFE6] rounded-[20px] px-4 py-3">
+                <div style={{ ...sk(48, 48, 0.04, 12), flexShrink: 0 }} />
+                <div className="flex-1 min-w-0 space-y-2">
+                  <div style={sk('70%', 11, 0.04)} />
+                  <div style={sk('45%', 8, 0.06)} />
+                  <div style={{ ...sk('100%', 4, 0.06, 2), marginTop: 4 }} />
+                </div>
+                <div style={sk(16, 16, 0, 8)} />
+              </div>
+            </div>
+          )}
+
+          {/* Category chips */}
+          <div className="flex gap-2 px-6 overflow-x-hidden">
+            {[44, 62, 52, 70, 48].map((w, i) => (
+              <div key={i} style={sk(w, 26, i * 0.05, 20)} />
+            ))}
+          </div>
+
+          {/* Section rows */}
+          {[0, 1, 2].map(si => (
+            <div key={si} className="px-6">
+              <div className="flex items-baseline justify-between mb-3">
+                <div className="space-y-1.5">
+                  <div style={sk(48, 8, si * 0.06)} />
+                  <div style={sk(110 + si * 20, 14, si * 0.06, 6)} />
+                </div>
+                <div style={sk(36, 10, si * 0.06, 4)} />
+              </div>
+              <div className="flex gap-3 overflow-x-hidden -mx-6 px-6">
+                {[0, 1, 2, 3].map(ci => (
+                  <div key={ci} className="flex-shrink-0 w-[130px] rounded-[22px] overflow-hidden">
+                    <div style={{ height: 96, background: 'linear-gradient(90deg,#F4EFE6 25%,#EDE4D6 50%,#F4EFE6 75%)', backgroundSize: '800px 100%', animation: `shimmer 1.4s ease-in-out ${(si * 4 + ci) * 0.05}s infinite` }} />
+                    <div className="bg-white px-3.5 pt-2.5 pb-3 space-y-1.5">
+                      <div style={sk('75%', 10, (si * 4 + ci) * 0.05)} />
+                      <div style={sk('45%', 8, (si * 4 + ci) * 0.05)} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
@@ -2739,7 +2783,36 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
           })()}
 
           {/* All view — 30-Day Path + horizontal rows per category */}
-          {!selectedCategory && (
+          {!selectedCategory && cardsLoading && (
+            <div className="space-y-8">
+              {[...Array(3)].map((_, si) => (
+                <section key={si}>
+                  {/* Section header skeleton */}
+                  <div className="px-6 flex items-baseline justify-between mb-3">
+                    <div className="space-y-1.5">
+                      <div style={{ width: 48, height: 8, borderRadius: 4, background: 'linear-gradient(90deg,#F4EFE6 25%,#EDE4D6 50%,#F4EFE6 75%)', backgroundSize: '800px 100%', animation: 'shimmer 1.4s ease-in-out infinite' }} />
+                      <div style={{ width: 110 + si * 24, height: 14, borderRadius: 6, background: 'linear-gradient(90deg,#F4EFE6 25%,#EDE4D6 50%,#F4EFE6 75%)', backgroundSize: '800px 100%', animation: 'shimmer 1.4s ease-in-out infinite' }} />
+                    </div>
+                    <div style={{ width: 36, height: 10, borderRadius: 4, background: 'linear-gradient(90deg,#F4EFE6 25%,#EDE4D6 50%,#F4EFE6 75%)', backgroundSize: '800px 100%', animation: 'shimmer 1.4s ease-in-out infinite' }} />
+                  </div>
+                  {/* Card row skeleton */}
+                  <div className="flex gap-3 overflow-x-hidden pl-6 pr-4">
+                    {[...Array(4)].map((_, ci) => (
+                      <div key={ci} className="flex-shrink-0 w-[130px] rounded-[22px] overflow-hidden">
+                        <div style={{ height: 96, background: 'linear-gradient(90deg,#F4EFE6 25%,#EDE4D6 50%,#F4EFE6 75%)', backgroundSize: '800px 100%', animation: `shimmer 1.4s ease-in-out ${ci * 0.08}s infinite` }} />
+                        <div className="bg-white px-3.5 pt-2.5 pb-3 space-y-1.5">
+                          <div style={{ width: '75%', height: 10, borderRadius: 4, background: 'linear-gradient(90deg,#F4EFE6 25%,#EDE4D6 50%,#F4EFE6 75%)', backgroundSize: '800px 100%', animation: `shimmer 1.4s ease-in-out ${ci * 0.08}s infinite` }} />
+                          <div style={{ width: '45%', height: 8, borderRadius: 4, background: 'linear-gradient(90deg,#F4EFE6 25%,#EDE4D6 50%,#F4EFE6 75%)', backgroundSize: '800px 100%', animation: `shimmer 1.4s ease-in-out ${ci * 0.08}s infinite` }} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              ))}
+            </div>
+          )}
+
+          {!selectedCategory && !cardsLoading && (
             <div className="space-y-8">
               {/* 30-Day Path */}
               {pathSessions.length > 0 && (
@@ -2833,6 +2906,7 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
               )}
             </div>
           )}
+
 
         </main>
         </div>
