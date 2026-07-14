@@ -2639,6 +2639,19 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
             </div>
           ))}
         </div>
+
+        {/* Nav bar — stays visible so the screen feels alive, not like a page change */}
+        <nav className="fixed bottom-8 left-1/2 -translate-x-1/2 w-[85%] max-w-sm bg-white/90 backdrop-blur-xl rounded-[32px] py-4 px-8 border border-[#E9DCC9] shadow-2xl z-60">
+          <div className="flex items-center justify-between">
+            <NavIcon icon={<User />} active={false} onClick={() => {}} />
+            <NavIcon icon={<Calendar />} active={false} onClick={() => {}} />
+            <button className="w-14 h-14 bg-[#D4A373] rounded-full -mt-10 border-[6px] border-[#FDF9F3] flex items-center justify-center text-white shadow-lg">
+              <Home size={20} strokeWidth={2} />
+            </button>
+            <NavIcon icon={<Wheat />} active={true} onClick={() => {}} />
+            <NavIcon icon={<Compass />} active={false} onClick={() => {}} />
+          </div>
+        </nav>
       </div>
     );
   }
