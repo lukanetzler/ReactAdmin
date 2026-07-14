@@ -23,7 +23,7 @@ const STEPS = [
   {
     tag: 'GETTING AROUND',
     title: 'Your navigation',
-    body: 'Five tabs keep everything within reach. Watch each one light up — the next few slides explain what each does.',
+    body: 'Five tabs keep everything within reach. Watch each one light up, the next few slides explain what each does.',
     type: 'nav',
     navHighlight: null, // scanning mode
   },
@@ -54,7 +54,7 @@ const STEPS = [
   {
     tag: 'EXPLORE & REST',
     title: 'When You Need Stillness',
-    body: 'The compass tab holds breathing exercises, grounding tools, Twilight Space, and the Life Box, a sanctuary within the sanctuary.',
+    body: "The compass tab holds breathing exercises, grounding tools, The Night Sky, and The Garden of Life, two spaces built for rest and reflection.",
     type: 'nav',
     navHighlight: 4,
     iconBg: '#8E9775',
@@ -70,7 +70,7 @@ const STEPS = [
   {
     tag: 'YOUR PATH BEGINS',
     title: "Let's get you started",
-    body: "Tap the button below and we'll take you to the library. One journey will be waiting for you — just tap it and your path begins.",
+    body: "Tap the button below and we'll take you to the library. One journey will be waiting for you. Just tap it and your path begins.",
     type: 'nav',
     navHighlight: 3,
     iconBg: '#D4A373',

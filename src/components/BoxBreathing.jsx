@@ -231,7 +231,7 @@ export default function BoxBreathing({ onBack, user }) {
           Well<br /><em className="italic text-[#D4A373]">Done.</em>
         </h2>
         <p className="text-sm text-[#433422]/45 text-center leading-relaxed mb-10 max-w-[260px]">
-          "Peace I leave with you; my peace I give you." — John 14:27
+          "Peace I leave with you; my peace I give you." (John 14:27)
         </p>
         <button onClick={onBack}
           className="w-full max-w-[320px] py-5 bg-[#433422] text-[#FDF9F3] rounded-[28px] text-[11px] font-bold tracking-widest">

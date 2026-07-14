@@ -11,16 +11,52 @@ const formatTime = (s) => {
   return `${m}:${sec.toString().padStart(2, '0')}`;
 };
 
-const BG = 'linear-gradient(180deg, #1a2418 0%, #0f1a0e 100%)';
-const SAGE = '#8E9775';
-const CREAM = '#E8D5B7';
-const TEXT = '#FDF9F3';
+const PETAL_PAIRS = [
+  ['#C98F5C', '#D4A373'],
+  ['#D4A373', '#E0B88A'],
+  ['#C2895A', '#D9AC7C'],
+];
 
-export default function LifeBoxView({ onBack, user }) {
+function LotusIcon({ size, rot, petalOuter, petalInner }) {
+  return (
+    <svg viewBox="0 0 100 100" width={size} height={size}
+      style={{ transform: `rotate(${rot}deg)`, overflow: 'visible', filter: 'drop-shadow(0 3px 8px rgba(67,52,34,0.28))', flexShrink: 0 }}>
+      <g opacity="0.92">
+        {[0, 72, 144, 216, 288].map(r => (
+          <ellipse key={r} cx="50" cy="23" rx="13" ry="27" fill={petalOuter} transform={`rotate(${r} 50 50)`} />
+        ))}
+      </g>
+      <g>
+        {[36, 108, 180, 252, 324].map(r => (
+          <ellipse key={r} cx="50" cy="28" rx="10" ry="20" fill={petalInner} transform={`rotate(${r} 50 50)`} />
+        ))}
+      </g>
+      <circle cx="50" cy="53" r="9" fill="#F6E9C9" />
+    </svg>
+  );
+}
+
+function computePos(i) {
+  const seed = i * 137.51;
+  const jitterX = Math.sin(seed) * 60;
+  const jitterY = Math.cos(seed * 1.3) * 26;
+  const col = i % 3;
+  const row = Math.floor(i / 3);
+  const cx = 85 + col * 110 + jitterX * 0.55;
+  const y = 55 + row * 145 + jitterY;
+  return { cx: Math.max(35, Math.min(cx, 355)), y };
+}
+
+const BG = '#8FA377';
+const PLAYER_BG = '#FDF9F3';
+const SAGE = '#8E9775';
+const CREAM = '#FDF9F3';
+const TEXT = '#433422';
+
+export default function LifeBoxView({ onBack, user, initialCard = null, onInitialCardConsumed }) {
   const { cards, loading } = useLibraryCards('lifebox');
 
-  const [selectedCategory, setSelectedCategory] = useState('all');
-  const [selectedCard, setSelectedCard] = useState(null);
+  const [selectedCard, setSelectedCard] = useState(initialCard);
   const [activeTrack, setActiveTrack] = useState(null); // { track, card }
   const [activeArticle, setActiveArticle] = useState(null); // { card }
   const [isPlaying, setIsPlaying] = useState(false);
@@ -31,12 +67,6 @@ export default function LifeBoxView({ onBack, user }) {
 
   const audioRef = useRef(null);
   const progressRef = useRef(null);
-
-  const filteredCards = selectedCategory === 'all'
-    ? cards
-    : selectedCategory === 'audio'
-      ? cards.filter(c => c.type !== 'article')
-      : cards.filter(c => c.type === 'article');
 
   // Set up audio when track changes
   useEffect(() => {
@@ -84,7 +114,7 @@ export default function LifeBoxView({ onBack, user }) {
     const today = new Date();
     const dateISO = today.toISOString().split('T')[0];
     const dateDisplay = today.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
-    const reflection = `📖 Life Box\n\n${title}\n${cardTitle}`;
+    const reflection = `🌿 The Garden of Life\n\n${title}\n${cardTitle}`;
     try {
       await addJournalEntry(user?.uid ?? null, { dateISO, dateDisplay, reflection });
     } catch (_) {}
@@ -96,7 +126,7 @@ export default function LifeBoxView({ onBack, user }) {
     const today = new Date();
     const dateISO = today.toISOString().split('T')[0];
     const dateDisplay = today.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
-    const reflection = `📖 Life Box\n\nRead: ${cardTitle}`;
+    const reflection = `🌿 The Garden of Life\n\nRead: ${cardTitle}`;
     try {
       await addJournalEntry(user?.uid ?? null, { dateISO, dateDisplay, reflection });
     } catch (_) {}
@@ -127,23 +157,23 @@ export default function LifeBoxView({ onBack, user }) {
     return (
       <div className="fixed inset-0 flex flex-col items-center justify-center font-sans" style={{ background: BG }}>
         <div className="w-16 h-16 rounded-full flex items-center justify-center mb-6"
-          style={{ backgroundColor: 'rgba(142,151,117,0.12)', border: '1px solid rgba(142,151,117,0.2)' }}>
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke={SAGE} strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
+          style={{ backgroundColor: 'rgba(253,249,243,0.2)', border: '1px solid rgba(253,249,243,0.3)' }}>
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke={CREAM} strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
             <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>
             <path d="M15 5l4 4"/>
           </svg>
         </div>
-        <p className="text-[9px] font-bold tracking-[0.4em] mb-3" style={{ color: 'rgba(142,151,117,0.5)' }}>LIFE BOX</p>
-        <h2 className="text-3xl font-serif text-center leading-snug mb-3" style={{ color: TEXT }}>
+        <p className="text-[9px] font-bold tracking-[0.4em] mb-3" style={{ color: 'rgba(253,249,243,0.5)' }}>THE GARDEN OF LIFE</p>
+        <h2 className="text-3xl font-serif text-center leading-snug mb-3" style={{ color: CREAM }}>
           Be still.
         </h2>
         <p className="text-sm text-center leading-relaxed mb-12 max-w-[260px]"
-          style={{ color: 'rgba(232,213,183,0.45)' }}>
-          "Be still, and know that I am God." — Psalm 46:10
+          style={{ color: 'rgba(253,249,243,0.5)' }}>
+          "Be still, and know that I am God." (Psalm 46:10)
         </p>
         <button onClick={returnFromDone}
           className="w-full max-w-[320px] py-5 rounded-[28px] font-bold text-[11px] tracking-widest"
-          style={{ backgroundColor: 'rgba(142,151,117,0.15)', color: CREAM, border: `1px solid rgba(142,151,117,0.2)` }}>
+          style={{ backgroundColor: '#433422', color: CREAM }}>
           RETURN
         </button>
       </div>
@@ -153,17 +183,17 @@ export default function LifeBoxView({ onBack, user }) {
   // ── Audio Player ─────────────────────────────────────────
   if (activeTrack) {
     return (
-      <div className="fixed inset-0 flex flex-col font-sans" style={{ background: BG }}>
+      <div className="fixed inset-0 flex flex-col font-sans" style={{ background: PLAYER_BG }}>
 
         {/* Header */}
         <div className="flex-shrink-0 flex items-center justify-between px-6 pt-14 pb-4">
           <button
             onClick={() => { audioRef.current?.pause(); setIsPlaying(false); setActiveTrack(null); }}
             className="w-10 h-10 rounded-full flex items-center justify-center"
-            style={{ backgroundColor: 'rgba(142,151,117,0.12)' }}>
-            <ChevronRight className="rotate-180" size={18} color={CREAM} />
+            style={{ backgroundColor: 'rgba(143,163,119,0.15)' }}>
+            <ChevronRight className="rotate-180" size={18} color={TEXT} />
           </button>
-          <span className="text-[10px] tracking-[0.3em] font-bold" style={{ color: 'rgba(142,151,117,0.5)' }}>LIFE BOX</span>
+          <span className="text-[10px] tracking-[0.3em] font-bold" style={{ color: 'rgba(67,52,34,0.4)' }}>THE GARDEN OF LIFE</span>
           <div className="w-10" />
         </div>
 
@@ -173,13 +203,13 @@ export default function LifeBoxView({ onBack, user }) {
             {/* Ambient glow */}
             <div className="absolute rounded-full pointer-events-none" style={{
               bottom: 10, width: 180, height: 120,
-              background: 'radial-gradient(circle, #6B8C5F 0%, transparent 70%)',
+              background: 'radial-gradient(circle, #8FA377 0%, transparent 70%)',
               filter: 'blur(10px)',
-              opacity: isPlaying ? 0.15 : 0,
+              opacity: isPlaying ? 0.25 : 0,
               transition: 'opacity 2s ease',
             }} />
-            <svg viewBox="0 0 100 120" style={{ width: 100, height: 126, filter: 'drop-shadow(0 0 10px rgba(142,151,117,0.25))', position: 'relative', zIndex: 1 }}>
-              <g fill="#1a2418" opacity="1">
+            <svg viewBox="0 0 100 120" style={{ width: 100, height: 126, filter: 'drop-shadow(0 0 10px rgba(143,163,119,0.3))', position: 'relative', zIndex: 1 }}>
+              <g fill="#C5B49A" opacity="1">
                 <rect x="25" y="105" width="50" height="7" rx="3.5" transform="rotate(-10 50 108.5)" />
                 <rect x="25" y="105" width="50" height="7" rx="3.5" transform="rotate(15 50 108.5)" />
                 <circle cx="50" cy="108.5" r="5" />
@@ -204,13 +234,13 @@ export default function LifeBoxView({ onBack, user }) {
 
           {/* Track title */}
           <div className="text-center px-8 mt-4">
-            <p className="text-[10px] tracking-[0.3em] font-bold mb-1" style={{ color: 'rgba(142,151,117,0.5)' }}>
+            <p className="text-[10px] tracking-[0.3em] font-bold mb-1" style={{ color: 'rgba(67,52,34,0.4)' }}>
               {activeTrack.card.title}
             </p>
             <h2 className="text-2xl font-serif leading-snug" style={{ color: TEXT }}>
               {activeTrack.track.title || activeTrack.card.title}
             </h2>
-            <div className="mt-3 mx-auto w-8 h-px" style={{ backgroundColor: 'rgba(142,151,117,0.3)' }} />
+            <div className="mt-3 mx-auto w-8 h-px" style={{ backgroundColor: 'rgba(67,52,34,0.15)' }} />
           </div>
         </div>
 
@@ -225,13 +255,13 @@ export default function LifeBoxView({ onBack, user }) {
               onTouchStart={e => seekTo(e.touches[0].clientX)}
               onTouchMove={e => { e.preventDefault(); seekTo(e.touches[0].clientX); }}
             >
-              <div className="absolute w-full h-0.5 rounded-full overflow-hidden" style={{ backgroundColor: 'rgba(142,151,117,0.2)' }}>
+              <div className="absolute w-full h-0.5 rounded-full overflow-hidden" style={{ backgroundColor: 'rgba(67,52,34,0.12)' }}>
                 <div className="h-full rounded-full" style={{ width: `${progress}%`, backgroundColor: SAGE }} />
               </div>
               <div className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3 h-3 rounded-full"
-                style={{ left: `${progress}%`, backgroundColor: CREAM, boxShadow: `0 0 8px rgba(232,213,183,0.4)` }} />
+                style={{ left: `${progress}%`, backgroundColor: TEXT, boxShadow: `0 0 8px rgba(67,52,34,0.2)` }} />
             </div>
-            <div className="flex justify-between text-[10px] font-mono -mt-1" style={{ color: 'rgba(142,151,117,0.45)' }}>
+            <div className="flex justify-between text-[10px] font-mono -mt-1" style={{ color: 'rgba(67,52,34,0.35)' }}>
               <span>{formatTime(trackTime)}</span>
               <span>{formatTime(trackDuration)}</span>
             </div>
@@ -241,7 +271,7 @@ export default function LifeBoxView({ onBack, user }) {
           <div className="flex items-center justify-between px-4">
             <button onClick={() => skip(-15)}
               className="flex flex-col items-center gap-1 p-2 active:scale-95 transition-transform"
-              style={{ color: 'rgba(142,151,117,0.45)' }}>
+              style={{ color: 'rgba(67,52,34,0.35)' }}>
               <SkipBack size={22} />
               <span className="text-[9px] font-bold tracking-wide">15s</span>
             </button>
@@ -249,10 +279,10 @@ export default function LifeBoxView({ onBack, user }) {
               className="rounded-full flex items-center justify-center active:scale-95 transition-transform"
               style={{
                 width: 72, height: 72,
-                backgroundColor: 'rgba(142,151,117,0.15)',
-                border: `1px solid rgba(142,151,117,0.3)`,
-                boxShadow: '0 0 30px rgba(142,151,117,0.15)',
+                backgroundColor: '#433422',
+                boxShadow: '0 0 30px rgba(67,52,34,0.2)',
                 color: CREAM,
+                animation: 'breathe 4s ease-in-out infinite',
               }}>
               {isPlaying
                 ? <Pause fill="currentColor" size={26} />
@@ -260,7 +290,7 @@ export default function LifeBoxView({ onBack, user }) {
             </button>
             <button onClick={() => skip(15)}
               className="flex flex-col items-center gap-1 p-2 active:scale-95 transition-transform"
-              style={{ color: 'rgba(142,151,117,0.45)' }}>
+              style={{ color: 'rgba(67,52,34,0.35)' }}>
               <SkipForward size={22} />
               <span className="text-[9px] font-bold tracking-wide">15s</span>
             </button>
@@ -269,7 +299,7 @@ export default function LifeBoxView({ onBack, user }) {
           {/* Complete */}
           <button onClick={onCompleteSession} disabled={saving}
             className="w-full py-4 rounded-[20px] font-serif text-base disabled:opacity-50"
-            style={{ backgroundColor: 'rgba(142,151,117,0.08)', border: `1px solid rgba(142,151,117,0.15)`, color: 'rgba(232,213,183,0.5)' }}>
+            style={{ backgroundColor: 'rgba(67,52,34,0.06)', border: `1px solid rgba(67,52,34,0.12)`, color: 'rgba(67,52,34,0.4)' }}>
             {saving ? 'Saving…' : 'Complete Session'}
           </button>
         </div>
@@ -282,29 +312,29 @@ export default function LifeBoxView({ onBack, user }) {
     const content = activeArticle.card.content || activeArticle.card.description || '';
     return (
       <div className="fixed inset-0 flex flex-col font-sans">
-        {/* Forest green header */}
-        <div className="flex-shrink-0 relative overflow-hidden" style={{ backgroundColor: '#1a2418', minHeight: 160 }}>
+        {/* Sage header */}
+        <div className="flex-shrink-0 relative overflow-hidden" style={{ backgroundColor: '#8FA377', minHeight: 160 }}>
           {activeArticle.card.imageUrl && (
             <img src={activeArticle.card.imageUrl} alt={activeArticle.card.title}
-              className="absolute inset-0 w-full h-full object-cover opacity-40" />
+              className="absolute inset-0 w-full h-full object-cover opacity-30" />
           )}
-          <div className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, rgba(26,36,24,0.5) 0%, #1a2418 100%)' }} />
+          <div className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, rgba(143,163,119,0.3) 0%, #8FA377 100%)' }} />
           <div className="relative z-10 flex items-center justify-between px-6 pt-14 pb-6">
             <button onClick={() => setActiveArticle(null)}
               className="w-10 h-10 rounded-full flex items-center justify-center"
-              style={{ backgroundColor: 'rgba(142,151,117,0.2)' }}>
+              style={{ backgroundColor: 'rgba(253,249,243,0.2)' }}>
               <ArrowLeft size={18} color={CREAM} strokeWidth={1.5} />
             </button>
-            <span className="text-[10px] tracking-[0.3em] font-bold" style={{ color: 'rgba(142,151,117,0.5)' }}>LIFE BOX</span>
+            <span className="text-[10px] tracking-[0.3em] font-bold" style={{ color: 'rgba(253,249,243,0.6)' }}>THE GARDEN OF LIFE</span>
             <div className="w-10" />
           </div>
           <div className="relative z-10 px-6 pb-6">
             {activeArticle.card.label && (
-              <p className="text-[9px] font-bold tracking-widest mb-1" style={{ color: `rgba(142,151,117,0.7)` }}>
+              <p className="text-[9px] font-bold tracking-widest mb-1" style={{ color: SAGE }}>
                 {activeArticle.card.label}
               </p>
             )}
-            <h1 className="text-2xl font-serif leading-tight" style={{ color: TEXT }}>{activeArticle.card.title}</h1>
+            <h1 className="text-2xl font-serif leading-tight" style={{ color: CREAM }}>{activeArticle.card.title}</h1>
           </div>
         </div>
 
@@ -318,7 +348,7 @@ export default function LifeBoxView({ onBack, user }) {
         <div className="flex-shrink-0 px-6 pb-12 pt-4" style={{ backgroundColor: '#FDF9F3' }}>
           <button onClick={onMarkRead} disabled={saving}
             className="w-full py-5 rounded-[28px] font-bold text-[11px] tracking-widest disabled:opacity-50"
-            style={{ backgroundColor: '#1a2418', color: CREAM }}>
+            style={{ backgroundColor: '#433422', color: CREAM }}>
             {saving ? 'SAVING…' : 'MARK AS READ'}
           </button>
         </div>
@@ -329,102 +359,82 @@ export default function LifeBoxView({ onBack, user }) {
   const isSingleTrack = selectedCard && (selectedCard.tracks || []).length <= 1;
   const firstTrack = selectedCard?.tracks?.[0];
 
+  const publishedCards = cards.filter(c => c.published !== false).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  const canvasHeight = Math.max(700, Math.ceil(publishedCards.length / 3) * 150 + 220);
+
   // ── Library view ─────────────────────────────────────────
   return (
     <div className="fixed inset-0 flex flex-col font-sans" style={{ background: BG }}>
+      {/* Fade-in veil — prevents white flash on mount */}
+      <div style={{ position: 'fixed', inset: 0, backgroundColor: '#8FA377', zIndex: 999, pointerEvents: 'none', animation: 'fade-out 2s ease-in-out forwards' }} />
 
-      {/* Header */}
-      <div className="relative flex-shrink-0 px-6 pt-14 pb-10 overflow-hidden" style={{ backgroundColor: '#1a2418' }}>
-        <div className="absolute top-[-30%] right-[-15%] w-64 h-64 rounded-full opacity-15"
-          style={{ backgroundColor: '#8FAF80', filter: 'blur(40px)' }} />
+      {/* Floating back button */}
+      <button onClick={onBack}
+        className="absolute top-12 left-4 z-20 w-10 h-10 rounded-full flex items-center justify-center active:scale-95 transition-transform"
+        style={{ backgroundColor: 'rgba(253,249,243,0.16)', backdropFilter: 'blur(8px)' }}>
+        <ArrowLeft size={16} color="rgba(253,249,243,0.8)" strokeWidth={1.5} />
+      </button>
 
-        <button onClick={onBack}
-          className="flex items-center gap-2 mb-6 relative z-10 px-4 py-2 rounded-full active:scale-[0.97] transition-transform"
-          style={{ backgroundColor: 'rgba(74,94,66,0.35)', color: 'rgba(168,200,152,0.9)', backdropFilter: 'blur(8px)', border: '1px solid rgba(142,175,128,0.25)' }}>
-          <ArrowLeft size={16} strokeWidth={1.5} />
-          <span className="text-sm font-medium">Explore</span>
-        </button>
-        <div className="relative z-10">
-          <p className="text-[9px] font-bold tracking-[0.4em] mb-2" style={{ color: 'rgba(255,255,255,0.35)' }}>LIFE BOX</p>
-          <h1 className="text-3xl font-serif leading-tight" style={{ color: TEXT }}>
-            Life's chapters,<br /><em className="italic" style={{ color: '#A8C898' }}>guided by faith.</em>
-          </h1>
-        </div>
-        <div className="absolute bottom-0 left-0 right-0 pointer-events-none">
-          <svg viewBox="0 0 400 30" preserveAspectRatio="none" className="w-full h-7">
-            <path d="M0,30 L0,18 C100,4 200,26 300,12 C350,4 380,22 400,16 L400,30 Z" fill="#1a2418" />
-          </svg>
-        </div>
-      </div>
-
-      {/* Type filter chips */}
-      <div className="flex-shrink-0 px-4 py-3 flex gap-2" style={{ borderBottom: '1px solid rgba(142,151,117,0.1)' }}>
-        {[{ v: 'all', label: 'All' }, { v: 'audio', label: 'Audio' }, { v: 'article', label: 'Read' }].map(({ v, label }) => (
-          <button key={v} onClick={() => setSelectedCategory(v)}
-            className="px-4 py-1.5 rounded-full text-[10px] font-bold tracking-wider uppercase transition-all flex-shrink-0"
-            style={{
-              backgroundColor: selectedCategory === v ? SAGE : 'rgba(142,151,117,0.1)',
-              color: selectedCategory === v ? TEXT : 'rgba(142,151,117,0.7)',
-            }}>
-            {label}
-          </button>
-        ))}
-      </div>
-
-      {/* Card list */}
-      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
-        {loading ? (
-          [1, 2, 3].map(i => (
-            <div key={i} className="h-24 rounded-[20px] animate-pulse"
-              style={{ backgroundColor: 'rgba(142,151,117,0.08)' }} />
-          ))
-        ) : filteredCards.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-center gap-3">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke={SAGE} strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.4 }}>
-              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
-            </svg>
-            <p className="text-sm font-serif" style={{ color: 'rgba(142,151,117,0.4)' }}>
+      {/* Lotus canvas */}
+      <div className="flex-1 overflow-y-auto overflow-x-hidden" style={{ WebkitOverflowScrolling: 'touch' }}>
+        <div style={{ position: 'relative', width: '100%', height: canvasHeight }}>
+          {loading ? (
+            <p style={{ position: 'absolute', top: '40%', left: 0, right: 0, textAlign: 'center', color: 'rgba(253,249,243,0.4)', fontFamily: 'serif', fontSize: 15 }}>
+              Loading…
+            </p>
+          ) : publishedCards.map((card, i) => {
+            const pos = computePos(i);
+            const seed = i * 137.51;
+            const size = 50 + (i % 3) * 6;
+            const [petalOuter, petalInner] = PETAL_PAIRS[i % PETAL_PAIRS.length];
+            const rot = Math.round(((seed * 7) % 40) - 20);
+            return (
+              <button key={card.id} onClick={() => setSelectedCard(card)} style={{
+                position: 'absolute',
+                left: pos.cx - size / 2,
+                top: pos.y,
+                width: size + 20,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: 5,
+                animation: `fade-in-up 0.5s ease-out ${i * 30}ms both`,
+                background: 'none',
+                border: 'none',
+                padding: 0,
+                cursor: 'pointer',
+              }}>
+                <LotusIcon size={size} rot={rot} petalOuter={petalOuter} petalInner={petalInner} />
+                <div style={{
+                  fontFamily: 'Inter, system-ui, sans-serif',
+                  fontSize: 8.5,
+                  lineHeight: 1.35,
+                  letterSpacing: '0.08em',
+                  textTransform: 'uppercase',
+                  fontWeight: 600,
+                  color: '#FDF9F3',
+                  opacity: 0.4,
+                  width: 76,
+                  overflow: 'hidden',
+                  display: '-webkit-box',
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: 'vertical',
+                  textAlign: 'center',
+                }}>
+                  {card.title}
+                </div>
+              </button>
+            );
+          })}
+          {!loading && publishedCards.length === 0 && (
+            <p style={{ position: 'absolute', top: '40%', left: 0, right: 0, textAlign: 'center', color: 'rgba(253,249,243,0.4)', fontFamily: 'serif', fontSize: 15 }}>
               Content coming soon.
             </p>
-          </div>
-        ) : (
-          filteredCards.map(card => (
-            <button key={card.id} onClick={() => setSelectedCard(card)}
-              className="w-full text-left flex gap-4 rounded-[20px] p-4 active:scale-[0.98] transition-transform"
-              style={{ backgroundColor: 'rgba(142,151,117,0.08)', border: '1px solid rgba(142,151,117,0.12)' }}>
-              {card.imageUrl ? (
-                <img src={card.imageUrl} alt={card.title}
-                  className="w-16 h-16 rounded-[14px] object-cover flex-shrink-0" />
-              ) : (
-                <div className="w-16 h-16 rounded-[14px] flex items-center justify-center flex-shrink-0"
-                  style={{ backgroundColor: card.color || 'rgba(142,151,117,0.15)' }}>
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={SAGE} strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
-                  </svg>
-                </div>
-              )}
-              <div className="flex-1 min-w-0 flex flex-col justify-center">
-                <p className="font-serif text-base leading-snug" style={{ color: TEXT }}>{card.title}</p>
-                <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                  {card.label && (
-                    <span className="text-[8px] font-bold tracking-widest px-2 py-0.5 rounded-full"
-                      style={{ backgroundColor: 'rgba(142,151,117,0.15)', color: 'rgba(142,151,117,0.8)' }}>
-                      {card.label}
-                    </span>
-                  )}
-                  <span className="text-[8px] font-bold tracking-widest px-2 py-0.5 rounded-full"
-                    style={{ backgroundColor: card.type === 'article' ? 'rgba(212,163,115,0.12)' : 'rgba(142,151,117,0.12)', color: card.type === 'article' ? '#D4A373' : SAGE }}>
-                    {card.type === 'article' ? 'READ' : 'AUDIO'}
-                  </span>
-                  {card.duration && (
-                    <span className="text-[9px]" style={{ color: 'rgba(232,213,183,0.4)' }}>{card.duration}</span>
-                  )}
-                </div>
-              </div>
-              <ChevronRight size={16} color="rgba(142,151,117,0.35)" strokeWidth={1.5} className="flex-shrink-0 self-center" />
-            </button>
-          ))
-        )}
+          )}
+          <p style={{ position: 'absolute', bottom: 28, left: 0, right: 0, textAlign: 'center', fontFamily: 'Inter, sans-serif', fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(253,249,243,0.35)' }}>
+            Scroll to explore
+          </p>
+        </div>
       </div>
 
       {/* Card detail bottom sheet */}
@@ -432,7 +442,7 @@ export default function LifeBoxView({ onBack, user }) {
         {selectedCard && (
           <motion.div key="sheet" className="fixed inset-0 z-50"
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <div className="absolute inset-0 bg-black/50" onClick={() => setSelectedCard(null)} />
+            <div className="absolute inset-0" style={{ backgroundColor: 'rgba(67,52,34,0.4)' }} onClick={() => setSelectedCard(null)} />
             <motion.div
               className="absolute inset-x-0 bottom-0 rounded-t-[32px] overflow-hidden"
               style={{ backgroundColor: '#FDF9F3' }}
@@ -453,7 +463,7 @@ export default function LifeBoxView({ onBack, user }) {
               <div className="px-6 pt-4 flex items-start justify-between">
                 <div>
                   {selectedCard.label && (
-                    <p className="text-[9px] font-bold tracking-widest mb-1" style={{ color: 'rgba(142,151,117,0.7)' }}>
+                    <p className="text-[9px] font-bold tracking-widest mb-1" style={{ color: SAGE }}>
                       {selectedCard.label}
                     </p>
                   )}
@@ -480,7 +490,7 @@ export default function LifeBoxView({ onBack, user }) {
                   <button
                     onClick={() => setActiveArticle({ card: selectedCard })}
                     className="w-full py-5 rounded-[28px] font-bold text-[11px] tracking-widest"
-                    style={{ backgroundColor: '#1a2418', color: CREAM }}>
+                    style={{ backgroundColor: '#433422', color: CREAM }}>
                     BEGIN READING
                   </button>
                 ) : isSingleTrack ? (
@@ -489,10 +499,10 @@ export default function LifeBoxView({ onBack, user }) {
                       onClick={() => setActiveTrack({ track: firstTrack || { title: selectedCard.title, audioUrl: selectedCard.audioUrl }, card: selectedCard })}
                       className="w-20 h-20 rounded-full flex items-center justify-center active:scale-95 transition-transform"
                       style={{
-                        backgroundColor: 'rgba(142,151,117,0.12)',
-                        border: `1px solid rgba(142,151,117,0.3)`,
-                        boxShadow: '0 0 30px rgba(142,151,117,0.1)',
-                        color: '#1a2418',
+                        backgroundColor: '#433422',
+                        boxShadow: '0 0 30px rgba(67,52,34,0.2)',
+                        color: CREAM,
+                        animation: 'breathe 4s ease-in-out infinite',
                       }}>
                       <Play fill="currentColor" size={28} className="ml-1" />
                     </button>

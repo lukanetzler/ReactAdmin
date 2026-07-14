@@ -218,7 +218,7 @@ const PrevailOnboarding = ({ onComplete, initialStep = 0, initialName = '' }) =>
             />
 
             <p className="mt-6 text-gray-400 text-xs italic leading-relaxed">
-              "I have called you by name; you are mine." — Isaiah 43:1
+              "I have called you by name; you are mine." (Isaiah 43:1)
             </p>
 
             <div
@@ -386,7 +386,7 @@ const PrevailOnboarding = ({ onComplete, initialStep = 0, initialName = '' }) =>
               Your sanctuary <br />is ready.
             </h2>
             <p className="text-gray-400 mb-12 text-sm leading-relaxed max-w-[65%]">
-              "Peace I leave with you; my peace I give you." — John 14:27
+              "Peace I leave with you; my peace I give you." (John 14:27)
             </p>
             <PrimaryButton onClick={() => onComplete(name.trim().split(' ')[0])} label="ENTER PRAYVAIL" color="terracotta" />
           </div>

@@ -554,7 +554,7 @@ function CardEditorSheet({ initial, categories, onSave, onCancel, onDelete }) {
 
         {/* ── Track list ── */}
         <div className="px-5 pb-4">
-          <p className="text-[9px] font-bold tracking-widest text-[#433422]/35 mb-3">DAYS — tap to edit, drag to reorder</p>
+          <p className="text-[9px] font-bold tracking-widest text-[#433422]/35 mb-3">DAYS - tap to edit, drag to reorder</p>
           <Reorder.Group
             axis="y"
             values={form.tracks}
@@ -824,32 +824,21 @@ function SpaceCardEditorSheet({ initial, category, onSave, onCancel, onDelete })
     description: initial?.description || '',
     content: initial?.content || '',
     duration: initial?.duration || '',
+    audioUrl: initial?.audioUrl || (initial?.tracks?.[0]?.audioUrl) || '',
     color: initial?.color || '#E9DCC9',
     imageUrl: initial?.imageUrl || '',
     published: !!initial?.published,
     coming: !!initial?.coming,
     tier: initial?.tier || 'free',
     order: initial?.order ?? 0,
-    tracks: ensureKeys(initial?.tracks || []),
   });
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [error, setError] = useState('');
-  const [selectedTrack, setSelectedTrack] = useState('cover');
   const [imgProgress, setImgProgress] = useState(null);
   const imgInputRef = useRef();
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
-
-  const addTrack = () => {
-    const t = { _key: mkKey(), title: '', audioUrl: '', imageUrl: '', duration: '', trackType: 'audio' };
-    const next = [...form.tracks, t];
-    set('tracks', next);
-    setSelectedTrack(next.length - 1);
-  };
-
-  const removeTrack = (i) => { set('tracks', form.tracks.filter((_, idx) => idx !== i)); setSelectedTrack('cover'); };
-  const updateTrack = (i, k, v) => set('tracks', form.tracks.map((t, idx) => idx === i ? { ...t, [k]: v } : t));
 
   const handleCoverImage = async (e) => {
     const file = e.target.files[0]; if (!file) return;
@@ -879,13 +868,10 @@ function SpaceCardEditorSheet({ initial, category, onSave, onCancel, onDelete })
         published: !!form.published,
         coming: !!form.coming,
         order: Number(form.order) || 0,
-        type: contentType === 'article' ? 'article' : 'playlist',
+        type: contentType === 'article' ? 'article' : 'audio',
         tier: form.tier,
-        audioUrl: '',
-        tracks: contentType === 'article' ? [] : form.tracks.map((t, i) => ({
-          title: t.title, audioUrl: t.audioUrl || '', imageUrl: t.imageUrl || '',
-          duration: t.duration || '', trackType: t.trackType || 'audio', order: i,
-        })),
+        audioUrl: contentType === 'audio' ? form.audioUrl.trim() : '',
+        tracks: [],
       };
       await saveLibraryCard(payload, initial?.id);
       onSave();
@@ -982,27 +968,7 @@ function SpaceCardEditorSheet({ initial, category, onSave, onCancel, onDelete })
           )}
 
           {contentType === 'audio' && (
-            <div>
-              <p className="text-[9px] font-bold tracking-widest text-[#433422]/35 mb-3">TRACKS — tap to edit</p>
-              <Reorder.Group axis="y" values={form.tracks} onReorder={t => set('tracks', t)}
-                className="space-y-2" style={{ touchAction: 'none' }}>
-                {form.tracks.map((track, i) => (
-                  <TrackListItem key={track._key} track={track} index={i}
-                    isSelected={selectedTrack === i} onSelect={() => setSelectedTrack(i)} />
-                ))}
-              </Reorder.Group>
-              <button onClick={addTrack}
-                className="mt-2 w-full flex items-center justify-center gap-2 py-3 rounded-[16px] border-2 border-dashed border-[#D4A373]/30 text-[#D4A373]/60 text-xs font-bold tracking-widest hover:border-[#D4A373]/50 transition-colors">
-                <Plus size={14} /> ADD TRACK
-              </button>
-              {typeof selectedTrack === 'number' && form.tracks[selectedTrack] && (
-                <div className="mt-3 rounded-[20px] border border-[#E9DCC9] overflow-hidden">
-                  <TrackEditPanel track={form.tracks[selectedTrack]} index={selectedTrack}
-                    onChange={(k, v) => updateTrack(selectedTrack, k, v)}
-                    onDelete={() => removeTrack(selectedTrack)} />
-                </div>
-              )}
-            </div>
+            <UploadField label="Audio (MP3)" accept="audio/*" value={form.audioUrl} storagePath="library/audio" onUploaded={url => set('audioUrl', url)} />
           )}
 
           <div className="bg-white rounded-[20px] border border-[#E9DCC9] overflow-hidden">
@@ -1060,18 +1026,18 @@ function SpaceCardEditorSheet({ initial, category, onSave, onCancel, onDelete })
 // ─── Admin Dashboard ──────────────────────────────────────────────────────────
 const SPACE_CONFIG = {
   twilight: {
-    label: '🌙 Twilight Space',
+    label: '✨ The Night Sky',
     sub: 'Sleep meditations, evening prayer, night scripture',
     headerBg: 'linear-gradient(135deg, #0E1221 0%, #1a2240 100%)',
     accent: '#9B8FD4',
     iconColor: '#C4B9E8',
   },
   lifebox: {
-    label: '📖 Life Box',
+    label: '🌿 The Garden of Life',
     sub: 'Grief, marriage, transitions, purpose & more',
-    headerBg: 'linear-gradient(135deg, #1a2418 0%, #0f1a0e 100%)',
-    accent: '#8E9775',
-    iconColor: '#A8C898',
+    headerBg: 'linear-gradient(135deg, #8FA377 0%, #7a9064 100%)',
+    accent: '#FDF9F3',
+    iconColor: '#FDF9F3',
   },
 };
 
@@ -1217,7 +1183,7 @@ const AdminDashboard = ({ user, profile, onBack }) => {
               </svg>
             </div>
             <div className="flex-1 min-w-0">
-              <p className="font-serif text-lg" style={{ color: '#EEE8FF' }}>Twilight Space</p>
+              <p className="font-serif text-lg" style={{ color: '#EEE8FF' }}>The Night Sky</p>
               <p className="text-[11px] mt-0.5" style={{ color: 'rgba(196,185,255,0.45)' }}>Sleep meditations, evening prayer, night scripture</p>
             </div>
             <ChevronRight size={16} style={{ color: 'rgba(196,185,255,0.3)' }} className="flex-shrink-0" />
@@ -1226,15 +1192,15 @@ const AdminDashboard = ({ user, profile, onBack }) => {
           {/* Life Box */}
           <button onClick={() => setAdminSection('lifebox')}
             className="w-full flex items-center gap-4 rounded-[24px] px-5 py-5 text-left active:scale-[0.98] transition-transform overflow-hidden"
-            style={{ background: 'linear-gradient(135deg, #1a2418 0%, #0f1a0e 100%)' }}>
-            <div className="w-12 h-12 rounded-[16px] flex items-center justify-center flex-shrink-0" style={{ backgroundColor: 'rgba(142,151,117,0.15)' }}>
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#A8C898" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
+            style={{ background: 'linear-gradient(135deg, #8FA377 0%, #7a9064 100%)' }}>
+            <div className="w-12 h-12 rounded-[16px] flex items-center justify-center flex-shrink-0" style={{ backgroundColor: 'rgba(253,249,243,0.2)' }}>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#FDF9F3" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/><path d="M15 5l4 4"/>
               </svg>
             </div>
             <div className="flex-1 min-w-0">
-              <p className="font-serif text-lg" style={{ color: '#FDF9F3' }}>Life Box</p>
-              <p className="text-[11px] mt-0.5" style={{ color: 'rgba(168,200,152,0.5)' }}>Grief, marriage, transitions, purpose &amp; more</p>
+              <p className="font-serif text-lg" style={{ color: '#FDF9F3' }}>The Garden of Life</p>
+              <p className="text-[11px] mt-0.5" style={{ color: 'rgba(253,249,243,0.55)' }}>Grief, marriage, transitions, purpose &amp; more</p>
             </div>
             <ChevronRight size={16} style={{ color: 'rgba(168,200,152,0.3)' }} className="flex-shrink-0" />
           </button>
@@ -1296,7 +1262,7 @@ const AdminDashboard = ({ user, profile, onBack }) => {
                     {card.published ? 'LIVE' : 'DRAFT'}
                   </span>
                   <span className="text-[8px] text-[#433422]/30 uppercase tracking-widest">
-                    {card.type === 'article' ? '📖 Article' : `🎧 ${(card.tracks || []).length} track${(card.tracks || []).length !== 1 ? 's' : ''}`}
+                    {card.type === 'article' ? '📖 Article' : '🎧 Audio'}
                   </span>
                   {card.duration && <span className="text-[9px] text-[#433422]/30">{card.duration}</span>}
                 </div>

@@ -17,6 +17,7 @@ import AppTour from '../components/AppTour';
 import DovesSanctuary from '../components/DovesSanctuary';
 import TwilightSpaceView from '../components/TwilightSpaceView';
 import LifeBoxView from '../components/LifeBoxView';
+import MeditationSelector from '../components/MeditationSelector';
 import homepageImg from '../assets/home-page.webp';
 import { useTrackCompletions } from '../hooks/useTrackCompletions';
 import { useCompletionHistory } from '../hooks/useCompletionHistory';
@@ -74,6 +75,7 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
   const [activeTab, setActiveTab] = useState('home');
   const [view, setView] = useState('dashboard');
   const [showFlameModal, setShowFlameModal] = useState(false);
+  const [initialSpaceCard, setInitialSpaceCard] = useState(null);
 
   // Dynamic content from Firestore
   const { sessions: pathSessions } = usePathSessions();
@@ -162,13 +164,13 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
 
   useEffect(() => {
     if (view !== 'twilight-transition') return;
-    const t = setTimeout(() => setView('twilight'), 3000);
+    const t = setTimeout(() => setView('twilight'), 4500);
     return () => clearTimeout(t);
   }, [view]);
 
   useEffect(() => {
     if (view !== 'lifebox-transition') return;
-    const t = setTimeout(() => setView('lifebox'), 3000);
+    const t = setTimeout(() => setView('lifebox'), 4500);
     return () => clearTimeout(t);
   }, [view]);
 
@@ -496,7 +498,7 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
       const blob = await res.blob();
       const file = new File([blob], 'prayvail-verse.png', { type: 'image/png' });
       if (navigator.share && navigator.canShare?.({ files: [file] })) {
-        await navigator.share({ files: [file], title: `${dailyVerse.ref} — Prayvail` });
+        await navigator.share({ files: [file], title: `${dailyVerse.ref} | Prayvail` });
       } else {
         const a = document.createElement('a');
         a.href = shareImageUrl; a.download = 'prayvail-verse.png'; a.click();
@@ -1060,7 +1062,7 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
                   <p className="text-[9px] font-bold tracking-[0.3em] text-[#D4A373] uppercase mb-2">One Day at a Time</p>
                   <h2 className="text-2xl font-serif mb-4 leading-snug">Give yourself time to arrive.</h2>
                   <p className="text-sm text-[#433422]/60 leading-relaxed mb-2">
-                    Mindfulness is not a race. Each session is written for a particular moment — skipping ahead takes you out of that moment before you've fully settled into it.
+                    Mindfulness is not a race. Each session is written for a particular moment. Skipping ahead takes you out of that moment before you've fully settled into it.
                   </p>
                   <p className="text-sm text-[#433422]/60 leading-relaxed mb-8">
                     Walk this path one day at a time. If your heart needs more today, you are always welcome to revisit a session you've already completed.
@@ -1850,7 +1852,7 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-[9px] font-bold tracking-[0.25em] uppercase" style={{ color: eventConfig.color }}>{eventConfig.label}</p>
-                        <p className="text-sm font-serif text-[#433422] truncate">{entry.pathTitle || '—'}</p>
+                        <p className="text-sm font-serif text-[#433422] truncate">{entry.pathTitle || '...'}</p>
                       </div>
                       <button
                         onClick={() => deleteJournalEntry(uid, entry.id)}
@@ -1903,21 +1905,21 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
                   isEditable = false;
                 }
 
-                // Twilight Space entries
-                const isTwilight = r.startsWith('🌙');
+                // The Night Sky entries
+                const isTwilight = r.startsWith('✨');
                 if (isTwilight) {
-                  activityTitle = 'Twilight Space';
-                  const lines = r.split('\n').filter(l => l && !l.startsWith('🌙'));
+                  activityTitle = 'The Night Sky';
+                  const lines = r.split('\n').filter(l => l && !l.startsWith('✨'));
                   activityDetail = lines[0] || '';
                   hasMore = false;
                   isEditable = false;
                 }
 
-                // Life Box entries
-                const isLifeBox = r.startsWith('📖');
+                // The Garden of Life entries
+                const isLifeBox = r.startsWith('🌿');
                 if (isLifeBox) {
-                  activityTitle = 'Life Box';
-                  const lines = r.split('\n').filter(l => l && !l.startsWith('📖'));
+                  activityTitle = 'The Garden of Life';
+                  const lines = r.split('\n').filter(l => l && !l.startsWith('🌿'));
                   activityDetail = lines[0] || '';
                   hasMore = false;
                   isEditable = false;
@@ -2914,56 +2916,36 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
     return (
       <div
         className="fixed inset-0 flex flex-col items-center justify-center font-sans"
-        style={{ background: 'linear-gradient(160deg, #1a2418 0%, #253320 50%, #1e2b1a 100%)' }}
+        style={{ background: '#8FA377' }}
       >
-
-        {/* Book orb */}
-        <div className="relative flex items-center justify-center mb-24">
-          <div className="absolute w-32 h-32 rounded-full animate-orb-ring-1" style={{ border: '1px solid rgba(168,200,152,0.15)' }} />
-          <div className="absolute w-32 h-32 rounded-full animate-orb-ring-2" style={{ border: '1px solid rgba(168,200,152,0.12)' }} />
-          <div
-            className="w-16 h-16 rounded-full flex items-center justify-center animate-orb-core"
-            style={{
-              background: 'radial-gradient(circle, rgba(168,200,152,0.35) 0%, rgba(74,94,66,0.2) 60%, transparent 100%)',
-              boxShadow: '0 0 40px 10px rgba(168,200,152,0.1)',
-            }}
-          >
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="rgba(168,200,152,0.8)" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
-            </svg>
-          </div>
+        {/* Floating lotus */}
+        <div style={{ marginBottom: 52, animation: 'float 4s ease-in-out infinite' }}>
+          <svg viewBox="0 0 100 100" width={110} height={110} style={{ overflow: 'visible', filter: 'drop-shadow(0 6px 18px rgba(67,52,34,0.22))' }}>
+            <g opacity="0.92">
+              {[0, 72, 144, 216, 288].map(r => (
+                <ellipse key={r} cx="50" cy="23" rx="13" ry="27" fill="#D4A373" transform={`rotate(${r} 50 50)`} />
+              ))}
+            </g>
+            <g>
+              {[36, 108, 180, 252, 324].map(r => (
+                <ellipse key={r} cx="50" cy="28" rx="10" ry="20" fill="#E0B88A" transform={`rotate(${r} 50 50)`} />
+              ))}
+            </g>
+            <circle cx="50" cy="53" r="9" fill="#F6E9C9" />
+          </svg>
         </div>
 
-        {/* Text sequence */}
-        <p
-          className="text-[9px] font-bold tracking-[0.45em] uppercase"
-          style={{
-            color: 'rgba(168,200,152,0.5)',
-            opacity: 0,
-            animation: 'fade-in 1s ease-out 0.6s forwards',
-          }}
-        >
-          Life Box
+        <p className="text-[9px] font-bold tracking-[0.45em] uppercase"
+          style={{ color: 'rgba(253,249,243,0.55)', opacity: 0, animation: 'fade-in 1s ease-out 0.4s forwards' }}>
+          The Garden of Life
         </p>
-        <p
-          className="text-2xl font-serif mt-3"
-          style={{
-            color: '#EEF5EC',
-            opacity: 0,
-            animation: 'fade-in 1.2s ease-out 1s forwards',
-          }}
-        >
-          Preparing your space.
+        <p className="text-2xl font-serif mt-3 text-center max-w-[260px]"
+          style={{ color: '#FDF9F3', opacity: 0, animation: 'fade-in 1.2s ease-out 0.8s forwards', lineHeight: 1.4 }}>
+          Life is a garden. Tend it with grace.
         </p>
-        <p
-          className="text-sm font-serif mt-2"
-          style={{
-            color: 'rgba(168,200,152,0.4)',
-            opacity: 0,
-            animation: 'fade-in 1s ease-out 1.8s forwards',
-          }}
-        >
-          Opening the chapters...
+        <p className="text-sm font-serif mt-2"
+          style={{ color: 'rgba(253,249,243,0.45)', opacity: 0, animation: 'fade-in 1s ease-out 1.4s forwards' }}>
+          something is always growing
         </p>
       </div>
     );
@@ -2971,85 +2953,37 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
 
   // ── Life Box ────────────────────────────────────────────
   if (view === 'lifebox') {
-    return <LifeBoxView onBack={() => setView('explore')} user={user} />;
+    return <LifeBoxView onBack={() => setView('explore')} user={user} initialCard={initialSpaceCard} onInitialCardConsumed={() => setInitialSpaceCard(null)} />;
   }
 
   // ── Twilight Transition ─────────────────────────────────
   if (view === 'twilight-transition') {
-    const starField = [
-      [8,12],[22,6],[38,18],[55,8],[70,15],[85,9],[92,24],[78,32],[60,28],[44,35],
-      [28,42],[14,38],[6,55],[18,62],[35,58],[52,65],[68,52],[80,60],[95,48],[75,72],
-      [48,78],[30,72],[12,80],[58,82],[88,75],[40,88],[65,90],[20,90],
-    ];
     return (
       <div
         className="fixed inset-0 flex flex-col items-center justify-center font-sans"
-        style={{ background: 'linear-gradient(160deg, #0a0e1a 0%, #111829 50%, #130f20 100%)' }}
+        style={{ background: '#1e1610' }}
       >
-        {/* Star field — staggered fade in */}
-        <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
-          {starField.map(([x, y], i) => (
-            <circle
-              key={i} cx={x} cy={y}
-              r={i % 5 === 0 ? 0.9 : i % 3 === 0 ? 0.7 : 0.5}
-              fill="white"
-              style={{
-                opacity: 0,
-                animation: `fade-in 0.8s ease-out ${0.1 + i * 0.06}s forwards`,
-              }}
+        {/* Floating 4-pointed star */}
+        <div style={{ marginBottom: 52, animation: 'float 5s ease-in-out infinite' }}>
+          <svg viewBox="0 0 60 60" width={100} height={100} style={{ overflow: 'visible', filter: 'drop-shadow(0 0 22px rgba(212,163,115,0.45))' }}>
+            <path
+              d="M30 2 L33 27 L58 30 L33 33 L30 58 L27 33 L2 30 L27 27 Z"
+              fill="#FDF9F3"
             />
-          ))}
-        </svg>
-
-        {/* Moon orb */}
-        <div className="relative flex items-center justify-center mb-24">
-          {/* Outer rings */}
-          <div className="absolute w-32 h-32 rounded-full animate-orb-ring-1" style={{ border: '1px solid rgba(155,143,212,0.15)' }} />
-          <div className="absolute w-32 h-32 rounded-full animate-orb-ring-2" style={{ border: '1px solid rgba(155,143,212,0.12)' }} />
-          {/* Core glow */}
-          <div
-            className="w-16 h-16 rounded-full flex items-center justify-center animate-orb-core"
-            style={{
-              background: 'radial-gradient(circle, rgba(155,143,212,0.35) 0%, rgba(100,90,180,0.15) 60%, transparent 100%)',
-              boxShadow: '0 0 40px 10px rgba(155,143,212,0.12)',
-            }}
-          >
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="rgba(196,185,255,0.7)" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
-            </svg>
-          </div>
+          </svg>
         </div>
 
-        {/* Text sequence */}
-        <p
-          className="text-[9px] font-bold tracking-[0.45em] uppercase"
-          style={{
-            color: 'rgba(196,185,255,0.5)',
-            opacity: 0,
-            animation: 'fade-in 1s ease-out 0.6s forwards',
-          }}
-        >
-          Twilight Space
+        <p className="text-[9px] font-bold tracking-[0.45em] uppercase"
+          style={{ color: 'rgba(212,163,115,0.5)', opacity: 0, animation: 'fade-in 1s ease-out 0.4s forwards' }}>
+          The Night Sky
         </p>
-        <p
-          className="text-2xl font-serif mt-3"
-          style={{
-            color: '#EEE8FF',
-            opacity: 0,
-            animation: 'fade-in 1.2s ease-out 1s forwards',
-          }}
-        >
-          Preparing your space.
+        <p className="text-2xl font-serif mt-3 text-center max-w-[260px]"
+          style={{ color: '#FDF9F3', opacity: 0, animation: 'fade-in 1.2s ease-out 0.8s forwards', lineHeight: 1.4 }}>
+          Each star is a prayer the universe kept.
         </p>
-        <p
-          className="text-sm font-serif mt-2"
-          style={{
-            color: 'rgba(196,185,255,0.4)',
-            opacity: 0,
-            animation: 'fade-in 1s ease-out 1.8s forwards',
-          }}
-        >
-          Winding down...
+        <p className="text-sm font-serif mt-2"
+          style={{ color: 'rgba(212,163,115,0.4)', opacity: 0, animation: 'fade-in 1s ease-out 1.4s forwards' }}>
+          you are held in something vast
         </p>
       </div>
     );
@@ -3057,7 +2991,7 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
 
   // ── Twilight Space ──────────────────────────────────────
   if (view === 'twilight') {
-    return <TwilightSpaceView onBack={() => setView('explore')} user={user} />;
+    return <TwilightSpaceView onBack={() => setView('explore')} user={user} initialCard={initialSpaceCard} onInitialCardConsumed={() => setInitialSpaceCard(null)} />;
   }
 
   // ── Explore ─────────────────────────────────────────────
@@ -3147,85 +3081,17 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
               </div>
             </section>
 
-            {/* ── Life Box ── */}
-            <section>
-              <button
-                onClick={() => setView('lifebox-transition')}
-                className="w-full rounded-[28px] overflow-hidden active:scale-[0.98] transition-transform text-left"
-                style={{ background: 'linear-gradient(135deg, #4A5E42 0%, #3a4e34 60%, #2e3d28 100%)', minHeight: 100 }}
-              >
-                <div className="relative p-6 h-full flex flex-col justify-between" style={{ minHeight: 100 }}>
-                  {/* Subtle leaf texture glow */}
-                  <div className="absolute top-[-20%] right-[-10%] w-40 h-40 rounded-full pointer-events-none" style={{ backgroundColor: 'rgba(142,175,128,0.2)', filter: 'blur(30px)' }} />
-                  <div className="absolute bottom-[-10%] left-[-5%] w-28 h-28 rounded-full pointer-events-none" style={{ backgroundColor: 'rgba(168,200,152,0.1)', filter: 'blur(20px)' }} />
-
-                  <div className="relative z-10 flex items-start justify-between">
-                    <div>
-                      <p className="text-[9px] font-bold tracking-[0.4em] mb-1" style={{ color: 'rgba(168,200,152,0.6)' }}>LIFE BOX</p>
-                      <h2 className="text-2xl font-serif leading-tight" style={{ color: '#EEF5EC' }}>Life's chapters,<br /><em className="italic" style={{ color: '#A8C898' }}>guided by faith.</em></h2>
-                    </div>
-                    <div className="w-10 h-10 rounded-[14px] flex items-center justify-center flex-shrink-0" style={{ backgroundColor: 'rgba(168,200,152,0.15)' }}>
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#A8C898" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
-                      </svg>
-                    </div>
-                  </div>
-
-                  <div className="relative z-10 flex items-end justify-end mt-6">
-                    <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: 'rgba(168,200,152,0.15)' }}>
-                      <ArrowRight size={14} style={{ color: '#A8C898' }} />
-                    </div>
-                  </div>
-                </div>
-              </button>
-            </section>
-
-            {/* ── Twilight Space ── */}
-            <section>
-              <button
-                onClick={() => setView('twilight-transition')}
-                className="w-full rounded-[28px] overflow-hidden active:scale-[0.98] transition-transform text-left"
-                style={{ background: 'linear-gradient(160deg, #0E1221 0%, #1a2240 55%, #1e1635 100%)', minHeight: 100 }}
-              >
-                <div className="relative p-6 h-full flex flex-col justify-between overflow-hidden" style={{ minHeight: 100 }}>
-                  {/* Stars */}
-                  <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
-                    {[
-                      [15,12],[28,8],[45,18],[62,6],[78,14],[88,9],[20,30],[55,25],[72,35],[38,40],
-                      [82,28],[10,42],[65,18],[35,10],[90,38]
-                    ].map(([x, y], i) => (
-                      <circle key={i} cx={x} cy={y} r={i % 4 === 0 ? 0.9 : 0.6} fill="white" opacity="0.45" />
-                    ))}
-                  </svg>
-                  {/* Moon */}
-                  <div className="absolute top-4 right-16 w-10 h-10 pointer-events-none" style={{ opacity: 0.15 }}>
-                    <svg viewBox="0 0 24 24" fill="#C4B5F4">
-                      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
-                    </svg>
-                  </div>
-                  {/* Glow */}
-                  <div className="absolute top-[-20%] right-[10%] w-32 h-32 rounded-full pointer-events-none" style={{ backgroundColor: 'rgba(155,143,212,0.15)', filter: 'blur(25px)' }} />
-
-                  <div className="relative z-10 flex items-start justify-between">
-                    <div>
-                      <p className="text-[9px] font-bold tracking-[0.4em] mb-1" style={{ color: 'rgba(196,185,255,0.4)' }}>TWILIGHT SPACE</p>
-                      <h2 className="text-2xl font-serif leading-tight" style={{ color: '#EEE8FF' }}>Wind down.<br /><em className="italic" style={{ color: '#9B8FD4' }}>Rest in peace.</em></h2>
-                    </div>
-                    <div className="w-10 h-10 rounded-[14px] flex items-center justify-center flex-shrink-0" style={{ backgroundColor: 'rgba(155,143,212,0.12)' }}>
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9B8FD4" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
-                      </svg>
-                    </div>
-                  </div>
-
-                  <div className="relative z-10 flex items-end justify-end mt-6">
-                    <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: 'rgba(155,143,212,0.12)' }}>
-                      <ArrowRight size={14} style={{ color: '#9B8FD4' }} />
-                    </div>
-                  </div>
-                </div>
-              </button>
-            </section>
+            {/* ── Meditation Selector (Life Box + Twilight Space) ── */}
+            <MeditationSelector
+              onSelectLife={(card) => {
+                setInitialSpaceCard(card);
+                setView('lifebox-transition');
+              }}
+              onSelectTwilight={(card) => {
+                setInitialSpaceCard(card);
+                setView('twilight-transition');
+              }}
+            />
 
           </main>
         </div>

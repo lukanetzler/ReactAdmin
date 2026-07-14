@@ -71,7 +71,7 @@ export default function GroundingExercise({ onBack, user }) {
           You are<br /><em className="italic text-[#8E9775]">grounded.</em>
         </h2>
         <p className="text-sm text-[#433422]/45 text-center leading-relaxed mb-10 max-w-[260px]">
-          "Be still, and know that I am God." — Psalm 46:10
+          "Be still, and know that I am God." (Psalm 46:10)
         </p>
         <button onClick={onBack}
           className="w-full max-w-[320px] py-5 bg-[#433422] text-[#FDF9F3] rounded-[28px] text-[11px] font-bold tracking-widest">

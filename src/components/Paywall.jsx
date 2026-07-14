@@ -89,7 +89,7 @@ export default function Paywall({ onBack, onPurchased }) {
       {/* Honest intro */}
       <div className="px-8 pt-6 pb-2">
         <p className="text-sm text-[#433422]/60 leading-relaxed">
-          We're an indie team — no investors, no ads, just people who believe this matters. The core of Prayvail is free because peace shouldn't be locked away. But if you're in a position to support us, it goes directly to keeping this alive and growing. Supporter content is our gratitude for that.
+          We're an indie team, no investors, no ads, just people who believe this matters. The core of Prayvail is free because peace shouldn't be locked away. But if you're in a position to support us, it goes directly to keeping this alive and growing. Supporter content is our gratitude for that.
         </p>
       </div>
 

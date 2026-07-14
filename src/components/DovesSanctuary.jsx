@@ -14,7 +14,7 @@ const DEFAULT_AFFIRMATIONS = [
   "You don't need to earn rest; you are allowed to simply breathe and be.",
   "There is a deep, quiet pool of courage living right inside your heart.",
   "The softness in your eyes is proof of the strength in your spirit.",
-  "Your journey is uniquely yours — it is perfectly paced and unfolding beautifully.",
+  "Your journey is uniquely yours, perfectly paced and unfolding beautifully.",
   "You are a magnificent work of art in continuous, gorgeous motion.",
   "Your vulnerability is not weakness; it is the raw truth of your courage.",
   "You are thoroughly, deeply, and unconditionally worthy of love.",
@@ -22,7 +22,7 @@ const DEFAULT_AFFIRMATIONS = [
   "Your voice carries a soothing warmth that makes people feel truly heard.",
   "Even when you feel fragile, remember that water is soft and can carve canyons.",
   "Be patient with yourself; you are continuously blooming, petal by petal.",
-  "Peace is not the absence of noise — it is your quiet strength within it.",
+  "Peace is not the absence of noise. It is your quiet strength within it.",
 ];
 
 const DOVE_TYPES = [
@@ -359,7 +359,7 @@ export default function DovesSanctuary({ onBack, user }) {
             </>
           ) : (
             <p className="text-sm text-[#433422]/40 font-serif italic text-center mb-10 max-w-[240px] leading-relaxed">
-              "Be still, and know that I am God." — Psalm 46:10
+              "Be still, and know that I am God." (Psalm 46:10)
             </p>
           )}
         </div>
