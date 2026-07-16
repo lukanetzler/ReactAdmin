@@ -16,6 +16,7 @@
     "@capacitor/cli": "^8.4.0",
     "@capacitor/core": "^8.3.3",
     "@capacitor/ios": "^8.4.0",
+    "@capacitor/local-notifications": "^8.2.1",
     "@capacitor/status-bar": "^8.0.2",
     "@revenuecat/purchases-capacitor": "^13.1.0",
     "@revenuecat/purchases-capacitor-ui": "^13.1.0",

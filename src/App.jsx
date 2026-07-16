@@ -6,6 +6,7 @@ import { signOut } from 'firebase/auth';
 import { auth } from './firebase';
 import { migrateGuestDataIfNeeded } from './services/migrateGuest';
 import { initializePurchases } from './services/purchases';
+import { syncNotifications } from './services/notifications';
 import prayvailLogo from './assets/prayvail-logo-blank.webp';
 import PrevailGateway from './pages/PrevailGateway';
 import PrevailOnboarding from './pages/PrevailOnboarding';
@@ -56,6 +57,15 @@ function App() {
       initializePurchases(user.uid).catch(() => {});
     }
   }, [user, loading]);
+
+  useEffect(() => {
+    if (user && profile) {
+      syncNotifications({
+        notifDailyVerse: profile.notifDailyVerse ?? true,
+        notifReflection: profile.notifReflection ?? true,
+      }).catch(() => {});
+    }
+  }, [user, profile]);
 
   const [fading, setFading] = useState(false);
   const navigate = (to) => {

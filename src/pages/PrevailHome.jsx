@@ -11,6 +11,7 @@ import { addJournalEntry, updateJournalEntry, deleteJournalEntry, addJourneyEven
 import { updateUserProfile } from '../services/userProfile';
 import { addToPath, removeFromPath, completeTrackForDay, dismissBroadcast, completePathItem, recordCompletion, recordStreakDay } from '../services/dailyPath';
 import { checkIsSupporter, presentCustomerCenter, restorePurchases, isNative } from '../services/purchases';
+import { syncNotifications } from '../services/notifications';
 import Paywall from '../components/Paywall';
 import PrivacyPolicyModal from '../components/PrivacyPolicyModal';
 import AppTour from '../components/AppTour';
@@ -123,7 +124,7 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
   const uid = user?.isAnonymous ? null : user?.uid;
 
   // Daily path
-  const { items: pathItems, archivedItems } = useDailyPath(uid);
+  const { items: pathItems, archivedItems, loading: pathItemsLoading } = useDailyPath(uid);
   const activeModule = pathItems.find(i => !i._broadcast && allCards.some(c => c.id === i.cardId)) ?? null;
   const activeModuleCard = activeModule ? allCards.find(c => c.id === activeModule.cardId) ?? null : null;
   const { completedCardIds: completedHistory, completionDates } = useCompletionHistory(uid);
@@ -2312,6 +2313,10 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
                     onClick={async () => {
                       const newVal = !state;
                       await updateUserProfile(user.uid, { [key]: newVal });
+                      syncNotifications({
+                        notifDailyVerse: key === 'notifDailyVerse' ? newVal : notifDailyVerse,
+                        notifReflection: key === 'notifReflection' ? newVal : notifReflection,
+                      }).catch(() => {});
                     }}
                     className={`w-12 h-7 rounded-full transition-colors relative flex-shrink-0 ${state ? 'bg-[#D4A373]' : 'bg-[#433422]/15'}`}
                   >
@@ -3344,6 +3349,35 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
 
           const visibleSteps = allSteps.slice(0, completedSteps + 3);
           const hiddenCount = allSteps.length - visibleSteps.length;
+
+          if (pathItemsLoading || cardsLoading) {
+            const sk = (w, h, radius = 8, delay = 0) => ({
+              width: w, height: h, borderRadius: radius, flexShrink: 0,
+              background: 'linear-gradient(90deg,#F4EFE6 25%,#EDE4D6 50%,#F4EFE6 75%)',
+              backgroundSize: '800px 100%',
+              animation: `shimmer 1.4s ease-in-out ${delay}s infinite`,
+            });
+            return (
+              <div className="px-6 pb-32">
+                {/* Progress bar shimmer */}
+                <div className="flex items-center gap-2 mb-5">
+                  <div style={sk('100%', 4, 4)} />
+                  <div style={sk(28, 12, 4, 0.1)} />
+                </div>
+                {/* Stream window shimmer */}
+                <div className="rounded-[28px] overflow-hidden flex flex-col items-center justify-center gap-4 py-10"
+                  style={{ minHeight: 'max(234px, calc(100dvh - 18vh - 360px))', background: '#F4EFE6' }}>
+                  {/* Stone circle */}
+                  <div style={sk(80, 80, '50%', 0.05)} />
+                  {/* Track title lines */}
+                  <div className="flex flex-col items-center gap-2 mt-2">
+                    <div style={sk(140, 14, 6, 0.1)} />
+                    <div style={sk(90, 10, 6, 0.15)} />
+                  </div>
+                </div>
+              </div>
+            );
+          }
 
           return (
             <div className="px-6 pb-32">
