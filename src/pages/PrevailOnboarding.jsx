@@ -2,17 +2,19 @@ import { useState, useEffect } from 'react';
 import {
   ArrowRight,
   ArrowLeft,
-  Check,
 } from 'lucide-react';
 import { createUserWithEmailAndPassword, signInAnonymously, linkWithCredential, EmailAuthProvider, updateProfile } from 'firebase/auth';
 import { auth } from '../firebase';
 import { createUserProfile } from '../services/userProfile';
 import { enrollSignupCards } from '../services/dailyPath';
+import { migrateGuestDataIfNeeded } from '../services/migrateGuest';
+import { hasGuestData } from '../services/localStore';
 import prayvailLogo from '../assets/prayvail-logo-blank.webp';
 import stepsImg from '../assets/steps.webp';
 import malePathImg from '../assets/man-path.webp';
 import femalePathImg from '../assets/woman-path.webp';
 import PrivacyPolicyModal from '../components/PrivacyPolicyModal';
+import TermsModal from '../components/TermsModal';
 
 const TOTAL_PROGRESS_STEPS = 4;
 
@@ -25,6 +27,7 @@ const PrevailOnboarding = ({ onComplete, initialStep = 0, initialName = '' }) =>
   const [authError, setAuthError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPrivacy, setShowPrivacy] = useState(false);
+  const [showTerms, setShowTerms] = useState(false);
 
   const nextStep = () => setStep(s => Math.min(s + 1, 5));
   const prevStep = () => setStep(s => Math.max(s - 1, 1));
@@ -35,6 +38,7 @@ const PrevailOnboarding = ({ onComplete, initialStep = 0, initialName = '' }) =>
     try {
       const firstName = name.trim().split(' ')[0];
       const isUpgrading = auth.currentUser?.isAnonymous;
+      const hadLocalData = hasGuestData();
       let uid;
 
       if (isUpgrading) {
@@ -52,8 +56,16 @@ const PrevailOnboarding = ({ onComplete, initialStep = 0, initialName = '' }) =>
       createUserProfile(uid, { name: firstName, email }).catch(err =>
         console.error('Failed to create Firestore profile:', err)
       );
-      // Only enrol signup cards for brand-new accounts, not upgrades
-      if (!isUpgrading) {
+
+      // Merge any local guest progress into the new account BEFORE enrolling signup
+      // cards, so the "returning user" heuristic can't discard it (forceMerge).
+      await migrateGuestDataIfNeeded(uid, { forceMerge: true }).catch(err =>
+        console.error('Failed to migrate guest data:', err)
+      );
+
+      // Enrol starter cards only for genuinely fresh users — a guest who already had
+      // local progress keeps that instead, avoiding duplicate "First Steps" cards.
+      if (!isUpgrading && !hadLocalData) {
         enrollSignupCards(uid).catch(err =>
           console.error('Failed to enrol signup cards:', err)
         );
@@ -341,19 +353,17 @@ const PrevailOnboarding = ({ onComplete, initialStep = 0, initialName = '' }) =>
                 disabled={isSubmitting}
               />
               <button
-                onClick={async () => {
+                onClick={() => {
                   if (auth.currentUser?.isAnonymous) {
                     onComplete('');
                   } else {
-                    try {
-                      const { user: anonUser } = await signInAnonymously(auth);
-                      const firstName = name.trim().split(' ')[0];
-                      if (firstName) {
-                        await updateProfile(anonUser, { displayName: firstName });
-                      }
-                    } catch (err) {
-                      console.error('Anonymous sign-in failed:', err);
-                    }
+                    // Fire-and-forget — advance immediately so the button is never blocked by network
+                    const firstName = name.trim().split(' ')[0];
+                    signInAnonymously(auth)
+                      .then(({ user: anonUser }) => {
+                        if (firstName) updateProfile(anonUser, { displayName: firstName }).catch(() => {});
+                      })
+                      .catch(err => console.error('Anonymous sign-in failed:', err));
                     nextStep();
                   }
                 }}
@@ -364,12 +374,19 @@ const PrevailOnboarding = ({ onComplete, initialStep = 0, initialName = '' }) =>
             </div>
 
             <p className="mt-6 text-center text-[10px] text-[#433422]/30 leading-relaxed">
-              By creating an account you agree to our{' '}
+              By creating an account and using the app you agree to our{' '}
               <button
                 onClick={() => setShowPrivacy(true)}
                 className="underline text-[#433422]/50 hover:text-[#433422]/70 transition-colors"
               >
                 Privacy Policy
+              </button>
+              {' '}and{' '}
+              <button
+                onClick={() => setShowTerms(true)}
+                className="underline text-[#433422]/50 hover:text-[#433422]/70 transition-colors"
+              >
+                Terms of Use
               </button>
             </p>
           </div>
@@ -377,17 +394,50 @@ const PrevailOnboarding = ({ onComplete, initialStep = 0, initialName = '' }) =>
 
         {/* ── Step 5: Ready ── */}
         {step === 5 && (
-          <div className="flex-1 flex flex-col items-center justify-center text-center animate-fade-in" style={{ paddingLeft: '10%', paddingRight: '10%' }}>
-            <div className="w-20 h-20 bg-[#8E9775]/10 rounded-full flex items-center justify-center mb-8 relative">
-              <div className="absolute inset-0 bg-[#8E9775]/15 rounded-full animate-ping" />
-              <Check className="text-[#8E9775]" size={36} strokeWidth={1.5} />
+          <div className="flex-1 flex flex-col items-center justify-center text-center animate-fade-in px-8">
+            {/* Logo cradled in breathing halo rings */}
+            <div className="relative mb-10 flex items-center justify-center" style={{ width: 200, height: 200 }}>
+              <div className="absolute rounded-full" style={{
+                width: 200, height: 200,
+                background: 'radial-gradient(circle, rgba(212,163,115,0.18) 0%, transparent 68%)',
+              }} />
+              {[0, 1, 2].map(i => (
+                <div key={i} className="absolute rounded-full" style={{
+                  width: 104 + i * 42,
+                  height: 104 + i * 42,
+                  border: '1px solid rgba(212,163,115,0.28)',
+                  animation: `breathe 4.5s ease-in-out ${i * 0.55}s infinite`,
+                }} />
+              ))}
+              <div className="relative w-24 h-24 rounded-full overflow-hidden" style={{
+                boxShadow: '0 10px 34px -6px rgba(67,52,34,0.28)',
+                animation: 'breathe 4.5s ease-in-out infinite',
+              }}>
+                <img src={prayvailLogo} alt="Prayvail" className="w-full h-full object-cover" />
+              </div>
             </div>
-            <h2 className="text-4xl font-serif mb-4 leading-tight">
-              Your sanctuary <br />is ready.
+
+            {/* Personalised greeting */}
+            {name.trim() && (
+              <p className="text-[11px] font-bold uppercase mb-4" style={{ color: '#D4A373', letterSpacing: '0.35em' }}>
+                Welcome, {name.trim().split(' ')[0]}
+              </p>
+            )}
+            <h2 className="text-[2.6rem] font-serif leading-[1.08] mb-7" style={{ color: '#433422' }}>
+              Your sanctuary<br />is ready.
             </h2>
-            <p className="text-gray-400 mb-12 text-sm leading-relaxed max-w-[65%]">
-              "Peace I leave with you; my peace I give you." (John 14:27)
-            </p>
+
+            {/* Verse, softly framed */}
+            <div className="flex flex-col items-center mb-12" style={{ maxWidth: '80%' }}>
+              <div className="mb-5" style={{ width: 32, height: 1, backgroundColor: 'rgba(212,163,115,0.55)' }} />
+              <p className="font-serif italic leading-relaxed" style={{ color: 'rgba(67,52,34,0.55)', fontSize: 15 }}>
+                “Peace I leave with you; my peace I give you.”
+              </p>
+              <p className="text-[10px] font-bold uppercase mt-3" style={{ color: 'rgba(67,52,34,0.3)', letterSpacing: '0.25em' }}>
+                John 14:27
+              </p>
+            </div>
+
             <PrimaryButton onClick={() => onComplete(name.trim().split(' ')[0])} label="ENTER PRAYVAIL" color="terracotta" />
           </div>
         )}
@@ -395,6 +445,7 @@ const PrevailOnboarding = ({ onComplete, initialStep = 0, initialName = '' }) =>
       </main>
 
       {showPrivacy && <PrivacyPolicyModal onClose={() => setShowPrivacy(false)} />}
+      {showTerms && <TermsModal onClose={() => setShowTerms(false)} />}
     </div>
   );
 };

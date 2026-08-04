@@ -150,3 +150,21 @@ export async function saveCategory(data, id) {
 export async function deleteCategory(id) {
   return withTimeout(deleteDoc(doc(db, 'content', 'categories', 'items', id)));
 }
+
+// ── Space Categories (Garden of Life & Night Sky) ─────────
+// Each doc: { space: 'lifebox' | 'twilight', name, value (slug), order,
+//             subcategories: [{ name, value }] }. Subcategories are nested in the
+// category document — saving one means writing the whole updated category.
+const spaceCategoriesRef = () => collection(db, 'content', 'spaceCategories', 'items');
+
+export async function saveSpaceCategory(data, id) {
+  const payload = { ...data, updatedAt: new Date().toISOString() };
+  if (id) {
+    return withTimeout(setDoc(doc(db, 'content', 'spaceCategories', 'items', id), payload, { merge: true }));
+  }
+  return withTimeout(addDoc(spaceCategoriesRef(), { ...payload, createdAt: new Date().toISOString() }));
+}
+
+export async function deleteSpaceCategory(id) {
+  return withTimeout(deleteDoc(doc(db, 'content', 'spaceCategories', 'items', id)));
+}

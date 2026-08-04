@@ -13,8 +13,6 @@ const config: CapacitorConfig = {
   },
   plugins: {
     StatusBar: {
-      // Transparent overlay so the app content flows edge-to-edge
-      overlaysWebView: true,
       style: 'DARK',
       backgroundColor: '#00000000',
     },

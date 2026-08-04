@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
 import { Reorder, useDragControls, AnimatePresence, motion } from 'framer-motion';
-import { useAllLibraryCards, useCategories } from '../hooks/useContent';
+import { useAllLibraryCards, useCategories, useSpaceCategories } from '../hooks/useContent';
 import {
   saveLibraryCard, deleteLibraryCard, uploadFile,
   saveCategory, deleteCategory,
+  saveSpaceCategory, deleteSpaceCategory,
 } from '../services/content';
 import ResourceCard from '../components/ResourceCard';
 import {
@@ -817,8 +818,8 @@ function AdminSectionItem({
 }
 
 // ─── SpaceCardEditorSheet — article/audio editor for Twilight & Life Box ──────
-function SpaceCardEditorSheet({ initial, category, onSave, onCancel, onDelete }) {
-  const [contentType, setContentType] = useState(initial?.type === 'article' ? 'article' : 'audio');
+function SpaceCardEditorSheet({ initial, category, spaceCategories = [], onSave, onCancel, onDelete }) {
+  const [mediaFormat, setMediaFormat] = useState(initial?.type === 'article' ? 'article' : 'audio');
   const [form, setForm] = useState({
     title: initial?.title || '',
     description: initial?.description || '',
@@ -831,6 +832,9 @@ function SpaceCardEditorSheet({ initial, category, onSave, onCancel, onDelete })
     coming: !!initial?.coming,
     tier: initial?.tier || 'free',
     order: initial?.order ?? 0,
+    contentType: initial?.contentType || '',
+    spaceCategory: initial?.spaceCategory || '',
+    spaceSubcategory: initial?.spaceSubcategory || '',
   });
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -860,18 +864,21 @@ function SpaceCardEditorSheet({ initial, category, onSave, onCancel, onDelete })
         title: form.title.trim(),
         label: '',
         category,
-        duration: contentType === 'audio' ? form.duration.trim() : '',
+        duration: mediaFormat === 'audio' ? form.duration.trim() : '',
         description: form.description.trim(),
-        content: contentType === 'article' ? form.content : '',
+        content: mediaFormat === 'article' ? form.content : '',
         color: form.color || '#E9DCC9',
         imageUrl: form.imageUrl || '',
         published: !!form.published,
         coming: !!form.coming,
         order: Number(form.order) || 0,
-        type: contentType === 'article' ? 'article' : 'audio',
+        type: mediaFormat === 'article' ? 'article' : 'audio',
         tier: form.tier,
-        audioUrl: contentType === 'audio' ? form.audioUrl.trim() : '',
+        audioUrl: mediaFormat === 'audio' ? form.audioUrl.trim() : '',
         tracks: [],
+        contentType: form.contentType || '',
+        spaceCategory: form.spaceCategory || '',
+        spaceSubcategory: form.spaceSubcategory || '',
       };
       await saveLibraryCard(payload, initial?.id);
       onSave();
@@ -898,17 +905,67 @@ function SpaceCardEditorSheet({ initial, category, onSave, onCancel, onDelete })
       </div>
 
       <div className="flex-1 overflow-y-auto pb-24 space-y-5">
-        {/* Type toggle */}
+        {/* Format toggle (audio / article) */}
         <div className="px-5 pt-5">
-          <p className="text-[10px] tracking-widest font-bold text-[#433422]/50 mb-2">CONTENT TYPE</p>
+          <p className="text-[10px] tracking-widest font-bold text-[#433422]/50 mb-2">FORMAT</p>
           <div className="flex gap-2">
             {[{ v: 'audio', label: '🎧 Audio' }, { v: 'article', label: '📖 Article' }].map(({ v, label }) => (
-              <button key={v} onClick={() => { setContentType(v); setSelectedTrack('cover'); }}
-                className={`flex-1 py-2.5 rounded-[14px] text-sm font-bold transition-colors ${contentType === v ? 'bg-[#433422] text-[#FDF9F3]' : 'bg-[#F4EFE6] text-[#433422]/50'}`}>
+              <button key={v} onClick={() => setMediaFormat(v)}
+                className={`flex-1 py-2.5 rounded-[14px] text-sm font-bold transition-colors ${mediaFormat === v ? 'bg-[#433422] text-[#FDF9F3]' : 'bg-[#F4EFE6] text-[#433422]/50'}`}>
                 {label}
               </button>
             ))}
           </div>
+        </div>
+
+        {/* Content type (meditation / prayer / scripture) */}
+        <div className="px-5">
+          <p className="text-[10px] tracking-widest font-bold text-[#433422]/50 mb-2">TYPE</p>
+          <div className="flex gap-2 flex-wrap">
+            {[
+              { v: '', label: 'None' },
+              { v: 'meditation', label: '🧘 Meditation' },
+              { v: 'prayer', label: '🙏 Prayer' },
+              { v: 'scripture', label: '📜 Scripture' },
+            ].map(({ v, label }) => (
+              <button key={v} onClick={() => set('contentType', v)}
+                className={`px-3 py-2 rounded-[12px] text-xs font-bold transition-colors ${form.contentType === v ? 'bg-[#433422] text-[#FDF9F3]' : 'bg-[#F4EFE6] text-[#433422]/50'}`}>
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Category + subcategory */}
+        <div className="px-5 space-y-3">
+          <div>
+            <p className="text-[10px] tracking-widest font-bold text-[#433422]/50 mb-1">CATEGORY</p>
+            {spaceCategories.length === 0 ? (
+              <p className="text-xs text-[#433422]/35 italic py-1">No categories yet — add them in this space's editor</p>
+            ) : (
+              <select value={form.spaceCategory}
+                onChange={e => setForm(f => ({ ...f, spaceCategory: e.target.value, spaceSubcategory: '' }))}
+                className="w-full bg-white rounded-xl px-3 py-2.5 text-sm border border-[#E9DCC9] focus:border-[#D4A373] focus:outline-none">
+                <option value="">— None —</option>
+                {spaceCategories.map(cat => <option key={cat.id} value={cat.value}>{cat.name}</option>)}
+              </select>
+            )}
+          </div>
+          {(() => {
+            const selectedCat = spaceCategories.find(c => c.value === form.spaceCategory);
+            const subs = selectedCat?.subcategories || [];
+            if (!selectedCat || subs.length === 0) return null;
+            return (
+              <div>
+                <p className="text-[10px] tracking-widest font-bold text-[#433422]/50 mb-1">SUBCATEGORY</p>
+                <select value={form.spaceSubcategory} onChange={e => set('spaceSubcategory', e.target.value)}
+                  className="w-full bg-white rounded-xl px-3 py-2.5 text-sm border border-[#E9DCC9] focus:border-[#D4A373] focus:outline-none">
+                  <option value="">— None —</option>
+                  {subs.map(sub => <option key={sub.value} value={sub.value}>{sub.name}</option>)}
+                </select>
+              </div>
+            );
+          })()}
         </div>
 
         {/* Cover image */}
@@ -943,14 +1000,14 @@ function SpaceCardEditorSheet({ initial, category, onSave, onCancel, onDelete })
 
           <div>
             <p className="text-[10px] tracking-widest font-bold text-[#433422]/50 mb-1">
-              DESCRIPTION {contentType === 'article' ? <span className="font-normal opacity-50">(teaser shown in card list)</span> : ''}
+              DESCRIPTION {mediaFormat === 'article' ? <span className="font-normal opacity-50">(teaser shown in card list)</span> : ''}
             </p>
             <textarea value={form.description} onChange={e => set('description', e.target.value)}
               placeholder="Brief description…" rows={2}
               className="w-full bg-white rounded-xl px-3 py-2.5 text-sm border border-[#E9DCC9] focus:border-[#D4A373] focus:outline-none resize-none" />
           </div>
 
-          {contentType === 'audio' && (
+          {mediaFormat === 'audio' && (
             <div>
               <p className="text-[10px] tracking-widest font-bold text-[#433422]/50 mb-1">DURATION</p>
               <input value={form.duration} onChange={e => set('duration', e.target.value)} placeholder="45 min"
@@ -958,7 +1015,7 @@ function SpaceCardEditorSheet({ initial, category, onSave, onCancel, onDelete })
             </div>
           )}
 
-          {contentType === 'article' && (
+          {mediaFormat === 'article' && (
             <div>
               <p className="text-[10px] tracking-widest font-bold text-[#433422]/50 mb-1">ARTICLE BODY</p>
               <textarea value={form.content} onChange={e => set('content', e.target.value)}
@@ -967,7 +1024,7 @@ function SpaceCardEditorSheet({ initial, category, onSave, onCancel, onDelete })
             </div>
           )}
 
-          {contentType === 'audio' && (
+          {mediaFormat === 'audio' && (
             <UploadField label="Audio (MP3)" accept="audio/*" value={form.audioUrl} storagePath="library/audio" onUploaded={url => set('audioUrl', url)} />
           )}
 
@@ -1054,6 +1111,18 @@ const AdminDashboard = ({ user, profile, onBack }) => {
 
   // adminSection: null = landing, 'library' = main library, 'twilight' | 'lifebox' = space editor
   const [adminSection, setAdminSection] = useState(null);
+
+  // Space categories (Garden of Life / Night Sky) for the active space editor
+  const activeSpace = (adminSection === 'twilight' || adminSection === 'lifebox') ? adminSection : null;
+  const { categories: spaceCategories } = useSpaceCategories(activeSpace);
+
+  const [editingCategory, setEditingCategory] = useState(null);   // null | 'new'
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [categorySaving, setCategorySaving] = useState(false);
+  const [deletingCategory, setDeletingCategory] = useState(null); // category id
+  const [addingSubTo, setAddingSubTo] = useState(null);           // category id
+  const [newSubName, setNewSubName] = useState('');
+  const [subSaving, setSubSaving] = useState(false);
   const [editingCard, setEditingCard] = useState(null);         // for library (CardEditorSheet)
   const [editingSpaceCard, setEditingSpaceCard] = useState(null); // for spaces (SpaceCardEditorSheet)
   const [editingSection, setEditingSection] = useState(null);
@@ -1117,6 +1186,47 @@ const AdminDashboard = ({ user, profile, onBack }) => {
     try { await deleteCategory(id); } catch { /* ignore */ }
     setDeletingSection(null);
     setEditingSection(null);
+  };
+
+  const handleAddSpaceCategory = async () => {
+    if (!newCategoryName.trim() || !activeSpace) return;
+    setCategorySaving(true);
+    try {
+      await saveSpaceCategory({
+        space: activeSpace,
+        name: newCategoryName.trim(),
+        value: slugify(newCategoryName),
+        order: spaceCategories.length,
+        subcategories: [],
+      });
+      setEditingCategory(null);
+      setNewCategoryName('');
+    } catch {}
+    setCategorySaving(false);
+  };
+
+  const handleDeleteSpaceCategory = async (id) => {
+    setDeletingCategory(id);
+    try { await deleteSpaceCategory(id); } catch {}
+    setDeletingCategory(null);
+  };
+
+  const handleAddSubcategory = async (cat) => {
+    if (!newSubName.trim()) return;
+    setSubSaving(true);
+    try {
+      const value = slugify(newSubName);
+      const subcategories = [...(cat.subcategories || []), { name: newSubName.trim(), value }];
+      await saveSpaceCategory({ subcategories }, cat.id);
+      setAddingSubTo(null);
+      setNewSubName('');
+    } catch {}
+    setSubSaving(false);
+  };
+
+  const handleDeleteSubcategory = async (cat, subValue) => {
+    const subcategories = (cat.subcategories || []).filter(s => s.value !== subValue);
+    try { await saveSpaceCategory({ subcategories }, cat.id); } catch {}
   };
 
   const knownValues = new Set(firestoreCategories.map(c => c.value));
@@ -1212,6 +1322,7 @@ const AdminDashboard = ({ user, profile, onBack }) => {
   // ── Space editor (Twilight or Life Box) ───────────────────────────────────
   if (adminSection === 'twilight' || adminSection === 'lifebox') {
     const cfg = SPACE_CONFIG[adminSection];
+    const panelAccent = adminSection === 'lifebox' ? '#8FA377' : '#9B8FD4';
     const spaceCards = cards.filter(c => c.category === adminSection).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 
     return (
@@ -1243,6 +1354,109 @@ const AdminDashboard = ({ user, profile, onBack }) => {
         </header>
 
         <main className="pt-6 pb-40 px-6 space-y-3">
+          {/* Categories + subcategories manager */}
+          <div className="bg-[#F4EFE6]/60 rounded-[20px] p-4 mb-2">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-[10px] font-bold tracking-widest text-[#433422]/40">CATEGORIES</p>
+              {editingCategory !== 'new' && (
+                <button onClick={() => setEditingCategory('new')}
+                  className="flex items-center gap-1 text-xs font-bold" style={{ color: panelAccent }}>
+                  <Plus size={12} /> Add
+                </button>
+              )}
+            </div>
+
+            <div className="space-y-2.5">
+              {spaceCategories.map(cat => (
+                <div key={cat.id} className="bg-white rounded-[16px] border border-[#E9DCC9] p-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[13px] font-bold text-[#433422]/80">{cat.name}</span>
+                    <div className="flex items-center gap-1.5">
+                      {addingSubTo !== cat.id && (
+                        <button onClick={() => { setAddingSubTo(cat.id); setNewSubName(''); }}
+                          className="flex items-center gap-0.5 text-[10px] font-bold px-2 py-1 rounded-full bg-[#F4EFE6]"
+                          style={{ color: panelAccent }}>
+                          <Plus size={10} /> Sub
+                        </button>
+                      )}
+                      <button onClick={() => handleDeleteSpaceCategory(cat.id)}
+                        disabled={deletingCategory === cat.id}
+                        className="w-6 h-6 rounded-full bg-[#F4EFE6] flex items-center justify-center disabled:opacity-40">
+                        <Trash2 size={11} className="text-[#433422]/45" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {(cat.subcategories || []).length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      {(cat.subcategories || []).map(sub => (
+                        <div key={sub.value} className="flex items-center gap-1 bg-[#F4EFE6] rounded-full pl-2.5 pr-1 py-1">
+                          <span className="text-[10px] font-medium text-[#433422]/60">{sub.name}</span>
+                          <button onClick={() => handleDeleteSubcategory(cat, sub.value)}
+                            className="w-4 h-4 rounded-full bg-white flex items-center justify-center">
+                            <X size={8} className="text-[#433422]/45" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {addingSubTo === cat.id && (
+                    <div className="mt-2 flex gap-1.5">
+                      <input
+                        value={newSubName}
+                        onChange={e => setNewSubName(e.target.value)}
+                        placeholder="Subcategory name"
+                        autoFocus
+                        className="flex-1 bg-white rounded-lg px-2.5 py-1.5 text-xs border border-[#E9DCC9] focus:outline-none"
+                        style={{ borderColor: newSubName ? panelAccent : undefined }}
+                      />
+                      <button onClick={() => { setAddingSubTo(null); setNewSubName(''); }}
+                        className="px-2.5 py-1.5 bg-[#E9DCC9]/50 text-[#433422]/60 rounded-lg text-[11px] font-bold">
+                        Cancel
+                      </button>
+                      <button onClick={() => handleAddSubcategory(cat)}
+                        disabled={subSaving || !newSubName.trim()}
+                        className="px-3 py-1.5 text-white rounded-lg text-[11px] font-bold disabled:opacity-50"
+                        style={{ backgroundColor: panelAccent }}>
+                        {subSaving ? '…' : 'Add'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+              {spaceCategories.length === 0 && editingCategory !== 'new' && (
+                <p className="text-[11px] text-[#433422]/30 italic">No categories yet</p>
+              )}
+            </div>
+
+            {editingCategory === 'new' && (
+              <div className="mt-3 space-y-2">
+                <input
+                  value={newCategoryName}
+                  onChange={e => setNewCategoryName(e.target.value)}
+                  placeholder={adminSection === 'lifebox' ? 'e.g. Grief & Loss' : 'e.g. Sleep & Rest'}
+                  autoFocus
+                  className="w-full bg-white rounded-xl px-3 py-2 text-sm border border-[#E9DCC9] focus:outline-none"
+                  style={{ borderColor: newCategoryName ? panelAccent : undefined }}
+                />
+                <div className="flex gap-2">
+                  <button onClick={() => { setEditingCategory(null); setNewCategoryName(''); }}
+                    className="flex-1 py-2 bg-[#E9DCC9]/50 text-[#433422]/60 rounded-[12px] text-xs font-bold">
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleAddSpaceCategory}
+                    disabled={categorySaving || !newCategoryName.trim()}
+                    className="flex-1 py-2 text-white rounded-[12px] text-xs font-bold disabled:opacity-50"
+                    style={{ backgroundColor: panelAccent }}>
+                    {categorySaving ? 'Saving…' : 'Add Category'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
           {spaceCards.length === 0 && (
             <div className="flex flex-col items-center justify-center py-16 text-center gap-3">
               <p className="text-sm text-[#433422]/30 font-serif">No content yet.</p>
@@ -1250,7 +1464,15 @@ const AdminDashboard = ({ user, profile, onBack }) => {
             </div>
           )}
 
-          {spaceCards.map(card => (
+          {spaceCards.map(card => {
+            const ctColors = { meditation: '#9B8FD4', prayer: '#D4A373', scripture: '#8FA377' };
+            const ctColor = ctColors[card.contentType];
+            const catObj = card.spaceCategory ? spaceCategories.find(c => c.value === card.spaceCategory) : null;
+            const catName = catObj?.name || null;
+            const subName = catObj && card.spaceSubcategory
+              ? (catObj.subcategories || []).find(s => s.value === card.spaceSubcategory)?.name
+              : null;
+            return (
             <div key={card.id} className="flex items-center gap-3 rounded-[20px] px-4 py-3 border border-[#E9DCC9] bg-white">
               {card.imageUrl
                 ? <img src={card.imageUrl} alt="" className="w-12 h-12 rounded-[14px] object-cover flex-shrink-0" />
@@ -1264,6 +1486,17 @@ const AdminDashboard = ({ user, profile, onBack }) => {
                   <span className="text-[8px] text-[#433422]/30 uppercase tracking-widest">
                     {card.type === 'article' ? '📖 Article' : '🎧 Audio'}
                   </span>
+                  {ctColor && (
+                    <span className="flex items-center gap-1">
+                      <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: ctColor, display: 'inline-block' }} />
+                      <span className="text-[8px] font-bold uppercase tracking-widest" style={{ color: ctColor }}>{card.contentType}</span>
+                    </span>
+                  )}
+                  {catName && (
+                    <span className="text-[8px] font-bold uppercase tracking-widest" style={{ color: panelAccent }}>
+                      {catName}{subName ? ` › ${subName}` : ''}
+                    </span>
+                  )}
                   {card.duration && <span className="text-[9px] text-[#433422]/30">{card.duration}</span>}
                 </div>
               </div>
@@ -1276,7 +1509,8 @@ const AdminDashboard = ({ user, profile, onBack }) => {
                 <PenLine size={12} className="text-[#433422]/50" />
               </button>
             </div>
-          ))}
+            );
+          })}
         </main>
 
         {/* Add Content bar */}
@@ -1293,6 +1527,7 @@ const AdminDashboard = ({ user, profile, onBack }) => {
           <SpaceCardEditorSheet
             initial={editingSpaceCard._new ? null : editingSpaceCard}
             category={adminSection}
+            spaceCategories={spaceCategories}
             onSave={() => setEditingSpaceCard(null)}
             onCancel={() => setEditingSpaceCard(null)}
             onDelete={editingSpaceCard._new ? undefined : async () => {

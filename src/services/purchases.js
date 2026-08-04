@@ -2,10 +2,15 @@ import { Capacitor } from '@capacitor/core';
 import { Purchases, LOG_LEVEL } from '@revenuecat/purchases-capacitor';
 import { RevenueCatUI, PAYWALL_RESULT } from '@revenuecat/purchases-capacitor-ui';
 
-const API_KEY = 'test_GKdzMwRzmSDqrsgSloXdxKfrkXD';
+const IOS_KEY = 'appl_JAWIKFkSQyNwQzxvBCXxvcopfEI';
+const ANDROID_KEY = import.meta.env.VITE_RC_ANDROID_KEY ?? '';
 const ENTITLEMENT_ID = 'PrayVail Supporter';
 
 export const isNative = () => Capacitor.isNativePlatform();
+
+function getApiKey() {
+  return Capacitor.getPlatform() === 'android' ? ANDROID_KEY : IOS_KEY;
+}
 
 /**
  * Call once after Firebase auth resolves. Pass the Firebase UID so RevenueCat
@@ -13,9 +18,14 @@ export const isNative = () => Capacitor.isNativePlatform();
  */
 export async function initializePurchases(userId) {
   if (!isNative()) return;
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    console.warn('[RC] no API key configured for platform:', Capacitor.getPlatform());
+    return;
+  }
   try {
     await Purchases.setLogLevel({ level: LOG_LEVEL.DEBUG });
-    await Purchases.configure({ apiKey: API_KEY, appUserID: userId ?? null });
+    await Purchases.configure({ apiKey, appUserID: userId ?? null });
   } catch (e) {
     console.warn('[RC] init failed:', e);
   }
@@ -69,12 +79,12 @@ const DEV_MOCK_PACKAGES = [
   {
     identifier: 'monthly',
     packageType: 'MONTHLY',
-    product: { title: 'Monthly Supporter', description: 'Full access, billed monthly', priceString: '$4.99', price: 4.99, currencyCode: 'USD', subscriptionPeriod: 'P1M' },
+    product: { title: 'Supporter Monthly', description: 'Full access, billed monthly', priceString: '£3.99', price: 3.99, currencyCode: 'GBP', subscriptionPeriod: 'P1M' },
   },
   {
     identifier: 'annual',
     packageType: 'ANNUAL',
-    product: { title: 'Annual Supporter', description: 'Full access, billed annually', priceString: '$34.99', price: 34.99, currencyCode: 'USD', subscriptionPeriod: 'P1Y' },
+    product: { title: 'Supporter Annual', description: 'Full access, billed annually', priceString: '£39.99', price: 39.99, currencyCode: 'GBP', subscriptionPeriod: 'P1Y' },
   },
 ];
 

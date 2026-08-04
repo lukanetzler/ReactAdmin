@@ -1,12 +1,26 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowLeft, Play, Pause, SkipBack, SkipForward, X, ChevronRight } from 'lucide-react';
-import { useLibraryCards } from '../hooks/useContent';
+import { ArrowLeft, Play, Pause, SkipBack, SkipForward, X, ChevronRight, Info } from 'lucide-react';
+import { Capacitor } from '@capacitor/core';
+import { StatusBar, Style } from '@capacitor/status-bar';
+import { useLibraryCards, useSpaceCategories } from '../hooks/useContent';
 import { addJournalEntry } from '../services/journal';
+
+function setStatusBarStyle(style) {
+  if (!Capacitor.isNativePlatform()) return;
+  StatusBar.setStyle({ style }).catch(() => {});
+}
 
 const BG = 'linear-gradient(180deg, #1e1610 0%, #2a1e10 100%)';
 const AMBER = '#D4A373';
 const CREAM = '#FDF9F3';
+
+const CONTENT_TYPE_META = {
+  meditation: { label: 'Meditation', color: '#9B8FD4', desc: 'Guided moments of stillness to quiet the mind and rest in God’s presence.' },
+  prayer:     { label: 'Prayer',     color: '#D4A373', desc: 'Spoken and written prayers to help you draw near and pour out your heart.' },
+  scripture:  { label: 'Scripture',  color: '#8FA377', desc: 'God’s Word read aloud and reflected on — truth to carry through your day.' },
+};
+const CONTENT_TYPE_LIST = Object.entries(CONTENT_TYPE_META).map(([value, m]) => ({ value, ...m }));
 
 const formatTime = (s) => {
   if (!s || isNaN(s)) return '0:00';
@@ -15,11 +29,12 @@ const formatTime = (s) => {
   return `${m}:${sec.toString().padStart(2, '0')}`;
 };
 
-function StarIcon({ size, opacity, glow }) {
+function StarIcon({ size, opacity, glow, color = CREAM }) {
+  const glowRgba = color === CREAM ? 'rgba(253,249,243,0.85)' : `${color}AA`;
   return (
     <svg viewBox="0 0 100 100" width={size} height={size}
-      style={{ opacity, filter: `drop-shadow(0 0 ${glow}px rgba(253,249,243,0.85))`, flexShrink: 0 }}>
-      <path d="M50 2 C54 40 60 46 98 50 C60 54 54 60 50 98 C46 60 40 54 2 50 C40 46 46 40 50 2 Z" fill={CREAM} />
+      style={{ opacity, filter: `drop-shadow(0 0 ${glow}px ${glowRgba})`, flexShrink: 0 }}>
+      <path d="M50 2 C54 40 60 46 98 50 C60 54 54 60 50 98 C46 60 40 54 2 50 C40 46 46 40 50 2 Z" fill={color} />
     </svg>
   );
 }
@@ -37,8 +52,18 @@ function computePos(i) {
 
 export default function TwilightSpaceView({ onBack, user, initialCard = null, onInitialCardConsumed }) {
   const { cards, loading } = useLibraryCards('twilight');
+  const { categories } = useSpaceCategories('twilight');
+
+  // Light status bar icons over the dark background; restore dark when leaving
+  useEffect(() => {
+    setStatusBarStyle(Style.Light);
+    return () => setStatusBarStyle(Style.Dark);
+  }, []);
 
   const [selectedCard, setSelectedCard] = useState(initialCard);
+  const [selectedCategory, setSelectedCategory] = useState(null);
+  const [selectedSubcategory, setSelectedSubcategory] = useState(null);
+  const [showTypeInfo, setShowTypeInfo] = useState(false);
   const [activeTrack, setActiveTrack] = useState(null);
   const [activeArticle, setActiveArticle] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -313,7 +338,34 @@ export default function TwilightSpaceView({ onBack, user, initialCard = null, on
   const firstTrack = selectedCard?.tracks?.[0];
 
   const publishedCards = cards.filter(c => c.published !== false).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-  const canvasHeight = Math.max(700, Math.ceil(publishedCards.length / 3) * 150 + 220);
+  const filteredCards = publishedCards.filter(c => {
+    if (selectedCategory && c.spaceCategory !== selectedCategory.value) return false;
+    if (selectedSubcategory && c.spaceSubcategory !== selectedSubcategory.value) return false;
+    return true;
+  });
+  const canvasHeight = Math.max(700, Math.ceil(filteredCards.length / 3) * 150 + 220);
+  const subcategories = selectedCategory?.subcategories || [];
+
+  const selectCategory = (cat) => {
+    setSelectedCategory(prev => (prev?.id === cat.id ? null : cat));
+    setSelectedSubcategory(null);
+  };
+
+  const chipStyle = (active, isSub) => ({
+    padding: isSub ? '4px 11px' : '5px 12px',
+    borderRadius: 20,
+    fontSize: isSub ? 9.5 : 10,
+    fontWeight: 700,
+    letterSpacing: '0.1em',
+    fontFamily: 'Inter, sans-serif',
+    textTransform: 'uppercase',
+    border: 'none',
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+    transition: 'background 0.15s',
+    backgroundColor: active ? 'rgba(212,163,115,0.30)' : (isSub ? 'rgba(212,163,115,0.06)' : 'rgba(212,163,115,0.10)'),
+    color: active ? CREAM : 'rgba(253,249,243,0.5)',
+  });
 
   // ── Library view ─────────────────────────────────────────
   return (
@@ -321,12 +373,59 @@ export default function TwilightSpaceView({ onBack, user, initialCard = null, on
       {/* Fade-in veil — prevents white flash on mount */}
       <div style={{ position: 'fixed', inset: 0, backgroundColor: '#1e1610', zIndex: 999, pointerEvents: 'none', animation: 'fade-out 2s ease-in-out forwards' }} />
 
-      {/* Floating back button */}
-      <button onClick={onBack}
-        className="absolute top-12 left-4 z-20 w-10 h-10 rounded-full flex items-center justify-center active:scale-95 transition-transform"
-        style={{ backgroundColor: 'rgba(212,163,115,0.12)', backdropFilter: 'blur(8px)' }}>
-        <ArrowLeft size={16} color={AMBER} strokeWidth={1.5} />
-      </button>
+      {/* Header: back + category chips + legend, with subcategory chips below */}
+      <div className="flex-shrink-0 z-20" style={{ paddingTop: 48, paddingBottom: 12 }}>
+        <div className="flex items-center gap-3 px-4">
+          <button onClick={onBack}
+            className="w-10 h-10 rounded-full flex items-center justify-center active:scale-95 transition-transform flex-shrink-0"
+            style={{ backgroundColor: 'rgba(212,163,115,0.12)', backdropFilter: 'blur(8px)' }}>
+            <ArrowLeft size={16} color={AMBER} strokeWidth={1.5} />
+          </button>
+
+          {/* Category filter chips */}
+          <div className="flex-1 min-w-0 overflow-x-auto" style={{ scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}>
+            <div className="flex gap-2" style={{ width: 'max-content', paddingBottom: 2 }}>
+              {categories.length > 0 && (
+                <button onClick={() => { setSelectedCategory(null); setSelectedSubcategory(null); }} style={chipStyle(selectedCategory === null, false)}>
+                  All
+                </button>
+              )}
+              {categories.map(cat => (
+                <button key={cat.id} onClick={() => selectCategory(cat)} style={chipStyle(selectedCategory?.id === cat.id, false)}>
+                  {cat.name}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <button
+            onClick={() => setShowTypeInfo(true)}
+            className="flex-shrink-0 flex items-center gap-1.5 active:scale-95 transition-transform"
+            style={{ padding: '7px 12px', borderRadius: 20, border: 'none', cursor: 'pointer', backgroundColor: 'rgba(212,163,115,0.12)', backdropFilter: 'blur(8px)' }}>
+            <Info size={13} color={AMBER} strokeWidth={1.75} />
+            <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', color: 'rgba(212,163,115,0.75)', textTransform: 'uppercase', fontFamily: 'Inter, sans-serif' }}>
+              Guide
+            </span>
+          </button>
+        </div>
+
+        {/* Subcategory chips — revealed when a category with subcategories is active */}
+        {selectedCategory && subcategories.length > 0 && (
+          <div className="overflow-x-auto mt-2 px-4" style={{ scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}>
+            <div className="flex gap-2" style={{ width: 'max-content', paddingLeft: 52, paddingBottom: 2 }}>
+              <button onClick={() => setSelectedSubcategory(null)} style={chipStyle(selectedSubcategory === null, true)}>
+                All
+              </button>
+              {subcategories.map(sub => (
+                <button key={sub.value} onClick={() => setSelectedSubcategory(selectedSubcategory?.value === sub.value ? null : sub)}
+                  style={chipStyle(selectedSubcategory?.value === sub.value, true)}>
+                  {sub.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Star canvas */}
       <div className="flex-1 overflow-y-auto overflow-x-hidden" style={{ WebkitOverflowScrolling: 'touch' }}>
@@ -335,12 +434,13 @@ export default function TwilightSpaceView({ onBack, user, initialCard = null, on
             <p style={{ position: 'absolute', top: '40%', left: 0, right: 0, textAlign: 'center', color: 'rgba(253,249,243,0.3)', fontFamily: 'serif', fontSize: 15 }}>
               Loading…
             </p>
-          ) : publishedCards.map((card, i) => {
+          ) : filteredCards.map((card, i) => {
             const pos = computePos(i);
             const size = 22 + (i % 4) * 8;
             const opacity = 0.55 + (i % 4) * 0.15;
             const glow = 2 + (i % 4) * 2;
             const labelOpacity = 0.3 + (i % 4) * 0.08;
+            const starColor = card.contentType ? CONTENT_TYPE_META[card.contentType]?.color ?? CREAM : CREAM;
             return (
               <button key={card.id} onClick={() => setSelectedCard(card)} style={{
                 position: 'absolute',
@@ -357,7 +457,7 @@ export default function TwilightSpaceView({ onBack, user, initialCard = null, on
                 padding: 0,
                 cursor: 'pointer',
               }}>
-                <StarIcon size={size} opacity={opacity} glow={glow} />
+                <StarIcon size={size} opacity={opacity} glow={glow} color={starColor} />
                 <div style={{
                   fontFamily: 'Inter, system-ui, sans-serif',
                   fontSize: 8.5,
@@ -379,9 +479,11 @@ export default function TwilightSpaceView({ onBack, user, initialCard = null, on
               </button>
             );
           })}
-          {!loading && publishedCards.length === 0 && (
+          {!loading && filteredCards.length === 0 && (
             <p style={{ position: 'absolute', top: '40%', left: 0, right: 0, textAlign: 'center', color: 'rgba(253,249,243,0.3)', fontFamily: 'serif', fontSize: 15 }}>
-              Content coming soon.
+              {selectedSubcategory ? `No content in ${selectedSubcategory.name} yet.`
+                : selectedCategory ? `No content in ${selectedCategory.name} yet.`
+                : 'Content coming soon.'}
             </p>
           )}
           <p style={{ position: 'absolute', bottom: 28, left: 0, right: 0, textAlign: 'center', fontFamily: 'Inter, sans-serif', fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(253,249,243,0.18)' }}>
@@ -389,6 +491,51 @@ export default function TwilightSpaceView({ onBack, user, initialCard = null, on
           </p>
         </div>
       </div>
+
+      {/* Content type info bottom sheet */}
+      <AnimatePresence>
+        {showTypeInfo && (
+          <motion.div key="type-info" className="fixed inset-0 z-50"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <div className="absolute inset-0 bg-black/60" onClick={() => setShowTypeInfo(false)} />
+            <motion.div
+              className="absolute inset-x-0 bottom-0 rounded-t-[32px] overflow-hidden"
+              style={{ backgroundColor: '#1a120a', border: '1px solid rgba(212,163,115,0.12)', borderBottom: 'none' }}
+              initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+              transition={{ type: 'spring', stiffness: 320, damping: 34 }}
+              onClick={e => e.stopPropagation()}>
+              <div className="w-10 h-1 rounded-full mx-auto mt-4 mb-1"
+                style={{ backgroundColor: 'rgba(212,163,115,0.2)' }} />
+
+              <div className="px-6 pt-4 flex items-start justify-between">
+                <div>
+                  <p className="text-[9px] font-bold tracking-widest mb-1" style={{ color: 'rgba(212,163,115,0.55)' }}>THE NIGHT SKY</p>
+                  <p className="text-xl font-serif" style={{ color: CREAM }}>Types of content</p>
+                </div>
+                <button onClick={() => setShowTypeInfo(false)}
+                  className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 mt-1"
+                  style={{ backgroundColor: 'rgba(212,163,115,0.1)' }}>
+                  <X size={14} color={AMBER} strokeWidth={1.5} />
+                </button>
+              </div>
+
+              <div className="px-6 pt-5 pb-12 flex flex-col gap-5">
+                {CONTENT_TYPE_LIST.map(ct => (
+                  <div key={ct.value} className="flex items-start gap-4">
+                    <div className="flex-shrink-0 mt-1">
+                      <StarIcon size={22} opacity={0.95} glow={4} color={ct.color} />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold" style={{ color: CREAM }}>{ct.label}</p>
+                      <p className="text-[13px] leading-relaxed mt-0.5" style={{ color: 'rgba(253,249,243,0.45)' }}>{ct.desc}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Card detail bottom sheet */}
       <AnimatePresence>

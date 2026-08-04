@@ -12,16 +12,30 @@ import {
   getJournalEntries, getStreakDays, getGuestProfile,
 } from './localStore';
 
-export async function migrateGuestDataIfNeeded(uid) {
-  if (!hasGuestData()) return;
+// Dedupe concurrent invocations (App.jsx auth listener + explicit signup call may overlap)
+let migrationInFlight = null;
 
+// forceMerge: always merge local data even if Firestore path items already exist.
+// Used at account CREATION, where signup cards may have just been enrolled — we still
+// want to preserve the guest's local progress. Login keeps the discard heuristic.
+export async function migrateGuestDataIfNeeded(uid, { forceMerge = false } = {}) {
+  if (!hasGuestData()) return;
+  if (migrationInFlight) return migrationInFlight;
+
+  migrationInFlight = doMigration(uid, forceMerge).finally(() => { migrationInFlight = null; });
+  return migrationInFlight;
+}
+
+async function doMigration(uid, forceMerge) {
   try {
-    // If the user already has path items (returning user who also had local data),
-    // don't merge — just discard local data to avoid duplicates.
-    const existingPath = await getDocs(collection(db, 'users', uid, 'dailyPath'));
-    if (!existingPath.empty) {
-      clearGuestData();
-      return;
+    // For LOGIN into an existing account that also has local data, discard local to
+    // avoid duplicates. Skipped when forceMerge (fresh signup preserving guest progress).
+    if (!forceMerge) {
+      const existingPath = await getDocs(collection(db, 'users', uid, 'dailyPath'));
+      if (!existingPath.empty) {
+        clearGuestData();
+        return;
+      }
     }
 
     const pathItems = getDailyPath();

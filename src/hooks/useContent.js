@@ -58,3 +58,13 @@ export function useAllLibraryCards() {
   const cards = [...docs].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   return { cards, loading };
 }
+
+// Returns categories (with nested subcategories) for a given space, sorted by order.
+// space: 'lifebox' | 'twilight'. Used in the space filter bars and admin.
+export function useSpaceCategories(space) {
+  const { docs, loading } = useCollection('content/spaceCategories/items');
+  const categories = docs
+    .filter(d => d.space === space)
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  return { categories, loading };
+}

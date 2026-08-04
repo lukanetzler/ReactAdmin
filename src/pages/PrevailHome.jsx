@@ -4,6 +4,9 @@ import BoxBreathing from '../components/BoxBreathing';
 import GroundingExercise from '../components/GroundingExercise';
 import { signOut, verifyBeforeUpdateEmail, updatePassword, updateProfile, deleteUser, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
 import { auth } from '../firebase';
+import { Capacitor } from '@capacitor/core';
+import { Share } from '@capacitor/share';
+import { Filesystem, Directory } from '@capacitor/filesystem';
 import { useJournalEntries } from '../hooks/useJournalEntries';
 import { usePathSessions, useLibraryCards, useCategories } from '../hooks/useContent';
 import { useDailyPath } from '../hooks/useDailyPath';
@@ -11,9 +14,10 @@ import { addJournalEntry, updateJournalEntry, deleteJournalEntry, addJourneyEven
 import { updateUserProfile } from '../services/userProfile';
 import { addToPath, removeFromPath, completeTrackForDay, dismissBroadcast, completePathItem, recordCompletion, recordStreakDay } from '../services/dailyPath';
 import { checkIsSupporter, presentCustomerCenter, restorePurchases, isNative } from '../services/purchases';
-import { syncNotifications } from '../services/notifications';
+import { syncNotifications, openNotificationSettings } from '../services/notifications';
 import Paywall from '../components/Paywall';
 import PrivacyPolicyModal from '../components/PrivacyPolicyModal';
+import TermsModal from '../components/TermsModal';
 import AppTour from '../components/AppTour';
 import DovesSanctuary from '../components/DovesSanctuary';
 import TwilightSpaceView from '../components/TwilightSpaceView';
@@ -98,6 +102,20 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
   }, [user?.uid]);
   const notifDailyVerse = profile?.notifDailyVerse ?? true;
   const notifReflection = profile?.notifReflection ?? true;
+  // Optimistic overrides so a toggle moves instantly instead of waiting on the Firestore
+  // snapshot; each clears itself once the persisted profile catches up.
+  const [notifPending, setNotifPending] = useState({});
+  const [notifBlocked, setNotifBlocked] = useState(false);
+  const effDaily = notifPending.notifDailyVerse ?? notifDailyVerse;
+  const effReflection = notifPending.notifReflection ?? notifReflection;
+  useEffect(() => {
+    setNotifPending(p => {
+      const n = { ...p };
+      if (n.notifDailyVerse !== undefined && n.notifDailyVerse === notifDailyVerse) delete n.notifDailyVerse;
+      if (n.notifReflection !== undefined && n.notifReflection === notifReflection) delete n.notifReflection;
+      return n;
+    });
+  }, [notifDailyVerse, notifReflection]);
 
   // Email/password change state
   const [showEmailForm, setShowEmailForm] = useState(false);
@@ -112,6 +130,7 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
   const [passwordChanging, setPasswordChanging] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
+  const [showTerms, setShowTerms] = useState(false);
   const [showDangerZone, setShowDangerZone] = useState(false);
   const [deletePassword, setDeletePassword] = useState('');
   const [deleteError, setDeleteError] = useState('');
@@ -384,7 +403,7 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
   const [showShareModal, setShowShareModal] = useState(false);
   const [shareImageUrl, setShareImageUrl] = useState('');
 
-  const generateShareCard = (verse) => new Promise((resolve) => {
+  const generateShareCard = (verse) => new Promise(async (resolve) => {
     const SIZE = 1080;
     const PAD = 88;
     const canvas = document.createElement('canvas');
@@ -458,51 +477,107 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
     ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(PAD, 890); ctx.lineTo(SIZE - PAD, 890); ctx.stroke();
 
-    // Logo + branding
-    const img = new Image();
-    img.onload = () => {
-      ctx.save();
-      ctx.beginPath(); ctx.arc(PAD + 30, 944, 30, 0, Math.PI * 2); ctx.clip();
-      ctx.drawImage(img, PAD, 914, 60, 60);
-      ctx.restore();
+    // Logo + branding. Resolve exactly once — and never hang if the WebView fails to
+    // fire load/error on the decoded image (an intermittent Android WebView bug).
+    let settled = false;
+    const finish = () => { if (!settled) { settled = true; resolve(canvas); } };
 
+    const drawWordmark = (withLogo) => {
+      const textX = withLogo ? PAD + 76 : PAD;
       ctx.fillStyle = 'rgba(253,249,243,0.80)';
       ctx.font = 'bold 34px Arial, sans-serif';
       try { ctx.letterSpacing = '0.18em'; } catch (_) {}
-      ctx.fillText('PRAYVAIL', PAD + 76, 948);
+      ctx.fillText('PRAYVAIL', textX, 948);
       try { ctx.letterSpacing = '0'; } catch (_) {}
 
       ctx.fillStyle = 'rgba(253,249,243,0.38)';
       ctx.font = 'italic 22px Georgia, serif';
-      ctx.fillText('Find your sanctuary', PAD + 76, 978);
+      ctx.fillText('Find your sanctuary', textX, 978);
+    };
 
-      resolve(canvas);
+    const img = new Image();
+    img.onload = () => {
+      try {
+        ctx.save();
+        ctx.beginPath(); ctx.arc(PAD + 30, 944, 30, 0, Math.PI * 2); ctx.clip();
+        ctx.drawImage(img, PAD, 914, 60, 60);
+        ctx.restore();
+        drawWordmark(true);
+      } catch (_) {
+        drawWordmark(false);
+      }
+      finish();
     };
-    img.onerror = () => {
-      ctx.fillStyle = 'rgba(253,249,243,0.80)';
-      ctx.font = 'bold 34px Arial, sans-serif';
-      ctx.fillText('PRAYVAIL', PAD, 948);
-      resolve(canvas);
-    };
-    img.src = prayvailLogo;
+    img.onerror = () => { drawWordmark(false); finish(); };
+
+    // Safety net: if neither load nor error fires, still produce a valid (logo-less) card.
+    setTimeout(() => { if (!settled) { drawWordmark(false); finish(); } }, 1200);
+
+    // Fetch the logo as a blob first so the canvas doesn't get tainted by
+    // cross-origin restrictions in the Capacitor WebView.
+    try {
+      const response = await fetch(prayvailLogo);
+      const blob = await response.blob();
+      const reader = new FileReader();
+      reader.onload = () => { img.src = reader.result; };
+      reader.onerror = () => { img.src = prayvailLogo; };
+      reader.readAsDataURL(blob);
+    } catch {
+      img.src = prayvailLogo;
+    }
   });
 
-  const handleAmen = async () => {
-    const canvas = await generateShareCard(dailyVerse);
-    setShareImageUrl(canvas.toDataURL('image/png'));
+  const handleAmen = () => {
+    // Open immediately so the tap always responds; the image fills in when ready.
+    setShareImageUrl('');
     setShowShareModal(true);
+    generateShareCard(dailyVerse)
+      .then(canvas => {
+        let dataUrl = '';
+        try { dataUrl = canvas.toDataURL('image/png'); } catch {}
+        setShareImageUrl(dataUrl);
+      })
+      .catch(() => {});
   };
 
   const handleShare = async () => {
+    const shareText = `"${dailyVerse.text}" — ${dailyVerse.ref}`;
     try {
-      const res = await fetch(shareImageUrl);
-      const blob = await res.blob();
-      const file = new File([blob], 'prayvail-verse.png', { type: 'image/png' });
-      if (navigator.share && navigator.canShare?.({ files: [file] })) {
-        await navigator.share({ files: [file], title: `${dailyVerse.ref} | Prayvail` });
-      } else {
-        const a = document.createElement('a');
-        a.href = shareImageUrl; a.download = 'prayvail-verse.png'; a.click();
+      // Native (Capacitor): use the Share plugin so the OS share sheet reliably opens
+      if (Capacitor.isNativePlatform()) {
+        if (shareImageUrl) {
+          try {
+            // Write the generated PNG to cache and share the file URI
+            const base64 = shareImageUrl.split(',')[1];
+            const fileName = `prayvail-verse-${Date.now()}.png`;
+            const { uri } = await Filesystem.writeFile({
+              path: fileName,
+              data: base64,
+              directory: Directory.Cache,
+            });
+            // Image only — no text paired, so it drops cleanly into stories/feeds
+            await Share.share({ files: [uri] });
+            return;
+          } catch (_) {
+            // Fall through to text-only share if file write/share fails
+          }
+        }
+        await Share.share({ title: 'Prayvail', text: shareText });
+        return;
+      }
+
+      // Web: use the Web Share API, preferring the image when supported
+      if (shareImageUrl) {
+        const res = await fetch(shareImageUrl);
+        const blob = await res.blob();
+        const file = new File([blob], 'prayvail-verse.png', { type: 'image/png' });
+        if (navigator.share && navigator.canShare?.({ files: [file] })) {
+          await navigator.share({ files: [file], title: `${dailyVerse.ref} | Prayvail` });
+          return;
+        }
+      }
+      if (navigator.share) {
+        await navigator.share({ title: 'Prayvail', text: shareText });
       }
     } catch (_) {}
   };
@@ -2145,8 +2220,8 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
 
   if (view === 'account') {
     const notifRows = [
-      { label: 'Daily Bread', desc: 'Morning verse to start your day', state: notifDailyVerse, key: 'notifDailyVerse' },
-      { label: 'Reflection Reminder', desc: 'Gentle nudge to journal each evening', state: notifReflection, key: 'notifReflection' },
+      { label: 'Daily Bread', desc: 'Morning verse to start your day', state: effDaily, key: 'notifDailyVerse' },
+      { label: 'Reflection Reminder', desc: 'Gentle nudge to journal each evening', state: effReflection, key: 'notifReflection' },
     ];
 
     return (
@@ -2312,11 +2387,19 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
                   <button
                     onClick={async () => {
                       const newVal = !state;
+                      setNotifPending(p => ({ ...p, [key]: newVal })); // move the switch instantly
+                      const { permission } = await syncNotifications({
+                        notifDailyVerse: key === 'notifDailyVerse' ? newVal : effDaily,
+                        notifReflection: key === 'notifReflection' ? newVal : effReflection,
+                      });
+                      if (newVal && permission === 'denied') {
+                        // The OS won't allow it — snap back and explain, don't persist an unusable "on"
+                        setNotifPending(p => ({ ...p, [key]: false }));
+                        setNotifBlocked(true);
+                        return;
+                      }
+                      if (permission === 'granted') setNotifBlocked(false);
                       await updateUserProfile(user.uid, { [key]: newVal });
-                      syncNotifications({
-                        notifDailyVerse: key === 'notifDailyVerse' ? newVal : notifDailyVerse,
-                        notifReflection: key === 'notifReflection' ? newVal : notifReflection,
-                      }).catch(() => {});
                     }}
                     className={`w-12 h-7 rounded-full transition-colors relative flex-shrink-0 ${state ? 'bg-[#D4A373]' : 'bg-[#433422]/15'}`}
                   >
@@ -2325,6 +2408,19 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
                 </div>
               ))}
             </div>
+            {notifBlocked && (
+              <div className="mt-5">
+                <p className="text-xs text-[#433422]/50 leading-relaxed mb-3">
+                  Notifications are switched off for Prayvail in your device settings. Enable them there to receive reminders.
+                </p>
+                <button
+                  onClick={openNotificationSettings}
+                  className="w-full py-3 rounded-[20px] text-xs font-bold tracking-widest bg-[#433422]/5 text-[#433422]/70 active:scale-[0.98] transition-transform"
+                >
+                  OPEN DEVICE SETTINGS
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Admin Dashboard */}
@@ -2355,11 +2451,11 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
               <p className="text-sm font-bold text-[#D4A373]">View</p>
             </button>
             <button
-              className="flex-1 bg-white rounded-[28px] p-5 text-left active:scale-[0.98] transition-transform opacity-40"
-              disabled
+              onClick={() => setShowTerms(true)}
+              className="flex-1 bg-white rounded-[28px] p-5 text-left active:scale-[0.98] transition-transform"
             >
               <p className="text-[10px] tracking-[0.3em] font-bold text-[#433422]/40 mb-2">TERMS</p>
-              <p className="text-sm font-bold text-[#433422]/30">Coming soon</p>
+              <p className="text-sm font-bold text-[#D4A373]">View</p>
             </button>
           </div>
 
@@ -2569,6 +2665,7 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
         </>
       )}
             {showPrivacyPolicy && <PrivacyPolicyModal onClose={() => setShowPrivacyPolicy(false)} />}
+            {showTerms && <TermsModal onClose={() => setShowTerms(false)} />}
       </div>
     );
   }
@@ -2949,8 +3046,7 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
               >
                 <div className="bg-[#433422] text-[#FDF9F3] rounded-[28px] px-7 py-8 shadow-2xl max-w-sm w-full pointer-events-auto">
                   <p className="text-[9px] font-bold tracking-[0.3em] text-[#D4A373] mb-3">YOUR FIRST JOURNEY</p>
-                  <h3 className="text-xl font-serif mb-3 leading-snug">Select First Steps to begin your path.</h3>
-                  <p className="text-sm text-[#FDF9F3]/60 leading-relaxed mb-6">Everything else in the library will open once you do.</p>
+                  <h3 className="text-xl font-serif mb-6 leading-snug">Select First Steps to begin your path.</h3>
                   <button
                     onClick={() => setTutorialHintVisible(false)}
                     className="w-full py-3.5 rounded-[20px] text-xs font-bold tracking-[0.15em] uppercase"
@@ -3598,7 +3694,20 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
             <p className="text-[10px] tracking-[0.3em] font-bold text-[#433422]/40 text-center mb-5">SHARE VERSE</p>
 
             <div className="w-[70%] mx-auto aspect-square rounded-[24px] overflow-hidden mb-6 shadow-lg shadow-[#433422]/15">
-              <img src={shareImageUrl} alt="Verse card" className="w-full h-full object-cover" />
+              {shareImageUrl ? (
+                <img src={shareImageUrl} alt="Verse card" className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center" style={{ backgroundColor: '#433422' }}>
+                  <div className="flex gap-1.5">
+                    {[0, 1, 2].map(i => (
+                      <div key={i} style={{
+                        width: 6, height: 6, borderRadius: '50%', backgroundColor: '#D4A373',
+                        animation: 'breathe 1.4s ease-in-out infinite', animationDelay: `${i * 0.22}s`, opacity: 0.5,
+                      }} />
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="w-[70%] mx-auto space-y-3">

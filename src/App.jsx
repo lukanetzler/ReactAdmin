@@ -4,9 +4,12 @@ import { db } from './firebase';
 import { useAuth } from './hooks/useAuth';
 import { signOut } from 'firebase/auth';
 import { auth } from './firebase';
+import { Capacitor } from '@capacitor/core';
+import { StatusBar, Style } from '@capacitor/status-bar';
 import { migrateGuestDataIfNeeded } from './services/migrateGuest';
 import { initializePurchases } from './services/purchases';
 import { syncNotifications } from './services/notifications';
+import { getGuestProfile } from './services/localStore';
 import prayvailLogo from './assets/prayvail-logo-blank.webp';
 import PrevailGateway from './pages/PrevailGateway';
 import PrevailOnboarding from './pages/PrevailOnboarding';
@@ -59,13 +62,31 @@ function App() {
   }, [user, loading]);
 
   useEffect(() => {
-    if (user && profile) {
+    // Signed-in account users: schedule from their saved Firestore preferences
+    if (user && !user.isAnonymous) {
+      if (!profile) return; // wait for the profile to load
       syncNotifications({
         notifDailyVerse: profile.notifDailyVerse ?? true,
         notifReflection: profile.notifReflection ?? true,
       }).catch(() => {});
+      return;
     }
-  }, [user, profile]);
+    // Guest / anonymous users: request permission and schedule once they've entered the
+    // sanctuary (not on the gateway), using their local preferences.
+    const inSanctuary = onboardingComplete || (user && page !== 'onboarding');
+    if (!inSanctuary) return;
+    const gp = getGuestProfile();
+    syncNotifications({
+      notifDailyVerse: gp.notifDailyVerse ?? true,
+      notifReflection: gp.notifReflection ?? true,
+    }).catch(() => {});
+  }, [user, profile, onboardingComplete, page]);
+
+  // Initialise status bar — transparent overlay with dark icons for the cream home screen
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    StatusBar.setStyle({ style: Style.Dark }).catch(() => {});
+  }, []);
 
   const [fading, setFading] = useState(false);
   const navigate = (to) => {

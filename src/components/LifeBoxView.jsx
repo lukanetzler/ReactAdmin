@@ -1,8 +1,15 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowLeft, Play, Pause, SkipBack, SkipForward, X, ChevronRight } from 'lucide-react';
-import { useLibraryCards } from '../hooks/useContent';
+import { ArrowLeft, Play, Pause, SkipBack, SkipForward, X, ChevronRight, Info } from 'lucide-react';
+import { Capacitor } from '@capacitor/core';
+import { StatusBar, Style } from '@capacitor/status-bar';
+import { useLibraryCards, useSpaceCategories } from '../hooks/useContent';
 import { addJournalEntry } from '../services/journal';
+
+function setStatusBarStyle(style) {
+  if (!Capacitor.isNativePlatform()) return;
+  StatusBar.setStyle({ style }).catch(() => {});
+}
 
 const formatTime = (s) => {
   if (!s || isNaN(s)) return '0:00';
@@ -10,6 +17,13 @@ const formatTime = (s) => {
   const sec = Math.floor(s % 60);
   return `${m}:${sec.toString().padStart(2, '0')}`;
 };
+
+const CONTENT_TYPE_META = {
+  meditation: { label: 'Meditation', color: '#9B8FD4', petalOuter: '#9B8FD4', petalInner: '#B8AEDF', desc: 'Guided moments of stillness to quiet the mind and rest in God’s presence.' },
+  prayer:     { label: 'Prayer',     color: '#D4A373', petalOuter: '#D4A373', petalInner: '#E0BF9A', desc: 'Spoken and written prayers to help you draw near and pour out your heart.' },
+  scripture:  { label: 'Scripture',  color: '#8FA377', petalOuter: '#8FA377', petalInner: '#AABF98', desc: 'God’s Word read aloud and reflected on — truth to carry through your day.' },
+};
+const CONTENT_TYPE_LIST = Object.entries(CONTENT_TYPE_META).map(([value, m]) => ({ value, ...m }));
 
 const PETAL_PAIRS = [
   ['#C98F5C', '#D4A373'],
@@ -36,6 +50,24 @@ function LotusIcon({ size, rot, petalOuter, petalInner }) {
   );
 }
 
+function MiniLotusIcon({ size = 12, color = '#D4A373', innerColor = '#E0BF9A' }) {
+  return (
+    <svg viewBox="0 0 100 100" width={size} height={size} style={{ flexShrink: 0 }}>
+      <g opacity="0.9">
+        {[0, 72, 144, 216, 288].map(r => (
+          <ellipse key={r} cx="50" cy="23" rx="13" ry="27" fill={color} transform={`rotate(${r} 50 50)`} />
+        ))}
+      </g>
+      <g>
+        {[36, 108, 180, 252, 324].map(r => (
+          <ellipse key={r} cx="50" cy="28" rx="10" ry="20" fill={innerColor} transform={`rotate(${r} 50 50)`} />
+        ))}
+      </g>
+      <circle cx="50" cy="53" r="9" fill="rgba(253,249,243,0.8)" />
+    </svg>
+  );
+}
+
 function computePos(i) {
   const seed = i * 137.51;
   const jitterX = Math.sin(seed) * 60;
@@ -55,8 +87,17 @@ const TEXT = '#433422';
 
 export default function LifeBoxView({ onBack, user, initialCard = null, onInitialCardConsumed }) {
   const { cards, loading } = useLibraryCards('lifebox');
+  const { categories } = useSpaceCategories('lifebox');
+
+  // Dark icons work over the sage-green background; ensure correct style on entry
+  useEffect(() => {
+    setStatusBarStyle(Style.Dark);
+  }, []);
 
   const [selectedCard, setSelectedCard] = useState(initialCard);
+  const [selectedCategory, setSelectedCategory] = useState(null);
+  const [selectedSubcategory, setSelectedSubcategory] = useState(null);
+  const [showTypeInfo, setShowTypeInfo] = useState(false);
   const [activeTrack, setActiveTrack] = useState(null); // { track, card }
   const [activeArticle, setActiveArticle] = useState(null); // { card }
   const [isPlaying, setIsPlaying] = useState(false);
@@ -360,7 +401,34 @@ export default function LifeBoxView({ onBack, user, initialCard = null, onInitia
   const firstTrack = selectedCard?.tracks?.[0];
 
   const publishedCards = cards.filter(c => c.published !== false).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-  const canvasHeight = Math.max(700, Math.ceil(publishedCards.length / 3) * 150 + 220);
+  const filteredCards = publishedCards.filter(c => {
+    if (selectedCategory && c.spaceCategory !== selectedCategory.value) return false;
+    if (selectedSubcategory && c.spaceSubcategory !== selectedSubcategory.value) return false;
+    return true;
+  });
+  const canvasHeight = Math.max(700, Math.ceil(filteredCards.length / 3) * 150 + 220);
+  const subcategories = selectedCategory?.subcategories || [];
+
+  const selectCategory = (cat) => {
+    setSelectedCategory(prev => (prev?.id === cat.id ? null : cat));
+    setSelectedSubcategory(null);
+  };
+
+  const chipStyle = (active, isSub) => ({
+    padding: isSub ? '4px 11px' : '5px 12px',
+    borderRadius: 20,
+    fontSize: isSub ? 9.5 : 10,
+    fontWeight: 700,
+    letterSpacing: '0.1em',
+    fontFamily: 'Inter, sans-serif',
+    textTransform: 'uppercase',
+    border: 'none',
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+    transition: 'background 0.15s',
+    backgroundColor: active ? 'rgba(253,249,243,0.28)' : (isSub ? 'rgba(253,249,243,0.06)' : 'rgba(253,249,243,0.1)'),
+    color: active ? 'rgba(253,249,243,0.95)' : 'rgba(253,249,243,0.5)',
+  });
 
   // ── Library view ─────────────────────────────────────────
   return (
@@ -368,12 +436,58 @@ export default function LifeBoxView({ onBack, user, initialCard = null, onInitia
       {/* Fade-in veil — prevents white flash on mount */}
       <div style={{ position: 'fixed', inset: 0, backgroundColor: '#8FA377', zIndex: 999, pointerEvents: 'none', animation: 'fade-out 2s ease-in-out forwards' }} />
 
-      {/* Floating back button */}
-      <button onClick={onBack}
-        className="absolute top-12 left-4 z-20 w-10 h-10 rounded-full flex items-center justify-center active:scale-95 transition-transform"
-        style={{ backgroundColor: 'rgba(253,249,243,0.16)', backdropFilter: 'blur(8px)' }}>
-        <ArrowLeft size={16} color="rgba(253,249,243,0.8)" strokeWidth={1.5} />
-      </button>
+      {/* Header: back + category chips + legend, with subcategory chips below */}
+      <div className="flex-shrink-0 z-20" style={{ paddingTop: 48, paddingBottom: 10 }}>
+        <div className="flex items-center gap-3 px-4">
+          <button onClick={onBack}
+            className="w-10 h-10 rounded-full flex items-center justify-center active:scale-95 transition-transform flex-shrink-0"
+            style={{ backgroundColor: 'rgba(253,249,243,0.16)', backdropFilter: 'blur(8px)' }}>
+            <ArrowLeft size={16} color="rgba(253,249,243,0.8)" strokeWidth={1.5} />
+          </button>
+
+          {/* Category filter chips */}
+          <div className="flex-1 min-w-0 overflow-x-auto" style={{ scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}>
+            <div className="flex gap-2" style={{ width: 'max-content', paddingBottom: 2 }}>
+              <button onClick={() => { setSelectedCategory(null); setSelectedSubcategory(null); }} style={chipStyle(selectedCategory === null, false)}>
+                All
+              </button>
+              {categories.map(cat => (
+                <button key={cat.id} onClick={() => selectCategory(cat)} style={chipStyle(selectedCategory?.id === cat.id, false)}>
+                  {cat.name}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Guide — tap to reveal content type descriptions */}
+          <button
+            onClick={() => setShowTypeInfo(true)}
+            className="flex-shrink-0 flex items-center gap-1.5 active:scale-95 transition-transform"
+            style={{ padding: '7px 12px', borderRadius: 20, border: 'none', cursor: 'pointer', backgroundColor: 'rgba(253,249,243,0.16)', backdropFilter: 'blur(8px)' }}>
+            <Info size={13} color="rgba(253,249,243,0.8)" strokeWidth={1.75} />
+            <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', color: 'rgba(253,249,243,0.75)', textTransform: 'uppercase', fontFamily: 'Inter, sans-serif' }}>
+              Guide
+            </span>
+          </button>
+        </div>
+
+        {/* Subcategory chips — revealed when a category with subcategories is active */}
+        {selectedCategory && subcategories.length > 0 && (
+          <div className="overflow-x-auto mt-2 px-4" style={{ scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}>
+            <div className="flex gap-2" style={{ width: 'max-content', paddingLeft: 52, paddingBottom: 2 }}>
+              <button onClick={() => setSelectedSubcategory(null)} style={chipStyle(selectedSubcategory === null, true)}>
+                All
+              </button>
+              {subcategories.map(sub => (
+                <button key={sub.value} onClick={() => setSelectedSubcategory(selectedSubcategory?.value === sub.value ? null : sub)}
+                  style={chipStyle(selectedSubcategory?.value === sub.value, true)}>
+                  {sub.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Lotus canvas */}
       <div className="flex-1 overflow-y-auto overflow-x-hidden" style={{ WebkitOverflowScrolling: 'touch' }}>
@@ -382,11 +496,14 @@ export default function LifeBoxView({ onBack, user, initialCard = null, onInitia
             <p style={{ position: 'absolute', top: '40%', left: 0, right: 0, textAlign: 'center', color: 'rgba(253,249,243,0.4)', fontFamily: 'serif', fontSize: 15 }}>
               Loading…
             </p>
-          ) : publishedCards.map((card, i) => {
+          ) : filteredCards.map((card, i) => {
             const pos = computePos(i);
             const seed = i * 137.51;
             const size = 50 + (i % 3) * 6;
-            const [petalOuter, petalInner] = PETAL_PAIRS[i % PETAL_PAIRS.length];
+            const ctMeta = card.contentType ? CONTENT_TYPE_META[card.contentType] : null;
+            const [petalOuter, petalInner] = ctMeta
+              ? [ctMeta.petalOuter, ctMeta.petalInner]
+              : PETAL_PAIRS[i % PETAL_PAIRS.length];
             const rot = Math.round(((seed * 7) % 40) - 20);
             return (
               <button key={card.id} onClick={() => setSelectedCard(card)} style={{
@@ -426,9 +543,11 @@ export default function LifeBoxView({ onBack, user, initialCard = null, onInitia
               </button>
             );
           })}
-          {!loading && publishedCards.length === 0 && (
+          {!loading && filteredCards.length === 0 && (
             <p style={{ position: 'absolute', top: '40%', left: 0, right: 0, textAlign: 'center', color: 'rgba(253,249,243,0.4)', fontFamily: 'serif', fontSize: 15 }}>
-              Content coming soon.
+              {selectedSubcategory ? `No content in ${selectedSubcategory.name} yet.`
+                : selectedCategory ? `No content in ${selectedCategory.name} yet.`
+                : 'Content coming soon.'}
             </p>
           )}
           <p style={{ position: 'absolute', bottom: 28, left: 0, right: 0, textAlign: 'center', fontFamily: 'Inter, sans-serif', fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(253,249,243,0.35)' }}>
@@ -436,6 +555,51 @@ export default function LifeBoxView({ onBack, user, initialCard = null, onInitia
           </p>
         </div>
       </div>
+
+      {/* Content type info bottom sheet */}
+      <AnimatePresence>
+        {showTypeInfo && (
+          <motion.div key="type-info" className="fixed inset-0 z-50"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <div className="absolute inset-0" style={{ backgroundColor: 'rgba(67,52,34,0.4)' }} onClick={() => setShowTypeInfo(false)} />
+            <motion.div
+              className="absolute inset-x-0 bottom-0 rounded-t-[32px] overflow-hidden"
+              style={{ backgroundColor: '#FDF9F3' }}
+              initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+              transition={{ type: 'spring', stiffness: 320, damping: 34 }}
+              onClick={e => e.stopPropagation()}>
+              <div className="w-10 h-1 rounded-full mx-auto mt-4 mb-1"
+                style={{ backgroundColor: 'rgba(67,52,34,0.1)' }} />
+
+              <div className="px-6 pt-4 flex items-start justify-between">
+                <div>
+                  <p className="text-[9px] font-bold tracking-widest mb-1" style={{ color: SAGE }}>THE GARDEN</p>
+                  <p className="text-xl font-serif" style={{ color: '#433422' }}>Types of content</p>
+                </div>
+                <button onClick={() => setShowTypeInfo(false)}
+                  className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 mt-1"
+                  style={{ backgroundColor: '#F4EFE6' }}>
+                  <X size={14} color="#433422" strokeWidth={1.5} />
+                </button>
+              </div>
+
+              <div className="px-6 pt-5 pb-12 flex flex-col gap-5">
+                {CONTENT_TYPE_LIST.map(ct => (
+                  <div key={ct.value} className="flex items-start gap-4">
+                    <div className="flex-shrink-0 mt-0.5">
+                      <MiniLotusIcon size={28} color={ct.petalOuter} innerColor={ct.petalInner} />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold" style={{ color: '#433422' }}>{ct.label}</p>
+                      <p className="text-[13px] leading-relaxed mt-0.5" style={{ color: 'rgba(67,52,34,0.5)' }}>{ct.desc}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Card detail bottom sheet */}
       <AnimatePresence>
