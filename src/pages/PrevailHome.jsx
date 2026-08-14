@@ -27,6 +27,7 @@ import homepageImg from '../assets/home-page.webp';
 import { useTrackCompletions } from '../hooks/useTrackCompletions';
 import { useCompletionHistory } from '../hooks/useCompletionHistory';
 import { useStreakDays } from '../hooks/useStreakDays';
+import { useSwipeToDismiss } from '../hooks/useSwipeToDismiss';
 import { doc, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { getDailyVerse } from '../data/getDailyVerse';
@@ -58,7 +59,7 @@ import {
   X,
 } from 'lucide-react';
 import prayvailLogo from '../assets/prayvail-logo-blank.webp';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useDragControls } from 'framer-motion';
 
 const pathContainerVariants = {
   hidden: {},
@@ -594,6 +595,21 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
   const [journalSlideDir, setJournalSlideDir] = useState(1); // 1 = forward, -1 = backward
   const [touchStartX, setTouchStartX] = useState(null);
 
+  // Swipe-down-to-dismiss for each bottom sheet — drag the handle bar to close,
+  // matching native app behaviour when running under Capacitor.
+  const journeyInfoSwipe = useSwipeToDismiss(() => setShowJourneyInfo(false));
+  const libraryDetailSwipe = useSwipeToDismiss(() => setLibraryDetailCard(null));
+  const endJourneySwipe = useSwipeToDismiss(() => { setShowEndJourneyConfirm(false); setPendingEndAction(null); });
+  const lockedDaySwipe = useSwipeToDismiss(() => setShowLockedDaySheet(false));
+  const journeyConflictSwipe = useSwipeToDismiss(() => { setShowJourneyConflict(false); setPendingJourneyCard(null); });
+  const emailFormSwipe = useSwipeToDismiss(() => setShowEmailForm(false));
+  const passwordFormSwipe = useSwipeToDismiss(() => setShowPasswordForm(false));
+  const shareModalSwipe = useSwipeToDismiss(() => { setShowShareModal(false); setShareImageUrl(''); setView('dashboard'); setActiveTab('home'); });
+  // The journal entry viewer already animates with framer-motion, so its swipe-to-close
+  // uses motion's own drag system — started only from the handle bar (dragListener={false}
+  // + dragControls.start on pointer-down) so it never fights the panel's internal scroll.
+  const viewingEntryDragControls = useDragControls();
+
   const today = new Date();
   const hour = today.getHours();
   const timeGreeting = hour < 12 ? 'Morning' : hour < 18 ? 'Afternoon' : 'Evening';
@@ -883,8 +899,8 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
       {showJourneyInfo && activeModuleCard && (
         <>
           <div className="fixed inset-0 bg-black/40 z-[59]" onClick={() => setShowJourneyInfo(false)} />
-          <div className="fixed inset-x-0 bottom-0 z-[60] bg-[#FDF9F3] rounded-t-[32px] max-h-[75vh] flex flex-col overflow-y-auto animate-sheet-enter">
-            <div className="px-5 pt-4 pb-2 flex-shrink-0 flex justify-center">
+          <div className="fixed inset-x-0 bottom-0 z-[60] bg-[#FDF9F3] rounded-t-[32px] max-h-[75vh] flex flex-col overflow-y-auto animate-sheet-enter" style={journeyInfoSwipe.sheetStyle}>
+            <div className="px-5 pt-4 pb-2 flex-shrink-0 flex justify-center" {...journeyInfoSwipe.handleProps}>
               <div className="w-10 h-1 rounded-full bg-[#433422]/10" />
             </div>
             <button onClick={() => setShowJourneyInfo(false)} className="absolute top-4 right-4 w-8 h-8 rounded-full bg-[#E9DCC9]/60 flex items-center justify-center">
@@ -927,10 +943,10 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
             <div className="fixed inset-0 bg-black/40 z-[59]" onClick={() => setLibraryDetailCard(null)} />
 
             {/* Sheet */}
-            <div className="fixed inset-x-0 bottom-0 z-[60] bg-[#FDF9F3] rounded-t-[32px] max-h-[88vh] flex flex-col animate-sheet-enter font-sans text-[#433422]">
+            <div className="fixed inset-x-0 bottom-0 z-[60] bg-[#FDF9F3] rounded-t-[32px] max-h-[88vh] flex flex-col animate-sheet-enter font-sans text-[#433422]" style={libraryDetailSwipe.sheetStyle}>
 
               {/* Handle */}
-              <div className="flex-shrink-0 flex justify-center pt-3 pb-1">
+              <div className="flex-shrink-0 flex justify-center pt-3 pb-1" {...libraryDetailSwipe.handleProps}>
                 <div className="w-10 h-1 bg-[#433422]/20 rounded-full" />
               </div>
 
@@ -1079,8 +1095,8 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
       {showEndJourneyConfirm && (
         <>
           <div className="fixed inset-0 bg-black/40 z-[69]" onClick={() => { setShowEndJourneyConfirm(false); setPendingEndAction(null); }} />
-          <div className="fixed inset-x-0 bottom-0 z-[70] bg-[#FDF9F3] rounded-t-[32px] animate-sheet-enter font-sans text-[#433422]">
-            <div className="flex justify-center pt-3 pb-1">
+          <div className="fixed inset-x-0 bottom-0 z-[70] bg-[#FDF9F3] rounded-t-[32px] animate-sheet-enter font-sans text-[#433422]" style={endJourneySwipe.sheetStyle}>
+            <div className="flex justify-center pt-3 pb-1" {...endJourneySwipe.handleProps}>
               <div className="w-10 h-1 bg-[#433422]/20 rounded-full" />
             </div>
             <div className="px-8 pt-4 pb-12">
@@ -1117,8 +1133,8 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
       {showLockedDaySheet && (
         <>
           <div className="fixed inset-0 bg-black/40 z-[69]" onClick={() => setShowLockedDaySheet(false)} />
-          <div className="fixed inset-x-0 bottom-0 z-[70] bg-[#FDF9F3] rounded-t-[32px] animate-sheet-enter font-sans text-[#433422]">
-            <div className="flex justify-center pt-3 pb-1">
+          <div className="fixed inset-x-0 bottom-0 z-[70] bg-[#FDF9F3] rounded-t-[32px] animate-sheet-enter font-sans text-[#433422]" style={lockedDaySwipe.sheetStyle}>
+            <div className="flex justify-center pt-3 pb-1" {...lockedDaySwipe.handleProps}>
               <div className="w-10 h-1 bg-[#433422]/20 rounded-full" />
             </div>
             <div className="px-8 pt-4 pb-12">
@@ -1160,8 +1176,8 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
       {showJourneyConflict && (
         <>
           <div className="fixed inset-0 bg-black/40 z-[69]" onClick={() => { setShowJourneyConflict(false); setPendingJourneyCard(null); }} />
-          <div className="fixed inset-x-0 bottom-0 z-[70] bg-[#FDF9F3] rounded-t-[32px] animate-sheet-enter font-sans text-[#433422]">
-            <div className="flex justify-center pt-3 pb-1">
+          <div className="fixed inset-x-0 bottom-0 z-[70] bg-[#FDF9F3] rounded-t-[32px] animate-sheet-enter font-sans text-[#433422]" style={journeyConflictSwipe.sheetStyle}>
+            <div className="flex justify-center pt-3 pb-1" {...journeyConflictSwipe.handleProps}>
               <div className="w-10 h-1 bg-[#433422]/20 rounded-full" />
             </div>
             <div className="px-8 pt-4 pb-12">
@@ -2095,8 +2111,18 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
                   exit={{ y: '100%' }}
                   transition={{ type: 'spring', stiffness: 320, damping: 34 }}
                   onClick={e => e.stopPropagation()}
+                  drag="y"
+                  dragListener={false}
+                  dragControls={viewingEntryDragControls}
+                  dragConstraints={{ top: 0, bottom: 0 }}
+                  dragElastic={{ top: 0, bottom: 0.6 }}
+                  onDragEnd={(_, info) => {
+                    if (info.offset.y > 90 || info.velocity.y > 600) setViewingEntry(null);
+                  }}
                 >
-                  <div className="w-10 h-1 bg-[#433422]/10 rounded-full mx-auto mt-4 mb-5" />
+                  <div className="w-10 h-1 bg-[#433422]/10 rounded-full mx-auto mt-4 mb-5"
+                    style={{ touchAction: 'none' }}
+                    onPointerDown={e => viewingEntryDragControls.start(e)} />
                   <div className="px-6 pb-2 flex items-start justify-between">
                     <div>
                       <p className="font-serif text-lg text-[#433422]">{activityTitle}</p>
@@ -2588,8 +2614,8 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
       {showEmailForm && (
         <>
           <div className="fixed inset-0 bg-black/40 z-[80]" onClick={() => setShowEmailForm(false)} />
-          <div className="fixed inset-x-0 bottom-0 z-[81] bg-[#FDF9F3] rounded-t-[32px] animate-sheet-enter font-sans text-[#433422]">
-            <div className="flex justify-center pt-3 pb-1"><div className="w-10 h-1 bg-[#433422]/20 rounded-full" /></div>
+          <div className="fixed inset-x-0 bottom-0 z-[81] bg-[#FDF9F3] rounded-t-[32px] animate-sheet-enter font-sans text-[#433422]" style={emailFormSwipe.sheetStyle}>
+            <div className="flex justify-center pt-3 pb-1" {...emailFormSwipe.handleProps}><div className="w-10 h-1 bg-[#433422]/20 rounded-full" /></div>
             <div className="px-7 pt-3 pb-10 space-y-4">
               <div>
                 <p className="text-[10px] tracking-[0.3em] font-bold text-[#433422]/40 mb-1">CHANGE EMAIL</p>
@@ -2622,8 +2648,8 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
       {showPasswordForm && (
         <>
           <div className="fixed inset-0 bg-black/40 z-[80]" onClick={() => setShowPasswordForm(false)} />
-          <div className="fixed inset-x-0 bottom-0 z-[81] bg-[#FDF9F3] rounded-t-[32px] animate-sheet-enter font-sans text-[#433422]">
-            <div className="flex justify-center pt-3 pb-1"><div className="w-10 h-1 bg-[#433422]/20 rounded-full" /></div>
+          <div className="fixed inset-x-0 bottom-0 z-[81] bg-[#FDF9F3] rounded-t-[32px] animate-sheet-enter font-sans text-[#433422]" style={passwordFormSwipe.sheetStyle}>
+            <div className="flex justify-center pt-3 pb-1" {...passwordFormSwipe.handleProps}><div className="w-10 h-1 bg-[#433422]/20 rounded-full" /></div>
             <div className="px-7 pt-3 pb-10 space-y-3">
               <p className="text-[10px] tracking-[0.3em] font-bold text-[#433422]/40 mb-1">CHANGE PASSWORD</p>
               <input
@@ -3689,8 +3715,8 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
       {/* Share modal */}
       {showShareModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex flex-col justify-end">
-          <div className="bg-[#FDF9F3] rounded-t-[40px] px-6 pt-7 pb-12">
-            <div className="w-10 h-1 bg-[#433422]/15 rounded-full mx-auto mb-6" />
+          <div className="bg-[#FDF9F3] rounded-t-[40px] px-6 pt-7 pb-12" style={shareModalSwipe.sheetStyle}>
+            <div className="w-10 h-1 bg-[#433422]/15 rounded-full mx-auto mb-6" {...shareModalSwipe.handleProps} />
             <p className="text-[10px] tracking-[0.3em] font-bold text-[#433422]/40 text-center mb-5">SHARE VERSE</p>
 
             <div className="w-[70%] mx-auto aspect-square rounded-[24px] overflow-hidden mb-6 shadow-lg shadow-[#433422]/15">

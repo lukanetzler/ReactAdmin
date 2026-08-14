@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useDragControls } from 'framer-motion';
 import { Home, Wheat, Calendar, Compass, User } from 'lucide-react';
 import prayvailLogo from '../assets/prayvail-logo-blank.webp';
 
@@ -175,6 +175,7 @@ export default function AppTour({ onClose, onComplete }) {
   const [step, setStep] = useState(0);
   const [dir, setDir]   = useState(1);
   const [scanIdx, setScanIdx] = useState(0);
+  const dragControls = useDragControls();
 
   // Cycle through nav icons on the "Getting Around" slide (navHighlight === null)
   useEffect(() => {
@@ -204,9 +205,14 @@ export default function AppTour({ onClose, onComplete }) {
         exit={{ y: '100%', opacity: 0 }}
         transition={{ type: 'spring', stiffness: 300, damping: 34 }}
         onClick={e => e.stopPropagation()}
+        drag="y" dragListener={false} dragControls={dragControls}
+        dragConstraints={{ top: 0, bottom: 0 }} dragElastic={{ top: 0, bottom: 0.6 }}
+        onDragEnd={(_, info) => { if (info.offset.y > 90 || info.velocity.y > 600) onClose(); }}
       >
         {/* Handle */}
-        <div className="w-10 h-1 bg-[#433422]/10 rounded-full mx-auto mt-4" />
+        <div className="w-10 h-1 bg-[#433422]/10 rounded-full mx-auto mt-4"
+          style={{ touchAction: 'none' }}
+          onPointerDown={e => dragControls.start(e)} />
 
         {/* Step dots */}
         <div className="flex items-center justify-center gap-2 pt-5">

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence, motion, useDragControls } from 'framer-motion';
 import { ArrowLeft, Play, Pause, SkipBack, SkipForward, X, ChevronRight, Info } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 import { StatusBar, Style } from '@capacitor/status-bar';
@@ -98,6 +98,10 @@ export default function LifeBoxView({ onBack, user, initialCard = null, onInitia
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [selectedSubcategory, setSelectedSubcategory] = useState(null);
   const [showTypeInfo, setShowTypeInfo] = useState(false);
+  // Swipe-down-to-dismiss, started only from each sheet's handle bar so it never
+  // fights the panel's own scrollable content.
+  const typeInfoDragControls = useDragControls();
+  const cardSheetDragControls = useDragControls();
   const [activeTrack, setActiveTrack] = useState(null); // { track, card }
   const [activeArticle, setActiveArticle] = useState(null); // { card }
   const [isPlaying, setIsPlaying] = useState(false);
@@ -567,9 +571,13 @@ export default function LifeBoxView({ onBack, user, initialCard = null, onInitia
               style={{ backgroundColor: '#FDF9F3' }}
               initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
               transition={{ type: 'spring', stiffness: 320, damping: 34 }}
-              onClick={e => e.stopPropagation()}>
+              onClick={e => e.stopPropagation()}
+              drag="y" dragListener={false} dragControls={typeInfoDragControls}
+              dragConstraints={{ top: 0, bottom: 0 }} dragElastic={{ top: 0, bottom: 0.6 }}
+              onDragEnd={(_, info) => { if (info.offset.y > 90 || info.velocity.y > 600) setShowTypeInfo(false); }}>
               <div className="w-10 h-1 rounded-full mx-auto mt-4 mb-1"
-                style={{ backgroundColor: 'rgba(67,52,34,0.1)' }} />
+                style={{ backgroundColor: 'rgba(67,52,34,0.1)', touchAction: 'none' }}
+                onPointerDown={e => typeInfoDragControls.start(e)} />
 
               <div className="px-6 pt-4 flex items-start justify-between">
                 <div>
@@ -612,9 +620,13 @@ export default function LifeBoxView({ onBack, user, initialCard = null, onInitia
               style={{ backgroundColor: '#FDF9F3' }}
               initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
               transition={{ type: 'spring', stiffness: 320, damping: 34 }}
-              onClick={e => e.stopPropagation()}>
+              onClick={e => e.stopPropagation()}
+              drag="y" dragListener={false} dragControls={cardSheetDragControls}
+              dragConstraints={{ top: 0, bottom: 0 }} dragElastic={{ top: 0, bottom: 0.6 }}
+              onDragEnd={(_, info) => { if (info.offset.y > 90 || info.velocity.y > 600) setSelectedCard(null); }}>
               <div className="w-10 h-1 rounded-full mx-auto mt-4 mb-1"
-                style={{ backgroundColor: 'rgba(67,52,34,0.1)' }} />
+                style={{ backgroundColor: 'rgba(67,52,34,0.1)', touchAction: 'none' }}
+                onPointerDown={e => cardSheetDragControls.start(e)} />
 
               {/* Cover */}
               {selectedCard.imageUrl && (

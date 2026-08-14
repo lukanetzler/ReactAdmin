@@ -1,28 +1,58 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { ArrowLeft, Feather, Sun, Wind, Trash2, X } from 'lucide-react';
+import { ArrowLeft, Feather, Trash2, X } from 'lucide-react';
 import { addJournalEntry } from '../services/journal';
 
 const DEFAULT_AFFIRMATIONS = [
-  "Your presence has a beautiful way of grounding those around you.",
-  "You are doing much better than your anxious thoughts let you believe.",
-  "You bring a quiet, unique light into every room you step into.",
-  "Your resilience is gentle, elegant, and incredibly powerful.",
-  "It is completely okay to pause, take a deep breath, and just exist right here.",
-  "Your kindness is a healing balm in a world that can sometimes feel harsh.",
-  "The universe is glad you are here, creating your own quiet rhythm.",
-  "You have survived every single one of your hardest, heaviest days.",
-  "You don't need to earn rest; you are allowed to simply breathe and be.",
-  "There is a deep, quiet pool of courage living right inside your heart.",
-  "The softness in your eyes is proof of the strength in your spirit.",
-  "Your journey is uniquely yours, perfectly paced and unfolding beautifully.",
-  "You are a magnificent work of art in continuous, gorgeous motion.",
-  "Your vulnerability is not weakness; it is the raw truth of your courage.",
-  "You are thoroughly, deeply, and unconditionally worthy of love.",
-  "Slow down. You are exactly where you need to be in this precious moment.",
-  "Your voice carries a soothing warmth that makes people feel truly heard.",
-  "Even when you feel fragile, remember that water is soft and can carve canyons.",
-  "Be patient with yourself; you are continuously blooming, petal by petal.",
-  "Peace is not the absence of noise. It is your quiet strength within it.",
+  "God is with me, and I am never alone.",
+  "I am deeply loved by God.",
+  "I am worthy of love, grace, and compassion.",
+  "I can face today because God gives me strength.",
+  "I trust God to guide my path.",
+  "I am held safely in God's care.",
+  "God's peace is greater than my fears.",
+  "I can release my worries and place them in God's hands.",
+  "I am forgiven, and I can begin again.",
+  "God's grace meets me exactly where I am.",
+  "I do not have to be perfect to be loved by God.",
+  "I am God's beloved child.",
+  "God gives me courage when I feel afraid.",
+  "I can be still and remember that God is with me.",
+  "I trust that God is working even when I cannot see the way forward.",
+  "I am surrounded by God's presence.",
+  "God's love gives me hope.",
+  "I can let go of what I cannot control.",
+  "I choose faith over fear.",
+  "God gives me wisdom for the decisions I face.",
+  "I have the strength to overcome today's challenges.",
+  "I can rest because God watches over me.",
+  "I am not defined by my mistakes.",
+  "God's mercy gives me a fresh start each day.",
+  "I can forgive myself because God offers forgiveness.",
+  "I am becoming more patient, loving, and compassionate.",
+  "God is my refuge when life feels overwhelming.",
+  "I can bring my worries honestly to God.",
+  "I trust God's timing, even when I feel impatient.",
+  "I am grateful for the blessings already present in my life.",
+  "God's light can guide me through difficult times.",
+  "I have nothing to prove to earn God's love.",
+  "I can face uncertainty with faith.",
+  "God gives me peace in the midst of life's storms.",
+  "I am stronger than the difficulties I am facing.",
+  "I can choose kindness toward myself and others.",
+  "God renews my strength when I am weary.",
+  "I am allowed to rest; I do not have to carry everything myself.",
+  "I trust that God can bring good from difficult experiences.",
+  "I am surrounded by grace.",
+  "I can approach tomorrow with hope.",
+  "God's presence gives me courage to keep going.",
+  "I choose gratitude for what I have today.",
+  "I can surrender my fears and receive God's peace.",
+  "I am capable of growth because God's grace is always at work within me.",
+  "I can walk forward with confidence because God is beside me.",
+  "My life has meaning and purpose.",
+  "I am never beyond the reach of God's love.",
+  "I can choose hope, even when circumstances are difficult.",
+  "Today, I place my trust in God and take the next step in faith.",
 ];
 
 const DOVE_TYPES = [
@@ -332,12 +362,6 @@ export default function DovesSanctuary({ onBack, user }) {
         </div>
 
         <div className="flex-1 flex flex-col items-center justify-center px-8 py-8">
-          {/* Dove farewell icon */}
-          <div className="w-16 h-16 rounded-full flex items-center justify-center mb-5"
-            style={{ backgroundColor: 'rgba(212,163,115,0.12)', border: '1px solid rgba(212,163,115,0.2)' }}>
-            <Feather size={26} strokeWidth={1.5} style={{ color: '#D4A373' }} />
-          </div>
-
           <p className="text-[9px] font-bold tracking-[0.4em] text-[#D4A373] uppercase mb-2">Your session is complete</p>
           <h2 className="text-3xl font-serif text-[#433422] text-center leading-snug mb-3">
             The doves<br /><em className="italic text-[#D4A373]">have spoken.</em>
@@ -429,7 +453,6 @@ export default function DovesSanctuary({ onBack, user }) {
       {introVisible && stage === 'playing' && (
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 text-center pointer-events-none px-6 max-w-xs"
           style={{ opacity: 0, animation: 'fade-in 1.2s ease-out 0.5s forwards' }}>
-          <p className="text-[9px] font-bold tracking-[0.4em] text-[#8E9775] uppercase mb-2">Present Awareness</p>
           <p className="font-serif text-2xl text-[#433422] italic mb-4 leading-relaxed">"The air is thick with gentle wishes."</p>
           <p className="text-[11px] text-[#433422]/50 tracking-wider">Tap the glowing dove to begin</p>
         </div>
@@ -449,11 +472,6 @@ export default function DovesSanctuary({ onBack, user }) {
             <div className="absolute -top-12 left-1/2 -translate-x-1/2 w-40 h-40 rounded-full pointer-events-none"
               style={{ backgroundColor: affirmation.wingColor, filter: 'blur(60px)', opacity: 0.3 }} />
 
-            <div className="w-11 h-11 rounded-full flex items-center justify-center mx-auto mb-5 border"
-              style={{ backgroundColor: '#F4EFE6', borderColor: 'rgba(212,163,115,0.3)' }}>
-              <Feather size={18} strokeWidth={2} style={{ color: '#D4A373' }} />
-            </div>
-
             <p className="font-serif text-xl text-[#433422] leading-relaxed mb-5 tracking-wide relative z-10">
               "{affirmation.text}"
             </p>
@@ -463,14 +481,12 @@ export default function DovesSanctuary({ onBack, user }) {
               <button onClick={() => keepAffirmation(affirmation.text)}
                 className="flex-1 py-3 px-4 rounded-full text-white text-xs font-bold tracking-wider uppercase flex items-center justify-center gap-2 active:scale-95 transition-transform"
                 style={{ backgroundColor: '#D4A373' }}>
-                <Sun size={14} strokeWidth={2} />
                 Keep
               </button>
               <button onClick={() => dismissAffirmation()}
                 className="py-3 px-6 rounded-full text-[#433422]/70 text-xs font-bold tracking-wider uppercase flex items-center justify-center gap-2 active:scale-95 transition-transform border"
                 style={{ backgroundColor: '#F4EFE6', borderColor: 'rgba(67,52,34,0.1)' }}>
                 Release
-                <Wind size={14} strokeWidth={1.5} />
               </button>
             </div>
           </div>
