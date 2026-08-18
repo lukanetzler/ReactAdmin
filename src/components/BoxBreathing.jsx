@@ -2,74 +2,52 @@ import { useState, useEffect, useRef } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { addJournalEntry } from '../services/journal';
 
+// Four sides of the breath. The orb carries the instruction: it swells on the way in,
+// stays full through the hold, settles on the way out, and rests. Warm on the way in,
+// grounded on the way out, so the eye reads the turn without reading a word.
 const PHASES = [
-  { label: 'BREATHE IN',  cue: 'Inhale slowly through your nose',  scale: 1.20, isHold: false },
-  { label: 'HOLD',        cue: 'Hold gently at the top',           scale: 1.20, isHold: true  },
-  { label: 'BREATHE OUT', cue: 'Exhale slowly through your mouth', scale: 1,    isHold: false },
-  { label: 'REST',        cue: 'Empty and still',                  scale: 1,    isHold: true  },
+  { word: 'Breathe in',  cue: 'Let the air fill you, slowly',  scale: 1.14, fill: 100, warm: true,  hold: false },
+  { word: 'Hold',        cue: 'Stay here, gently',             scale: 1.14, fill: 100, warm: true,  hold: true  },
+  { word: 'Breathe out', cue: 'Let it go, just as slowly',     scale: 1.00, fill: 0,   warm: false, hold: false },
+  { word: 'Rest',        cue: 'Empty, and still',              scale: 1.00, fill: 0,   warm: false, hold: true  },
 ];
 
-const PHASE_COLORS = ['#D4A373', '#C8944E', '#8E9775', '#6B7F5E'];
+const WARM = '#D4A373'; // Terracotta Grace — the breath arriving
+const COOL = '#8E9775'; // Sage Peace — the breath leaving
 
-const BREATH_TRANSITION = 'transform 4000ms ease-in-out';
+// Seconds per side of the box. Everything below is derived from this, so the whole
+// practice can be slowed or quickened from one place.
+const COUNT = 5;
+const PHASE_MS = COUNT * 1000;
 
+const BREATH_TRANSITION = `transform ${PHASE_MS}ms ease-in-out`;
 const BG = 'linear-gradient(180deg, #FDF9F3 0%, #F4EFE6 100%)';
 
 export default function BoxBreathing({ onBack, user }) {
-  const [stage, setStage] = useState('intro'); // 'intro' | 'countdown' | 'exercise' | 'done'
-  const [countdown, setCountdown] = useState(3);
+  const [stage, setStage] = useState('invitation'); // 'invitation' | 'breathing' | 'close'
   const [phase, setPhase] = useState(0);
-  const [count, setCount] = useState(4);
+  const [phaseSeq, setPhaseSeq] = useState(0); // remounts the arc so its sweep restarts
   const [ready, setReady] = useState(false);
   const [cyclesCompleted, setCyclesCompleted] = useState(0);
   const [saving, setSaving] = useState(false);
 
-  const [demoPhase, setDemoPhase] = useState(0);
-  const [demoCount, setDemoCount] = useState(4);
-  const [demoReady, setDemoReady] = useState(false);
-
   const intervalRef = useRef(null);
   const tickRef = useRef(0);
   const startTimeRef = useRef(null);
-  const demoTickRef = useRef(0);
 
-  // Intro demo loop
   useEffect(() => {
-    if (stage !== 'intro') return;
-    const paint = setTimeout(() => setDemoReady(true), 120);
-    demoTickRef.current = 0;
-    const id = setInterval(() => {
-      const t = ++demoTickRef.current;
-      setDemoPhase(Math.floor(t / 4) % 4);
-      setDemoCount(t % 4 === 0 ? 4 : 4 - (t % 4));
-    }, 1000);
-    return () => { clearTimeout(paint); clearInterval(id); setDemoReady(false); };
-  }, [stage]);
-
-  // Countdown
-  useEffect(() => {
-    if (stage !== 'countdown') return;
-    setCountdown(3);
-    const id = setInterval(() => {
-      setCountdown(c => {
-        if (c <= 1) { clearInterval(id); setStage('exercise'); return 0; }
-        return c - 1;
-      });
-    }, 1000);
-    return () => clearInterval(id);
-  }, [stage]);
-
-  // Exercise
-  useEffect(() => {
-    if (stage !== 'exercise') return;
+    if (stage !== 'breathing') return;
     startTimeRef.current = Date.now();
     tickRef.current = 0;
+    setPhase(0);
+    setPhaseSeq(0);
+    // A beat before the first scale so the orb eases open rather than snapping.
     const paintDelay = setTimeout(() => setReady(true), 80);
     intervalRef.current = setInterval(() => {
       const t = ++tickRef.current;
-      setPhase(Math.floor(t / 4) % 4);
-      setCount(t % 4 === 0 ? 4 : 4 - (t % 4));
-      if (t % 16 === 0) setCyclesCompleted(c => c + 1);
+      setPhase(Math.floor(t / COUNT) % 4);
+      if (t % COUNT === 0) setPhaseSeq(s => s + 1);
+      if (t % (COUNT * 4) === 0) setCyclesCompleted(c => c + 1);
     }, 1000);
     return () => { clearTimeout(paintDelay); clearInterval(intervalRef.current); setReady(false); };
   }, [stage]);
@@ -84,19 +62,22 @@ export default function BoxBreathing({ onBack, user }) {
     const today = new Date();
     const dateISO = today.toISOString().split('T')[0];
     const dateDisplay = today.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+    // Format is parsed by the calendar log — keep the labels as they are.
     const reflection = ['🌬️ Box Breathing Session', '', `Cycles completed: ${cyclesCompleted}`, `Duration: ${durationLabel}`].join('\n');
-    try { await addJournalEntry(user?.uid ?? null, { dateISO, dateDisplay, reflection }); } catch (_) {}
+    try { await addJournalEntry(user?.uid ?? null, { dateISO, dateDisplay, reflection }); } catch { /* journal is best-effort */ }
     setSaving(false);
-    setStage('done');
+    setStage('close');
   };
 
   const cur = PHASES[phase];
-  const demoCur = PHASES[demoPhase];
+  const tone = cur.warm ? WARM : COOL;
   const activeScale = ready ? cur.scale : 1;
-  const demoScale = demoReady ? demoCur.scale : 1;
+  const activeFill = ready ? cur.fill : 0;
 
-  // ── Intro ─────────────────────────────────────────────────
-  if (stage === 'intro') {
+  // ── Invitation ────────────────────────────────────────────
+  // Deliberately still. Nothing here animates on a cycle, so it is never mistaken
+  // for the practice already being underway.
+  if (stage === 'invitation') {
     return (
       <div className="fixed inset-0 flex flex-col font-sans overflow-y-auto" style={{ background: BG }}>
         <div className="pt-14 px-6 flex-shrink-0">
@@ -105,81 +86,54 @@ export default function BoxBreathing({ onBack, user }) {
           </button>
         </div>
 
-        <div className="px-8 pt-5 pb-2 flex-shrink-0">
-          <p className="text-[9px] font-bold tracking-[0.4em] text-[#D4A373] uppercase mb-2"
-            style={{ opacity: 0, animation: 'fade-in 0.6s ease-out 0.1s forwards' }}>
-            Welcome to
+        <div className="flex-1 flex flex-col items-center justify-center px-8 py-6 text-center">
+          <p className="text-[9px] font-bold tracking-[0.4em] text-[#D4A373] uppercase mb-4"
+            style={{ opacity: 0, animation: 'fade-in 0.7s ease-out 0.1s forwards' }}>
+            Box Breathing
           </p>
-          <h1 className="text-4xl font-serif text-[#433422] leading-tight"
-            style={{ opacity: 0, animation: 'fade-in 0.7s ease-out 0.2s forwards' }}>
-            Box<br /><em className="italic text-[#D4A373]">Breathing</em>
+
+          <h1 className="text-4xl font-serif text-[#433422] leading-tight mb-7"
+            style={{ opacity: 0, animation: 'fade-in 0.8s ease-out 0.25s forwards' }}>
+            Breathe<br /><em className="italic text-[#D4A373]">with me.</em>
           </h1>
-          <p className="mt-3 text-sm text-[#433422]/50 leading-relaxed"
-            style={{ maxWidth: 290, opacity: 0, animation: 'fade-in 0.7s ease-out 0.4s forwards' }}>
-            A 4-count cycle used by therapists, athletes, and military training to calm the nervous system and return you to the present moment.
-          </p>
-        </div>
 
-        <div className="flex flex-col items-center pt-8 pb-4 flex-shrink-0"
-          style={{ opacity: 0, animation: 'fade-in 0.8s ease-out 0.5s forwards' }}>
-          <p className="text-[9px] font-bold tracking-[0.35em] text-[#433422]/25 uppercase mb-6">Live Preview</p>
-
-          <div className="relative flex items-center justify-center" style={{ width: 190, height: 190 }}>
-            <div className="absolute inset-0 rounded-full"
-              style={{ border: `1px solid ${PHASE_COLORS[demoPhase]}30`, transform: `scale(${0.9 * demoScale})`, transition: BREATH_TRANSITION }} />
-            <div className="absolute inset-0 rounded-full"
-              style={{ border: `1px solid ${PHASE_COLORS[demoPhase]}50`, transform: `scale(${0.74 * demoScale})`, transition: BREATH_TRANSITION }} />
-            <div className="rounded-full flex items-center justify-center"
+          {/* A single resting orb. Slow, shallow, clearly idle. */}
+          <div className="relative flex items-center justify-center mb-8" style={{ width: 180, height: 180, opacity: 0, animation: 'fade-in 1s ease-out 0.4s forwards' }}>
+            <div className="absolute rounded-full"
+              style={{ width: 180, height: 180, border: '1px solid rgba(212,163,115,0.16)' }} />
+            <div className="rounded-full"
               style={{
-                width: 120, height: 120,
-                background: `radial-gradient(circle at 38% 38%, ${PHASE_COLORS[demoPhase]}, ${PHASE_COLORS[demoPhase]}cc)`,
-                boxShadow: `0 6px 36px ${PHASE_COLORS[demoPhase]}40`,
-                transform: `scale(${demoScale})`,
-                transition: `${BREATH_TRANSITION}, background 1s ease, box-shadow 1s ease`,
-              }}>
-              <span key={demoCount} className="text-4xl font-serif text-white animate-[countPop_0.35s_cubic-bezier(0.34,1.56,0.64,1)_forwards]">
-                {demoCount}
-              </span>
-            </div>
+                width: 116, height: 116,
+                background: 'radial-gradient(circle at 38% 38%, #D4A373, #D4A373cc)',
+                boxShadow: '0 6px 34px rgba(212,163,115,0.26)',
+                animation: 'restingBreath 6s ease-in-out infinite',
+              }} />
           </div>
 
-          <p key={`label-${demoPhase}`} className="mt-5 text-[10px] font-bold tracking-[0.3em] uppercase"
-            style={{ color: PHASE_COLORS[demoPhase], opacity: 0, animation: 'fade-in 0.4s ease-out forwards', transition: 'color 0.5s ease' }}>
-            {demoCur.label}
+          <p className="text-base font-serif text-[#433422]/60 leading-relaxed mb-3"
+            style={{ maxWidth: 280, opacity: 0, animation: 'fade-in 0.8s ease-out 0.55s forwards' }}>
+            In for five. Hold for five.<br />Out for five. Rest for five.
           </p>
-          <p key={`cue-${demoPhase}`} className="mt-1 text-sm font-serif text-[#433422]/45"
-            style={{ opacity: 0, animation: 'fade-in 0.5s ease-out 0.12s forwards' }}>
-            {demoCur.cue}
+          <p className="text-sm text-[#433422]/40 leading-relaxed"
+            style={{ maxWidth: 280, opacity: 0, animation: 'fade-in 0.8s ease-out 0.65s forwards' }}>
+            Follow the circle. There is nothing to count and nothing to get right.
           </p>
-        </div>
 
-        <div className="px-8 pb-4 flex-shrink-0"
-          style={{ opacity: 0, animation: 'fade-in 0.7s ease-out 0.7s forwards' }}>
-          <p className="text-[9px] font-bold tracking-[0.35em] text-[#433422]/25 uppercase mb-3">Each cycle</p>
-          <div className="grid grid-cols-2 gap-2">
-            {[
-              { label: 'Inhale', color: '#D4A373' },
-              { label: 'Hold',   color: '#C8944E' },
-              { label: 'Exhale', color: '#8E9775' },
-              { label: 'Rest',   color: '#6B7F5E' },
-            ].map(({ label, color }) => (
-              <div key={label} className="flex items-center gap-3 rounded-[16px] px-4 py-3"
-                style={{ backgroundColor: 'rgba(255,255,255,0.55)' }}>
-                <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
-                <div>
-                  <p className="text-[11px] font-bold text-[#433422]/70">{label}</p>
-                  <p className="text-[9px] text-[#433422]/35">4 counts</p>
-                </div>
-              </div>
-            ))}
+          <div className="flex flex-col items-center mt-9"
+            style={{ opacity: 0, animation: 'fade-in 0.9s ease-out 0.8s forwards' }}>
+            <div style={{ width: 28, height: 1, backgroundColor: 'rgba(212,163,115,0.45)' }} />
+            <p className="mt-4 text-sm font-serif italic text-[#433422]/45 leading-relaxed" style={{ maxWidth: 260 }}>
+              &ldquo;The breath of the Almighty gives me life.&rdquo;
+            </p>
+            <p className="mt-2 text-[9px] font-bold tracking-[0.28em] uppercase text-[#433422]/25">Job 33:4</p>
           </div>
         </div>
 
-        <div className="px-8 pt-4 pb-14 flex-shrink-0"
-          style={{ opacity: 0, animation: 'fade-in 0.7s ease-out 0.9s forwards' }}>
-          <button onClick={() => setStage('countdown')}
+        <div className="px-8 pb-14 flex-shrink-0"
+          style={{ opacity: 0, animation: 'fade-in 0.8s ease-out 0.95s forwards' }}>
+          <button onClick={() => setStage('breathing')}
             className="w-full py-5 bg-[#433422] text-[#FDF9F3] rounded-[28px] text-[11px] font-bold tracking-widest active:scale-[0.98] transition-transform">
-            BEGIN SESSION
+            BEGIN WHEN READY
           </button>
           <button onClick={onBack}
             className="w-full mt-3 py-2 text-[10px] font-bold tracking-widest text-[#433422]/25 uppercase">
@@ -190,117 +144,103 @@ export default function BoxBreathing({ onBack, user }) {
     );
   }
 
-  // ── Countdown ─────────────────────────────────────────────
-  if (stage === 'countdown') {
-    return (
-      <div className="fixed inset-0 flex flex-col items-center justify-center font-sans" style={{ background: BG }}>
-        <p className="text-[9px] font-bold tracking-[0.4em] text-[#433422]/30 uppercase mb-10">Starting in</p>
-        <div className="relative flex items-center justify-center" style={{ width: 200, height: 200 }}>
-          <div className="absolute inset-0 rounded-full border border-[#D4A373]/15"
-            style={{ animation: 'holdPulseOuter 2.5s ease-in-out infinite' }} />
-          <div className="absolute inset-0 rounded-full border border-[#D4A373]/25"
-            style={{ animation: 'holdPulseInner 2.5s ease-in-out infinite' }} />
-          <div className="w-36 h-36 rounded-full flex items-center justify-center"
-            style={{ background: 'linear-gradient(145deg, #D4A373 0%, #c8874a 100%)', boxShadow: '0 8px 48px rgba(212,163,115,0.3)' }}>
-            <span key={countdown}
-              className="text-7xl font-serif text-white animate-[countPop_0.35s_cubic-bezier(0.34,1.56,0.64,1)_forwards]">
-              {countdown}
-            </span>
-          </div>
-        </div>
-        <p className="mt-10 text-sm font-serif text-[#433422]/40">Settle in and breathe naturally</p>
-      </div>
-    );
-  }
-
-  // ── Done ──────────────────────────────────────────────────
-  if (stage === 'done') {
+  // ── Close ─────────────────────────────────────────────────
+  if (stage === 'close') {
     return (
       <div className="fixed inset-0 flex flex-col items-center justify-center font-sans px-8" style={{ background: BG }}>
-        <div className="w-16 h-16 bg-[#8E9775]/10 rounded-full flex items-center justify-center mb-5">
-          <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#8E9775" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>
-          </svg>
+        <div className="relative flex items-center justify-center mb-8" style={{ width: 150, height: 150 }}>
+          <div className="absolute rounded-full" style={{ width: 150, height: 150, border: '1px solid rgba(142,151,117,0.2)' }} />
+          <div className="rounded-full"
+            style={{
+              width: 96, height: 96,
+              background: 'radial-gradient(circle at 38% 38%, #8E9775, #8E9775cc)',
+              boxShadow: '0 6px 30px rgba(142,151,117,0.24)',
+              animation: 'restingBreath 6s ease-in-out infinite',
+            }} />
         </div>
+
         {cyclesCompleted > 0 && (
-          <p className="text-[10px] font-bold tracking-widest text-[#D4A373] uppercase mb-3">
-            {cyclesCompleted} {cyclesCompleted === 1 ? 'cycle' : 'cycles'} complete
+          <p className="text-[10px] font-bold tracking-[0.3em] text-[#D4A373] uppercase mb-4">
+            {cyclesCompleted} {cyclesCompleted === 1 ? 'round' : 'rounds'} of breath
           </p>
         )}
-        <h2 className="text-3xl font-serif text-[#433422] text-center mb-4 leading-snug">
-          Well<br /><em className="italic text-[#D4A373]">Done.</em>
+
+        <h2 className="text-3xl font-serif text-[#433422] text-center mb-5 leading-snug">
+          Carry this<br /><em className="italic text-[#D4A373]">with you.</em>
         </h2>
-        <p className="text-sm text-[#433422]/45 text-center leading-relaxed mb-10 max-w-[260px]">
-          "Peace I leave with you; my peace I give you." (John 14:27)
+
+        <p className="text-sm font-serif italic text-[#433422]/45 text-center leading-relaxed mb-12 max-w-[270px]">
+          &ldquo;Peace I leave with you; my peace I give you.&rdquo; (John 14:27)
         </p>
+
         <button onClick={onBack}
-          className="w-full max-w-[320px] py-5 bg-[#433422] text-[#FDF9F3] rounded-[28px] text-[11px] font-bold tracking-widest">
+          className="w-full max-w-[320px] py-5 bg-[#433422] text-[#FDF9F3] rounded-[28px] text-[11px] font-bold tracking-widest active:scale-[0.98] transition-transform">
           RETURN
         </button>
       </div>
     );
   }
 
-  // ── Exercise ──────────────────────────────────────────────
+  // ── Breathing ─────────────────────────────────────────────
   return (
     <div className="fixed inset-0 flex flex-col font-sans" style={{ background: BG }}>
-      {/* Header */}
-      <div className="pt-14 px-6 pb-4 flex-shrink-0 flex items-center justify-between">
+      <div className="pt-14 px-6 flex-shrink-0">
         <button onClick={() => { clearInterval(intervalRef.current); onBack(); }}
           className="w-9 h-9 rounded-full bg-white/70 flex items-center justify-center">
           <ArrowLeft size={18} strokeWidth={1.5} color="#433422" />
         </button>
-        <p className="text-[9px] font-bold tracking-[0.35em] text-[#433422]/30 uppercase">Box Breathing</p>
-        <div className="w-9" />
       </div>
 
-      {/* Phase label */}
-      <div className="text-center flex-shrink-0 mb-2">
-        <p key={`phase-${phase}`} className="text-[10px] font-bold tracking-[0.35em] uppercase"
-          style={{ color: PHASE_COLORS[phase], opacity: 0, animation: 'fade-in 0.4s ease-out forwards' }}>
-          {cur.label}
-        </p>
-      </div>
-
-      {/* Orb — takes remaining vertical space, centered */}
       <div className="flex-1 flex flex-col items-center justify-center">
         <div className="relative flex items-center justify-center" style={{ width: 280, height: 280 }}>
-          <div
-            className={cur.isHold ? 'absolute inset-0 rounded-full animate-[holdPulseOuter_2.5s_ease-in-out_infinite]' : 'absolute inset-0 rounded-full'}
-            style={{ border: `1px solid ${PHASE_COLORS[phase]}25`, transform: `scale(${0.88 * activeScale})`, transition: BREATH_TRANSITION }}
-          />
-          <div
-            className={cur.isHold ? 'absolute inset-0 rounded-full animate-[holdPulseInner_2.5s_ease-in-out_infinite]' : 'absolute inset-0 rounded-full'}
-            style={{ border: `1px solid ${PHASE_COLORS[phase]}45`, transform: `scale(${0.72 * activeScale})`, transition: BREATH_TRANSITION }}
-          />
-          <div className="rounded-full flex items-center justify-center"
+
+          {/* A soft ring that swells with the breath. No edge racing anywhere. */}
+          <div className="absolute rounded-full"
+            style={{ width: 280, height: 280, border: `1px solid ${tone}1f`, transform: `scale(${0.74 * activeScale})`, transition: `${BREATH_TRANSITION}, border-color 1.2s ease` }} />
+
+          {/* Holds get one slow bloom rather than a countdown: enough to know the
+              practice is still with you, without asking you to measure anything. */}
+          {cur.hold && (
+            <div key={`bloom-${phaseSeq}`} className="absolute rounded-full"
+              style={{ width: 196, height: 196, border: `1px solid ${tone}`, animation: `holdBloom ${COUNT}s ease-out forwards` }} />
+          )}
+
+          {/* The vessel. Light wells up from the base on the way in and drains on the
+              way out, so the progress marker is a slow tide rather than a timer. */}
+          <div className="relative rounded-full overflow-hidden"
             style={{
               width: 180, height: 180,
-              background: `radial-gradient(circle at 38% 38%, ${PHASE_COLORS[phase]}, ${PHASE_COLORS[phase]}cc)`,
-              boxShadow: `0 8px 60px ${PHASE_COLORS[phase]}45`,
               transform: `scale(${activeScale})`,
-              transition: `${BREATH_TRANSITION}, background 1s ease, box-shadow 1s ease`,
+              transition: BREATH_TRANSITION,
+              boxShadow: `0 8px 56px ${tone}33`,
             }}>
-            <span key={count}
-              className="text-6xl font-serif text-white animate-[countPop_0.35s_cubic-bezier(0.34,1.56,0.64,1)_forwards]">
-              {count}
-            </span>
+            <div style={{ position: 'absolute', inset: 0, background: `radial-gradient(circle at 38% 38%, ${tone}5c, ${tone}38)`, transition: 'background 1.2s ease' }} />
+            <div style={{
+              position: 'absolute', left: 0, right: 0, bottom: 0,
+              height: `${activeFill}%`,
+              background: `linear-gradient(to top, ${tone} 0%, ${tone} calc(100% - 34px), ${tone}00 100%)`,
+              transition: `height ${PHASE_MS}ms ease-in-out, background 1.2s ease`,
+            }} />
+            <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(circle at 38% 32%, rgba(255,255,255,0.26), transparent 58%)' }} />
           </div>
+        </div>
+
+        <div className="text-center mt-12 px-8" style={{ minHeight: 74 }}>
+          <p key={`word-${phaseSeq}`} className="text-2xl font-serif text-[#433422] mb-1.5"
+            style={{ opacity: 0, animation: 'fade-in 0.9s ease-out forwards' }}>
+            {cur.word}
+          </p>
+          <p key={`cue-${phaseSeq}`} className="text-sm font-serif italic text-[#433422]/40"
+            style={{ opacity: 0, animation: 'fade-in 1.1s ease-out 0.15s forwards' }}>
+            {cur.cue}
+          </p>
         </div>
       </div>
 
-      {/* Instruction + button */}
-      <div className="px-8 pb-14 flex-shrink-0 text-center">
-        <p key={`cue-${phase}`} className="text-xl font-serif text-[#433422] mb-1"
-          style={{ opacity: 0, animation: 'fade-in 0.5s ease-out forwards' }}>
-          {cur.cue}
-        </p>
-        <p className="text-[9px] font-bold tracking-[0.25em] uppercase text-[#433422]/30 mb-8">
-          {cur.isHold ? 'hold steady' : 'follow the rhythm'}
-        </p>
+      <div className="px-8 pb-14 flex-shrink-0">
         <button onClick={handleEnd} disabled={saving}
-          className="w-full py-5 bg-[#433422] text-[#FDF9F3] rounded-[28px] text-[11px] font-bold tracking-widest disabled:opacity-50 active:scale-[0.98] transition-transform">
-          {saving ? 'SAVING...' : 'END SESSION'}
+          className="w-full py-4 text-[10px] font-bold tracking-widest uppercase text-[#433422]/35 rounded-[24px] border border-[#433422]/10 disabled:opacity-50 active:scale-[0.98] transition-transform">
+          {saving ? 'Saving…' : 'Finish when you are ready'}
         </button>
       </div>
     </div>

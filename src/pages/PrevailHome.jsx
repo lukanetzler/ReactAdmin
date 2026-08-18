@@ -85,8 +85,15 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
 
   // Dynamic content from Firestore
   const { sessions: pathSessions } = usePathSessions();
-  const { categories } = useCategories();
+  const { categories, loading: categoriesLoading } = useCategories();
   const { cards: allCards, loading: cardsLoading } = useLibraryCards();
+
+  // useLibraryCards returns a fresh array each render, so effects read the cards
+  // through a ref instead of a dependency that would retrigger them every render.
+  const allCardsRef = useRef(allCards);
+  useEffect(() => { allCardsRef.current = allCards; }, [allCards]);
+  const transitionStartRef = useRef(0);
+  const revealTimerRef = useRef(null);
 
   const isGuest = !user || user.isAnonymous;
   const userName = profile?.name || user?.displayName || guestName || 'Friend';
@@ -195,11 +202,52 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
     return () => clearTimeout(t);
   }, [view]);
 
+  // Hold the library shimmer until the content behind it is genuinely ready:
+  // wait for the Firestore query, then warm the cover images, so the real view
+  // paints fully formed instead of filling in under the user's eyes.
   useEffect(() => {
-    if (view !== 'resources-transition') return;
-    const t = setTimeout(() => setView('resources'), 1600);
-    return () => clearTimeout(t);
-  }, [view]);
+    if (view !== 'resources-transition') { transitionStartRef.current = 0; return; }
+    if (!transitionStartRef.current) transitionStartRef.current = Date.now();
+
+    const MIN_MS = 900;   // keep the shimmer long enough to read as intentional
+    const MAX_MS = 5000;  // never trap the user behind a slow or dead network
+    let settled = false;
+
+    const reveal = () => {
+      if (settled) return;
+      settled = true;
+      const elapsed = Date.now() - transitionStartRef.current;
+      revealTimerRef.current = setTimeout(() => setView('resources'), Math.max(0, MIN_MS - elapsed));
+    };
+
+    const hardStop = setTimeout(reveal, MAX_MS);
+
+    if (!cardsLoading && !categoriesLoading) {
+      // Warm the covers most likely to be above the fold; the rest stream in on scroll.
+      const urls = [...new Set(
+        allCardsRef.current.filter(c => c.published).map(c => c.imageUrl).filter(Boolean)
+      )].slice(0, 12);
+
+      if (urls.length === 0) {
+        reveal();
+      } else {
+        let pending = urls.length;
+        const tick = () => { pending -= 1; if (pending <= 0) reveal(); };
+        urls.forEach(src => {
+          const img = new Image();
+          img.onload = tick;
+          img.onerror = tick; // a broken cover must not hold the whole view hostage
+          img.src = src;
+        });
+      }
+    }
+
+    return () => {
+      settled = true;
+      clearTimeout(hardStop);
+      clearTimeout(revealTimerRef.current);
+    };
+  }, [view, cardsLoading, categoriesLoading]);
 
   useEffect(() => {
     if (view === 'resources' && tutorialPending) setTutorialHintVisible(true);
@@ -528,15 +576,53 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
     }
   });
 
+  // Build the share card ahead of the tap. In the Capacitor WebView canvas work and
+  // image decoding can be slow or, occasionally, fire no load/error event at all, which
+  // is what made opening Daily Bread feel unresponsive. Doing it during idle time means
+  // the image is already sitting in memory by the time anyone taps.
+  const shareCardRef = useRef({ verseRef: null, url: '' });
+  useEffect(() => {
+    if (!dailyVerse?.ref) return;
+    if (shareCardRef.current.verseRef === dailyVerse.ref) return;
+    shareCardRef.current.verseRef = dailyVerse.ref;
+
+    let cancelled = false;
+    const build = () => {
+      generateShareCard(dailyVerse)
+        .then(canvas => {
+          if (cancelled) return;
+          let url = '';
+          // A tainted canvas throws here; an empty url just means we share text instead.
+          try { url = canvas.toDataURL('image/png'); } catch { /* keep url empty */ }
+          shareCardRef.current.url = url;
+          setShareImageUrl(prev => prev || url); // never clobber an already-open modal
+        })
+        .catch(() => {});
+    };
+
+    const idle = window.requestIdleCallback;
+    const handle = idle ? idle(build, { timeout: 2000 }) : setTimeout(build, 400);
+    return () => {
+      cancelled = true;
+      if (idle && window.cancelIdleCallback) window.cancelIdleCallback(handle);
+      else clearTimeout(handle);
+    };
+  }, [dailyVerse]);
+
   const handleAmen = () => {
-    // Open immediately so the tap always responds; the image fills in when ready.
-    setShareImageUrl('');
+    // Open immediately. The pre-built card is normally already waiting.
+    const cached = shareCardRef.current.url;
+    if (cached) setShareImageUrl(cached);
     setShowShareModal(true);
+    if (cached) return;
+
+    // Not ready yet (very early tap, or generation failed) so build it on demand.
     generateShareCard(dailyVerse)
       .then(canvas => {
-        let dataUrl = '';
-        try { dataUrl = canvas.toDataURL('image/png'); } catch {}
-        setShareImageUrl(dataUrl);
+        let url = '';
+        try { url = canvas.toDataURL('image/png'); } catch { /* keep url empty */ }
+        shareCardRef.current.url = url;
+        setShareImageUrl(url);
       })
       .catch(() => {});
   };
@@ -3369,7 +3455,12 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
 
         {/* Verse + Streak row — compact */}
         <section className="flex gap-3 items-stretch">
-          <div className="flex-[3] bg-[#433422] text-[#FDF9F3] px-5 py-4 rounded-[24px] relative overflow-hidden flex flex-col justify-between gap-3">
+          <button
+            type="button"
+            onClick={handleAmen}
+            aria-label={`Daily Bread, ${dailyVerse.ref}. Open to share.`}
+            className="flex-[3] bg-[#433422] text-[#FDF9F3] px-5 py-4 rounded-[24px] relative overflow-hidden flex flex-col justify-between gap-3 text-left active:scale-[0.98] transition-transform"
+          >
             <div className="absolute top-[-20px] right-[-20px] w-32 h-32 bg-white/5 rounded-full" />
             <div>
               <p className="text-[9px] tracking-[0.3em] font-bold opacity-50 mb-2">DAILY BREAD</p>
@@ -3377,11 +3468,11 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
             </div>
             <div className="flex justify-between items-center">
               <span className="text-[10px] font-medium opacity-50">{dailyVerse.ref}</span>
-              <button onClick={handleAmen} className="flex items-center gap-1 text-[10px] font-medium text-[#D4A373]/80">
+              <span className="flex items-center gap-1 text-[10px] font-medium text-[#D4A373]/80">
                 Amen <ArrowRight size={12} />
-              </button>
+              </span>
             </div>
-          </div>
+          </button>
           {activeModuleCard ? (
             <button
               onClick={() => setShowJourneyInfo(true)}
