@@ -160,7 +160,7 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
   const trackCompletions = useTrackCompletions(uid, (libraryDetailCard || activeDetailCard)?.id);
   const [detailPathItem, setDetailPathItem] = useState(null); // path item context when popup opened from daily path
   const [activeReadingSession, setActiveReadingSession] = useState(null); // { card, reading, trackIndex, totalReadings, pathItemId }
-  const [supporterLockCard, setSupporterLockCard] = useState(null);
+  const [paywallReturnView, setPaywallReturnView] = useState('account'); // where "back" / a completed purchase should land
   const [rcStatus, setRcStatus] = useState('unknown'); // 'active' | 'inactive' | 'unknown'
 
   // Check RevenueCat entitlement on mount and whenever the user changes
@@ -426,11 +426,8 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
       }
       return;
     }
-    if (card.tier === 'supporter' && !isUserSupporter) {
-      setSupporterLockCard(card);
-      setView('supporter-lock');
-      return;
-    }
+    // Supporter-locked cards still open the normal detail sheet — browsing is
+    // allowed, only starting/playing is gated (handled inside the sheet itself).
     setLibraryDetailCard(card);
   };
 
@@ -1046,6 +1043,7 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
         const todayStr = new Date().toISOString().slice(0, 10);
         const doneToday = !!pathItem && pathItem.completedToday === todayStr && !allTracksComplete;
         const tracks = card.tracks || [];
+        const cardLocked = card.tier === 'supporter' && !isUserSupporter;
 
         return (
           <>
@@ -1079,6 +1077,33 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
                   <p className="text-sm text-[#433422]/60 leading-relaxed px-5 mt-4">{card.description}</p>
                 )}
 
+                {/* Locked message — browsing is always allowed; only starting/playing is gated */}
+                {cardLocked && (
+                  <div className="mx-5 mt-4 flex items-start gap-3 bg-[#D4A373]/10 border border-[#D4A373]/20 rounded-[16px] px-4 py-3.5">
+                    <Crown size={15} className="text-[#D4A373] flex-shrink-0 mt-0.5" />
+                    <p className="text-xs text-[#433422]/60 leading-relaxed">
+                      This journey is supporter content, locked for now. Have a browse, and{' '}
+                      <button
+                        onClick={() => { setLibraryDetailCard(null); setPaywallReturnView('resources'); setView('paywall'); }}
+                        className="font-bold text-[#D4A373] underline underline-offset-2"
+                      >
+                        become a supporter
+                      </button>
+                      {' '}to start walking it.
+                    </p>
+                  </div>
+                )}
+
+                {/* Thank-you note — shown to supporters on the supporter content they've unlocked */}
+                {card.tier === 'supporter' && isUserSupporter && (
+                  <div className="mx-5 mt-4 flex items-start gap-3 bg-[#8E9775]/10 border border-[#8E9775]/20 rounded-[16px] px-4 py-3.5">
+                    <Crown size={15} className="text-[#8E9775] flex-shrink-0 mt-0.5" />
+                    <p className="text-xs text-[#433422]/60 leading-relaxed">
+                      Thank you for being a Prayvail supporter — this journey is part of what your support keeps alive.
+                    </p>
+                  </div>
+                )}
+
                 {/* Add to Path button */}
                 <div className="px-5 mt-4">
                   <motion.button
@@ -1092,13 +1117,11 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
                           setLibraryDetailCard(null);
                         });
                         setShowEndJourneyConfirm(true);
+                      } else if (cardLocked) {
+                        setLibraryDetailCard(null);
+                        setPaywallReturnView('resources');
+                        setView('paywall');
                       } else {
-                        if (card.tier === 'supporter' && !isUserSupporter) {
-                          setLibraryDetailCard(null);
-                          setSupporterLockCard(card);
-                          setView('supporter-lock');
-                          return;
-                        }
                         if (activeModule && activeModuleCard) { setPendingJourneyCard(card); setShowJourneyConflict(true); return; }
                         const extra = isPathDoneToday ? { completedToday: todayISO } : {};
                         await addToPath(uid, card.id, pathItems.length, extra);
@@ -1108,14 +1131,14 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
                     }}
                     className={`w-full flex items-center justify-center gap-2 py-3.5 rounded-[20px] text-xs font-bold tracking-[0.15em] uppercase transition-colors ${
                       isInPath ? 'bg-[#F4EFE6] text-[#433422]/50'
-                      : card.tier === 'supporter' && !isUserSupporter ? 'bg-[#F4EFE6] text-[#433422]/40'
+                      : cardLocked ? 'bg-[#433422] text-[#FDF9F3]'
                       : 'bg-[#D4A373] text-white'
                     }`}
                   >
                     {isInPath
                       ? <span>End This Journey</span>
-                      : card.tier === 'supporter' && !isUserSupporter
-                      ? <><Crown size={13} /><span>Supporter Only</span></>
+                      : cardLocked
+                      ? <><Crown size={13} /><span>Become a Supporter</span></>
                       : <span>Start This Journey</span>}
                   </motion.button>
                 </div>
@@ -1138,7 +1161,11 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
                             key={i}
                             disabled={!canPlay && !canRevisit && !isLockedToday && !isLocked}
                             onClick={() => {
-                              if (canPlay) {
+                              if (cardLocked) {
+                                setLibraryDetailCard(null);
+                                setPaywallReturnView('resources');
+                                setView('paywall');
+                              } else if (canPlay) {
                                 setActiveSession({
                                   title: track.title, audioUrl: track.audioUrl,
                                   cardId: card.id, cardTitle: card.title,
@@ -1329,52 +1356,20 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
     </>
   );
 
-  // ── Supporter Lock ─────────────────────────────────────
+  // ── Paywall ──────────────────────────────────────────────
+  // Supporter-locked content opens the normal detail sheet with an inline message
+  // (see the "Locked message" block above) — this full-screen paywall is only reached
+  // when someone actually chooses to become a supporter, not as an interstitial gate.
   if (view === 'paywall') {
     const handlePurchased = async () => {
       setRcStatus(await getSupporterStatus()); // the sync effect mirrors this to Firestore
-      setView('resources');
+      setView(paywallReturnView);
     };
     return (
       <Paywall
-        onBack={() => setView(supporterLockCard ? 'supporter-lock' : 'account')}
+        onBack={() => setView(paywallReturnView)}
         onPurchased={handlePurchased}
       />
-    );
-  }
-
-  if (view === 'supporter-lock') {
-    const card = supporterLockCard;
-    return (
-      <div className="flex flex-col min-h-screen bg-[#FDF9F3] text-[#433422] font-sans animate-view-enter">
-        <div className="h-[28vh] flex flex-col justify-end px-8 pb-8 relative overflow-hidden" style={{ backgroundColor: card?.color || '#E9DCC9' }}>
-          <div className="absolute inset-0 bg-black/10" />
-          <button onClick={() => setView('resources')} className="relative flex items-center gap-2 text-white/70 mb-6 pt-14">
-            <ArrowLeft size={18} />
-            <span className="text-sm">Back</span>
-          </button>
-          <p className="relative text-[9px] tracking-widest font-bold text-white/60 mb-1">SUPPORTER CONTENT</p>
-          <h1 className="relative text-2xl font-serif text-white">{card?.title}</h1>
-        </div>
-        <div className="flex-1 flex flex-col items-center justify-center px-8 text-center gap-6">
-          <div className="w-16 h-16 rounded-full bg-[#D4A373]/15 flex items-center justify-center">
-            <Crown size={22} className="text-[#D4A373]" />
-          </div>
-          <div>
-            <h2 className="text-xl font-serif mb-2">Supporter Only</h2>
-            <p className="text-sm text-[#433422]/50 leading-relaxed max-w-xs">
-              This content is exclusively for Prayvail Supporters. Support the mission to unlock this and all supporter content.
-            </p>
-          </div>
-          <button
-            onClick={() => setView('paywall')}
-            className="w-full py-4 bg-[#433422] text-[#FDF9F3] rounded-[24px] font-serif text-base active:scale-[0.98] transition-transform"
-          >
-            {isNative() ? 'Become a Supporter' : 'Supporter Plans Coming Soon'}
-          </button>
-          <button onClick={() => setView('resources')} className="text-sm text-[#433422]/40">Go back</button>
-        </div>
-      </div>
     );
   }
 
@@ -2426,7 +2421,7 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
                 </p>
                   <div className="space-y-2">
                     <button
-                      onClick={() => setView('paywall')}
+                      onClick={() => { setPaywallReturnView('account'); setView('paywall'); }}
                       className="w-full py-3.5 bg-[#D4A373] text-white rounded-[16px] text-xs font-bold tracking-widest flex items-center justify-center gap-2 active:scale-[0.98] transition-transform"
                     >
                       <Crown size={13} /> VIEW PLANS
@@ -2988,6 +2983,7 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
                     {...s}
                     horizontal
                     completed={true}
+                    locked={s.tier === 'supporter' && !isUserSupporter}
                     duration={s._completedAt
                       ? `Walked ${new Date(s._completedAt).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}`
                       : s.duration}
@@ -3019,6 +3015,7 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
                         horizontal
                         inPath={isInPath}
                         completed={completedHistory.has(s.id)}
+                        locked={s.tier === 'supporter' && !isUserSupporter}
                         onClick={() => handleCardTap(s)}
                       />
                     </div>
@@ -3133,6 +3130,7 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
                                 {...s}
                                 inPath={isInPath}
                                 completed={completedHistory.has(s.id)}
+                                locked={s.tier === 'supporter' && !isUserSupporter}
                                 onClick={() => handleCardTap(s)}
                               />
                             </div>
@@ -3400,13 +3398,16 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
               </div>
             </section>
 
-            {/* ── Meditation Selector (Life Box + Twilight Space) ── */}
+            {/* ── Meditation Selector (Life Box + Twilight Space) — supporter only ── */}
             <MeditationSelector
+              locked={!isUserSupporter}
               onSelectLife={(card) => {
+                if (!isUserSupporter) { setPaywallReturnView('explore'); setView('paywall'); return; }
                 setInitialSpaceCard(card);
                 setView('lifebox-transition');
               }}
               onSelectTwilight={(card) => {
+                if (!isUserSupporter) { setPaywallReturnView('explore'); setView('paywall'); return; }
                 setInitialSpaceCard(card);
                 setView('twilight-transition');
               }}

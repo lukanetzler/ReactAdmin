@@ -1,4 +1,17 @@
-export default function MeditationSelector({ onSelectLife, onSelectTwilight }) {
+function LockNote({ dark = false }) {
+  return (
+    <div className="flex items-center gap-1" style={{ marginTop: 6, position: 'relative', zIndex: 1 }}>
+      <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke={dark ? 'rgba(253,249,243,0.55)' : 'rgba(67,52,34,0.4)'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />
+      </svg>
+      <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 7.5, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 700, color: dark ? 'rgba(253,249,243,0.55)' : 'rgba(67,52,34,0.4)' }}>
+        Supporter
+      </span>
+    </div>
+  );
+}
+
+export default function MeditationSelector({ onSelectLife, onSelectTwilight, locked = false }) {
   return (
     <section>
       <div className="relative overflow-hidden rounded-[28px] select-none" style={{ aspectRatio: '1 / 1' }}>
@@ -10,6 +23,7 @@ export default function MeditationSelector({ onSelectLife, onSelectTwilight }) {
             background: 'linear-gradient(180deg,#FDF9F3 0%,#F0E8DC 100%)',
             clipPath: 'polygon(0 0,100% 0,100% 42%,0 58%)',
             paddingTop: 60,
+            opacity: locked ? 0.75 : 1,
           }}>
 
           {/* Botanical texture */}
@@ -54,6 +68,7 @@ export default function MeditationSelector({ onSelectLife, onSelectTwilight }) {
             </g>
           </svg>
           <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, letterSpacing: '0.35em', textTransform: 'uppercase', color: '#D4A373', fontWeight: 700, position: 'relative', zIndex: 1 }}>The Garden of Life</span>
+          {locked && <LockNote />}
         </div>
 
         {/* Night half — Twilight Space */}
@@ -63,6 +78,7 @@ export default function MeditationSelector({ onSelectLife, onSelectTwilight }) {
             background: 'linear-gradient(180deg,#3a2e1e 0%,#433422 100%)',
             clipPath: 'polygon(0 58%,100% 42%,100% 100%,0 100%)',
             paddingBottom: 60,
+            opacity: locked ? 0.75 : 1,
           }}>
           {[[52, 120],[228, 95],[170, 140],[96, 160],[290, 130]].map(([l, b], i) => (
             <div key={i} style={{ position: 'absolute', left: l, bottom: b, width: i % 2 === 0 ? 6 : 4, height: i % 2 === 0 ? 6 : 4, borderRadius: '50%', backgroundColor: '#FDF9F3', opacity: 0.55 + i * 0.08 }} />
@@ -71,6 +87,7 @@ export default function MeditationSelector({ onSelectLife, onSelectTwilight }) {
             <path d="M38 8 C26 10 17 21 17 34 C17 47 27 57 40 58 C29 60 17 55 10 45 C2 33 5 17 17 8 C23 4 31 3 38 8 Z" fill="#FDF9F3" />
           </svg>
           <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, letterSpacing: '0.35em', textTransform: 'uppercase', color: '#D4A373', fontWeight: 700, position: 'relative', zIndex: 1 }}>The Night Sky</span>
+          {locked && <LockNote dark />}
         </div>
 
         {/* Diagonal divider */}

@@ -1,10 +1,14 @@
 import { useRef } from 'react';
-import { Lock, ChevronRight } from 'lucide-react';
+import { Lock, Unlock, ChevronRight } from 'lucide-react';
 
 const ResourceCard = ({
   title, label, duration, color = '#E9DCC9', imageUrl = '',
   blank = false, coming = false,
   type = 'single', tier = 'free',
+  // `locked` is supplied by the caller (it depends on the viewer's supporter status,
+  // which this component has no way to know on its own) — tier alone only tells us
+  // the card IS supporter content, not whether THIS viewer is blocked from it.
+  locked = false,
   inPath = false, completed = false,
   horizontal = false,
   onClick,
@@ -21,13 +25,13 @@ const ResourceCard = ({
     );
   }
 
-  const isSupporter = tier === 'supporter';
+  const isSupporterContent = tier === 'supporter';
 
   if (horizontal) {
     return (
       <div
         onClick={onClick}
-        className={`flex rounded-[16px] overflow-hidden select-none transition-transform ${onClick ? 'active:scale-[0.98] cursor-pointer' : ''} ${isSupporter ? 'opacity-60' : ''}`}
+        className={`flex rounded-[16px] overflow-hidden select-none transition-transform ${onClick ? 'active:scale-[0.98] cursor-pointer' : ''} ${locked ? 'opacity-60' : ''}`}
       >
         {/* Left accent bar when in path */}
         {inPath && <div className="w-1 flex-shrink-0 bg-[#D4A373]" />}
@@ -47,10 +51,14 @@ const ResourceCard = ({
         </div>
         {/* Right side */}
         <div className={`flex items-center pr-4 pl-2 gap-1.5 ${inPath ? 'bg-[#EDE8DF]' : 'bg-[#F4EFE6]'}`}>
-          {completed && !coming && !isSupporter && (
+          {completed && !coming && !locked && (
             <span className="text-[8px] font-bold text-[#8E9775]">✓</span>
           )}
-          {isSupporter && <Lock size={9} className="text-[#433422]/30" />}
+          {isSupporterContent && (
+            locked
+              ? <Lock size={9} className="text-[#433422]/30" />
+              : <Unlock size={9} className="text-[#8E9775]/70" />
+          )}
           <ChevronRight size={14} className="text-[#433422]/20" />
         </div>
       </div>
@@ -63,7 +71,7 @@ const ResourceCard = ({
       onTouchStart={() => { longPressTimer.current = setTimeout(() => {}, 500); }}
       onTouchEnd={() => clearTimeout(longPressTimer.current)}
       onTouchMove={() => clearTimeout(longPressTimer.current)}
-      className={`aspect-square rounded-[20px] overflow-hidden relative transition-transform select-none ${onClick ? 'active:scale-[0.97] cursor-pointer' : ''} ${isSupporter ? 'opacity-60' : ''}`}
+      className={`aspect-square rounded-[20px] overflow-hidden relative transition-transform select-none ${onClick ? 'active:scale-[0.97] cursor-pointer' : ''} ${locked ? 'opacity-60' : ''}`}
       style={{ backgroundColor: color }}
     >
       {imageUrl && <img src={imageUrl} alt="" className="absolute inset-0 w-full h-full object-cover" />}
@@ -73,25 +81,27 @@ const ResourceCard = ({
       {inPath && <div className="absolute inset-0 bg-[#D4A373]/15" />}
 
       {/* Linen wash on completed cards — signals "been here before" */}
-      {completed && !coming && !isSupporter && !inPath && (
+      {completed && !coming && !locked && !inPath && (
         <div className="absolute inset-0 bg-[#FDF9F3]/25" />
       )}
 
-      {isSupporter && (
+      {isSupporterContent && (
         <div className="absolute top-2.5 right-2.5 z-10 w-5 h-5 rounded-full bg-black/20 backdrop-blur-sm flex items-center justify-center">
-          <Lock size={9} className="text-white/80" />
+          {locked
+            ? <Lock size={9} className="text-white/80" />
+            : <Unlock size={9} className="text-white/80" />}
         </div>
       )}
-      {(coming || isSupporter || completed) && (
+      {(coming || isSupporterContent || completed) && (
         <div className="absolute top-2.5 left-2.5 z-10">
-          <span className={`text-[8px] font-bold tracking-widest backdrop-blur-sm px-2 py-1 rounded-full ${completed && !coming && !isSupporter ? 'bg-[#8E9775]/70 text-white' : 'bg-black/20 text-white/80'}`}>
-            {completed && !coming && !isSupporter ? '✓ DONE' : isSupporter ? 'SUPPORTER' : 'SOON'}
+          <span className={`text-[8px] font-bold tracking-widest backdrop-blur-sm px-2 py-1 rounded-full ${completed && !coming && !locked ? 'bg-[#8E9775]/70 text-white' : 'bg-black/20 text-white/80'}`}>
+            {completed && !coming && !locked ? '✓ DONE' : isSupporterContent ? 'SUPPORTER' : 'SOON'}
           </span>
         </div>
       )}
 
       {/* "On your path" badge — top-right, only when not occupied by other badges */}
-      {inPath && !coming && !isSupporter && (
+      {inPath && !coming && !locked && (
         <div className="absolute top-2.5 right-2.5 z-10">
           <span className="text-[8px] font-bold tracking-widest px-2 py-1 rounded-full bg-[#D4A373] text-white">
             CURRENT JOURNEY
