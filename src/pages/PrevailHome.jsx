@@ -13,7 +13,7 @@ import { useDailyPath } from '../hooks/useDailyPath';
 import { addJournalEntry, updateJournalEntry, deleteJournalEntry, addJourneyEvent } from '../services/journal';
 import { updateUserProfile } from '../services/userProfile';
 import { addToPath, removeFromPath, completeTrackForDay, dismissBroadcast, completePathItem, recordCompletion, recordStreakDay } from '../services/dailyPath';
-import { checkIsSupporter, presentCustomerCenter, restorePurchases, isNative } from '../services/purchases';
+import { getSupporterStatus, presentCustomerCenter, restorePurchases, isNative } from '../services/purchases';
 import { syncNotifications, openNotificationSettings } from '../services/notifications';
 import Paywall from '../components/Paywall';
 import PrivacyPolicyModal from '../components/PrivacyPolicyModal';
@@ -104,10 +104,6 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
   const [nameError, setNameError] = useState('');
   useEffect(() => { setNameInput(profile?.name || user?.displayName || ''); }, [profile, user]);
 
-  // Check RevenueCat entitlement on mount and whenever the user changes
-  useEffect(() => {
-    checkIsSupporter().then(setRcIsSupporter).catch(() => {});
-  }, [user?.uid]);
   const notifDailyVerse = profile?.notifDailyVerse ?? true;
   const notifReflection = profile?.notifReflection ?? true;
   // Optimistic overrides so a toggle moves instantly instead of waiting on the Firestore
@@ -165,7 +161,27 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
   const [detailPathItem, setDetailPathItem] = useState(null); // path item context when popup opened from daily path
   const [activeReadingSession, setActiveReadingSession] = useState(null); // { card, reading, trackIndex, totalReadings, pathItemId }
   const [supporterLockCard, setSupporterLockCard] = useState(null);
-  const [rcIsSupporter, setRcIsSupporter] = useState(false);
+  const [rcStatus, setRcStatus] = useState('unknown'); // 'active' | 'inactive' | 'unknown'
+
+  // Check RevenueCat entitlement on mount and whenever the user changes
+  useEffect(() => {
+    getSupporterStatus().then(setRcStatus).catch(() => setRcStatus('unknown'));
+  }, [user?.uid]);
+
+  // Keep the Firestore mirror in step with RevenueCat, in BOTH directions. The
+  // downgrade half is the important one: nothing else in the app ever writes `role`
+  // back, so without it a lapsed subscription would keep full access forever.
+  useEffect(() => {
+    if (!user?.uid || user.isAnonymous) return;
+    if (!profile) return;                  // wait for the profile to load
+    if (profile.role === 'admin') return;  // never touch an admin
+    if (rcStatus === 'unknown') return;    // never act on an inconclusive check
+
+    const shouldBe = rcStatus === 'active' ? 'supporter' : 'user';
+    if (profile.role === shouldBe) return;
+    updateUserProfile(user.uid, { role: shouldBe }).catch(() => {});
+  }, [user?.uid, user?.isAnonymous, profile, rcStatus]);
+
   const [pathToast, setPathToast] = useState(null); // { message, id }
   const [togglingCardIds, setTogglingCardIds] = useState(new Set());
   const [viewingModuleId, setViewingModuleId] = useState(null);
@@ -384,7 +400,15 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
     return `${m}:${Math.floor(s % 60).toString().padStart(2, '0')}`;
   };
 
-  const isUserSupporter = profile?.role === 'supporter' || profile?.role === 'admin' || rcIsSupporter;
+  // RevenueCat is the source of truth wherever it can be reached. The Firestore role
+  // is only a mirror of it, used on web (no RC SDK) and while a check is in flight.
+  // A definitive 'inactive' revokes, so a lapsed or refunded subscription stops
+  // granting access; 'unknown' deliberately falls back rather than locking anyone out.
+  const isUserSupporter =
+    profile?.role === 'admin' ? true
+    : rcStatus === 'active' ? true
+    : rcStatus === 'inactive' ? false
+    : profile?.role === 'supporter';
 
   const isTutorialStarterCard = (card) => card.title?.toLowerCase().includes('first steps');
 
@@ -984,7 +1008,7 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
       {/* Journey info sheet */}
       {showJourneyInfo && activeModuleCard && (
         <>
-          <div className="fixed inset-0 bg-black/40 z-[59]" onClick={() => setShowJourneyInfo(false)} />
+          <div className="fixed inset-0 bg-black/40 z-[59]" style={journeyInfoSwipe.backdropStyle} onClick={() => setShowJourneyInfo(false)} />
           <div className="fixed inset-x-0 bottom-0 z-[60] bg-[#FDF9F3] rounded-t-[32px] max-h-[75vh] flex flex-col overflow-y-auto animate-sheet-enter" style={journeyInfoSwipe.sheetStyle}>
             <div className="px-5 pt-4 pb-2 flex-shrink-0 flex justify-center" {...journeyInfoSwipe.handleProps}>
               <div className="w-10 h-1 rounded-full bg-[#433422]/10" />
@@ -1026,7 +1050,7 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
         return (
           <>
             {/* Backdrop */}
-            <div className="fixed inset-0 bg-black/40 z-[59]" onClick={() => setLibraryDetailCard(null)} />
+            <div className="fixed inset-0 bg-black/40 z-[59]" style={libraryDetailSwipe.backdropStyle} onClick={() => setLibraryDetailCard(null)} />
 
             {/* Sheet */}
             <div className="fixed inset-x-0 bottom-0 z-[60] bg-[#FDF9F3] rounded-t-[32px] max-h-[88vh] flex flex-col animate-sheet-enter font-sans text-[#433422]" style={libraryDetailSwipe.sheetStyle}>
@@ -1180,7 +1204,7 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
       {/* End journey confirmation — mindful pause */}
       {showEndJourneyConfirm && (
         <>
-          <div className="fixed inset-0 bg-black/40 z-[69]" onClick={() => { setShowEndJourneyConfirm(false); setPendingEndAction(null); }} />
+          <div className="fixed inset-0 bg-black/40 z-[69]" style={endJourneySwipe.backdropStyle} onClick={() => { setShowEndJourneyConfirm(false); setPendingEndAction(null); }} />
           <div className="fixed inset-x-0 bottom-0 z-[70] bg-[#FDF9F3] rounded-t-[32px] animate-sheet-enter font-sans text-[#433422]" style={endJourneySwipe.sheetStyle}>
             <div className="flex justify-center pt-3 pb-1" {...endJourneySwipe.handleProps}>
               <div className="w-10 h-1 bg-[#433422]/20 rounded-full" />
@@ -1218,7 +1242,7 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
       {/* Locked day sheet */}
       {showLockedDaySheet && (
         <>
-          <div className="fixed inset-0 bg-black/40 z-[69]" onClick={() => setShowLockedDaySheet(false)} />
+          <div className="fixed inset-0 bg-black/40 z-[69]" style={lockedDaySwipe.backdropStyle} onClick={() => setShowLockedDaySheet(false)} />
           <div className="fixed inset-x-0 bottom-0 z-[70] bg-[#FDF9F3] rounded-t-[32px] animate-sheet-enter font-sans text-[#433422]" style={lockedDaySwipe.sheetStyle}>
             <div className="flex justify-center pt-3 pb-1" {...lockedDaySwipe.handleProps}>
               <div className="w-10 h-1 bg-[#433422]/20 rounded-full" />
@@ -1261,7 +1285,7 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
       {/* Journey conflict — mindful redirect */}
       {showJourneyConflict && (
         <>
-          <div className="fixed inset-0 bg-black/40 z-[69]" onClick={() => { setShowJourneyConflict(false); setPendingJourneyCard(null); }} />
+          <div className="fixed inset-0 bg-black/40 z-[69]" style={journeyConflictSwipe.backdropStyle} onClick={() => { setShowJourneyConflict(false); setPendingJourneyCard(null); }} />
           <div className="fixed inset-x-0 bottom-0 z-[70] bg-[#FDF9F3] rounded-t-[32px] animate-sheet-enter font-sans text-[#433422]" style={journeyConflictSwipe.sheetStyle}>
             <div className="flex justify-center pt-3 pb-1" {...journeyConflictSwipe.handleProps}>
               <div className="w-10 h-1 bg-[#433422]/20 rounded-full" />
@@ -1308,9 +1332,7 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
   // ── Supporter Lock ─────────────────────────────────────
   if (view === 'paywall') {
     const handlePurchased = async () => {
-      const isNowSupporter = await checkIsSupporter();
-      setRcIsSupporter(isNowSupporter);
-      if (isNowSupporter) await updateUserProfile(user?.uid, { role: 'supporter' });
+      setRcStatus(await getSupporterStatus()); // the sync effect mirrors this to Firestore
       setView('resources');
     };
     return (
@@ -2200,10 +2222,9 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
                   drag="y"
                   dragListener={false}
                   dragControls={viewingEntryDragControls}
-                  dragConstraints={{ top: 0, bottom: 0 }}
-                  dragElastic={{ top: 0, bottom: 0.6 }}
+                  dragConstraints={{ top: 0 }} dragElastic={0}
                   onDragEnd={(_, info) => {
-                    if (info.offset.y > 90 || info.velocity.y > 600) setViewingEntry(null);
+                    if (info.offset.y > 90 || info.velocity.y > 500) setViewingEntry(null);
                   }}
                 >
                   <div className="w-10 h-1 bg-[#433422]/10 rounded-full mx-auto mt-4 mb-5"
@@ -2388,9 +2409,8 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
                     </button>
                     <button
                       onClick={async () => {
-                        const restored = await restorePurchases();
-                        setRcIsSupporter(restored);
-                        if (restored) await updateUserProfile(user?.uid, { role: 'supporter' });
+                        await restorePurchases();
+                        setRcStatus(await getSupporterStatus());
                       }}
                       className="w-full py-3 text-[#433422]/40 text-xs font-bold tracking-widest"
                     >
@@ -2414,9 +2434,8 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
                     {isNative() && (
                     <button
                       onClick={async () => {
-                        const restored = await restorePurchases();
-                        setRcIsSupporter(restored);
-                        if (restored) await updateUserProfile(user?.uid, { role: 'supporter' });
+                        await restorePurchases();
+                        setRcStatus(await getSupporterStatus());
                       }}
                       className="w-full py-2.5 text-[#433422]/40 text-xs font-bold tracking-widest"
                     >
@@ -2699,7 +2718,7 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
 
       {showEmailForm && (
         <>
-          <div className="fixed inset-0 bg-black/40 z-[80]" onClick={() => setShowEmailForm(false)} />
+          <div className="fixed inset-0 bg-black/40 z-[80]" style={emailFormSwipe.backdropStyle} onClick={() => setShowEmailForm(false)} />
           <div className="fixed inset-x-0 bottom-0 z-[81] bg-[#FDF9F3] rounded-t-[32px] animate-sheet-enter font-sans text-[#433422]" style={emailFormSwipe.sheetStyle}>
             <div className="flex justify-center pt-3 pb-1" {...emailFormSwipe.handleProps}><div className="w-10 h-1 bg-[#433422]/20 rounded-full" /></div>
             <div className="px-7 pt-3 pb-10 space-y-4">
@@ -2733,7 +2752,7 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
       )}
       {showPasswordForm && (
         <>
-          <div className="fixed inset-0 bg-black/40 z-[80]" onClick={() => setShowPasswordForm(false)} />
+          <div className="fixed inset-0 bg-black/40 z-[80]" style={passwordFormSwipe.backdropStyle} onClick={() => setShowPasswordForm(false)} />
           <div className="fixed inset-x-0 bottom-0 z-[81] bg-[#FDF9F3] rounded-t-[32px] animate-sheet-enter font-sans text-[#433422]" style={passwordFormSwipe.sheetStyle}>
             <div className="flex justify-center pt-3 pb-1" {...passwordFormSwipe.handleProps}><div className="w-10 h-1 bg-[#433422]/20 rounded-full" /></div>
             <div className="px-7 pt-3 pb-10 space-y-3">
@@ -3805,7 +3824,7 @@ const PrevailHome = ({ user, guestName, profile, profileUnsubRef, onOpenAdmin, o
 
       {/* Share modal */}
       {showShareModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex flex-col justify-end">
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex flex-col justify-end" style={shareModalSwipe.backdropStyle}>
           <div className="bg-[#FDF9F3] rounded-t-[40px] px-6 pt-7 pb-12" style={shareModalSwipe.sheetStyle}>
             <div className="w-10 h-1 bg-[#433422]/15 rounded-full mx-auto mb-6" {...shareModalSwipe.handleProps} />
             <p className="text-[10px] tracking-[0.3em] font-bold text-[#433422]/40 text-center mb-5">SHARE VERSE</p>

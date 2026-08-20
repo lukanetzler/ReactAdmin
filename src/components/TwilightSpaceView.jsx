@@ -509,8 +509,8 @@ export default function TwilightSpaceView({ onBack, user, initialCard = null, on
               transition={{ type: 'spring', stiffness: 320, damping: 34 }}
               onClick={e => e.stopPropagation()}
               drag="y" dragListener={false} dragControls={typeInfoDragControls}
-              dragConstraints={{ top: 0, bottom: 0 }} dragElastic={{ top: 0, bottom: 0.6 }}
-              onDragEnd={(_, info) => { if (info.offset.y > 90 || info.velocity.y > 600) setShowTypeInfo(false); }}>
+              dragConstraints={{ top: 0 }} dragElastic={0}
+              onDragEnd={(_, info) => { if (info.offset.y > 90 || info.velocity.y > 500) setShowTypeInfo(false); }}>
               <div className="w-10 h-1 rounded-full mx-auto mt-4 mb-1"
                 style={{ backgroundColor: 'rgba(212,163,115,0.2)', touchAction: 'none' }}
                 onPointerDown={e => typeInfoDragControls.start(e)} />
@@ -558,8 +558,8 @@ export default function TwilightSpaceView({ onBack, user, initialCard = null, on
               transition={{ type: 'spring', stiffness: 320, damping: 34 }}
               onClick={e => e.stopPropagation()}
               drag="y" dragListener={false} dragControls={cardSheetDragControls}
-              dragConstraints={{ top: 0, bottom: 0 }} dragElastic={{ top: 0, bottom: 0.6 }}
-              onDragEnd={(_, info) => { if (info.offset.y > 90 || info.velocity.y > 600) setSelectedCard(null); }}>
+              dragConstraints={{ top: 0 }} dragElastic={0}
+              onDragEnd={(_, info) => { if (info.offset.y > 90 || info.velocity.y > 500) setSelectedCard(null); }}>
               <div className="w-10 h-1 rounded-full mx-auto mt-4 mb-1"
                 style={{ backgroundColor: 'rgba(212,163,115,0.2)', touchAction: 'none' }}
                 onPointerDown={e => cardSheetDragControls.start(e)} />

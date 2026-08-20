@@ -2,13 +2,23 @@ import { Capacitor } from '@capacitor/core';
 import { Purchases, LOG_LEVEL } from '@revenuecat/purchases-capacitor';
 import { RevenueCatUI, PAYWALL_RESULT } from '@revenuecat/purchases-capacitor-ui';
 
+// Public RevenueCat SDK keys. These are designed to ship inside the client binary,
+// so they live in source rather than .env — that keeps a fresh clone buildable and
+// avoids the iOS/Android split that previously had one key here and one in .env.
 const IOS_KEY = 'appl_JAWIKFkSQyNwQzxvBCXxvcopfEI';
-const ANDROID_KEY = import.meta.env.VITE_RC_ANDROID_KEY ?? '';
-const ENTITLEMENT_ID = 'PrayVail Supporter';
+const ANDROID_KEY = 'goog_hQLSakLSMNbbvATbLQtURPPHzxO';
+
+// Optional escape hatch for RevenueCat's Test Store. Put VITE_RC_TEST_KEY=test_…
+// in .env to point every platform at the sandbox, and remove it to go back to the
+// real stores. Editing this file to switch is what caused the stale-key confusion.
+const TEST_KEY = import.meta.env.VITE_RC_TEST_KEY ?? '';
+
+const ENTITLEMENT_ID = 'Prayvail Supporter';
 
 export const isNative = () => Capacitor.isNativePlatform();
 
 function getApiKey() {
+  if (TEST_KEY) return TEST_KEY;
   return Capacitor.getPlatform() === 'android' ? ANDROID_KEY : IOS_KEY;
 }
 
@@ -32,16 +42,30 @@ export async function initializePurchases(userId) {
 }
 
 /**
- * Returns true if the current user has an active "PrayVail Supporter" entitlement.
+ * Tri-state entitlement check: 'active' | 'inactive' | 'unknown'.
+ *
+ * The distinction matters. A transient network or RevenueCat error must never be
+ * mistaken for a lapsed subscription, or we would revoke access from someone who
+ * is paying. Only 'inactive' is a definitive "not a supporter". On web there is no
+ * RevenueCat SDK at all, so the honest answer is always 'unknown'.
  */
-export async function checkIsSupporter() {
-  if (!isNative()) return false;
+export async function getSupporterStatus() {
+  if (!isNative()) return 'unknown';
   try {
     const { customerInfo } = await Purchases.getCustomerInfo();
-    return typeof customerInfo.entitlements.active[ENTITLEMENT_ID] !== 'undefined';
+    return typeof customerInfo.entitlements.active[ENTITLEMENT_ID] !== 'undefined'
+      ? 'active'
+      : 'inactive';
   } catch {
-    return false;
+    return 'unknown';
   }
+}
+
+/**
+ * Returns true only if the entitlement is definitively active.
+ */
+export async function checkIsSupporter() {
+  return (await getSupporterStatus()) === 'active';
 }
 
 /**
@@ -91,11 +115,36 @@ const DEV_MOCK_PACKAGES = [
 export async function getOfferings() {
   if (!isNative()) return DEV_MOCK_PACKAGES;
   try {
-    const { offerings } = await Purchases.getOfferings();
-    const current = offerings.current;
-    if (!current) return [];
-    return current.availablePackages ?? [];
-  } catch {
+    // NOTE: getOfferings() resolves to PurchasesOfferings DIRECTLY ({ all, current }).
+    // It is not wrapped in { offerings } the way getCustomerInfo/restorePurchases are.
+    // Destructuring it as { offerings } yields undefined and throws on the next line.
+    const offerings = await Purchases.getOfferings();
+
+    // `offerings.current` is whichever offering is flagged **Current** in the
+    // RevenueCat dashboard. A freshly created offering is NOT current until you
+    // mark it, which otherwise shows users an empty paywall over what is really
+    // just a dashboard setting. So fall back to any offering that has packages.
+    const all = Object.values(offerings.all ?? {});
+    const chosen =
+      (offerings.current?.availablePackages?.length ? offerings.current : null)
+      ?? all.find(o => o?.availablePackages?.length)
+      ?? null;
+
+    if (!chosen) {
+      const summary = all.length
+        ? all.map(o => `${o.identifier}(${o.availablePackages?.length ?? 0} pkgs)`).join(', ')
+        : '(no offerings returned at all)';
+      console.warn('[RC] no offering with packages —', summary);
+      return [];
+    }
+
+    if (!offerings.current) {
+      console.warn(`[RC] no Current offering set; falling back to "${chosen.identifier}". Mark it Current in RevenueCat.`);
+    }
+    return chosen.availablePackages ?? [];
+  } catch (e) {
+    // Previously swallowed, which made a misconfigured paywall impossible to debug.
+    console.warn('[RC] getOfferings failed:', e);
     return [];
   }
 }

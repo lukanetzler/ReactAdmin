@@ -1,0 +1,69 @@
+rules_version = '2';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PROPOSED Firestore rules for Prayvail.
+//
+// These are written from the access patterns in the app, NOT copied from the
+// live project. Diff them against Firebase Console > Firestore > Rules before
+// deploying, and use the Rules Playground to test, or you risk locking users out
+// of their own data.
+//
+// The rule that matters most for revenue is roleIsNotEscalated() on users/{uid}.
+// Everything the app writes to `role` is client-side, so without it a user can
+// set their own role to 'admin' straight against the Firestore API and unlock
+// both supporter content and the admin dashboard.
+// ─────────────────────────────────────────────────────────────────────────────
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function isAdmin() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // A client may only ever hold or self-assign 'user' or 'supporter'.
+    // 'admin' can be kept if already held, but never granted from the client.
+    function roleIsNotEscalated() {
+      return !('role' in request.resource.data)
+        || request.resource.data.role in ['user', 'supporter']
+        || (resource != null && request.resource.data.role == resource.data.role);
+    }
+
+    // ── Content ──────────────────────────────────────────────────────────────
+    // Readable by any signed-in user, which includes the anonymous sessions
+    // guests get. If anonymous sign-in ever fails, guests see an empty library —
+    // if you would rather that never happen, relax this to `if true`. The content
+    // is not secret; the client already downloads every card it is allowed to
+    // list, and supporter gating happens in the UI.
+    match /content/{document=**} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    // ── User profile ─────────────────────────────────────────────────────────
+    match /users/{uid} {
+      allow read:   if isOwner(uid) || isAdmin();
+      allow create: if isOwner(uid) && roleIsNotEscalated();
+      allow update: if (isOwner(uid) && roleIsNotEscalated()) || isAdmin();
+      allow delete: if isOwner(uid) || isAdmin();
+
+      // ── Everything under a user belongs solely to that user ────────────────
+      // dailyPath, journalEntries, completionHistory, trackCompletions, streakDays
+      match /{sub=**} {
+        allow read, write: if isOwner(uid) || isAdmin();
+      }
+    }
+
+    // Anything not matched above is denied by default.
+  }
+}

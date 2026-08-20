@@ -1,7 +1,7 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.prayvail.app',
+  appId: 'org.prayvail.app',
   appName: 'Prayvail',
   webDir: 'dist',
   server: {

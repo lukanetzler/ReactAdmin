@@ -206,8 +206,8 @@ export default function AppTour({ onClose, onComplete }) {
         transition={{ type: 'spring', stiffness: 300, damping: 34 }}
         onClick={e => e.stopPropagation()}
         drag="y" dragListener={false} dragControls={dragControls}
-        dragConstraints={{ top: 0, bottom: 0 }} dragElastic={{ top: 0, bottom: 0.6 }}
-        onDragEnd={(_, info) => { if (info.offset.y > 90 || info.velocity.y > 600) onClose(); }}
+        dragConstraints={{ top: 0 }} dragElastic={0}
+        onDragEnd={(_, info) => { if (info.offset.y > 90 || info.velocity.y > 500) onClose(); }}
       >
         {/* Handle */}
         <div className="w-10 h-1 bg-[#433422]/10 rounded-full mx-auto mt-4"
